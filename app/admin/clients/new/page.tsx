@@ -1,0 +1,302 @@
+// app/admin/clients/new/page.tsx
+"use client";
+
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  createClient,
+  fetchServiceCenters,
+  fetchCPAs,
+  fetchStagesList,
+} from "@/lib/api";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import useSWR from "swr";
+import { Plus, X } from "lucide-react";
+
+const Schema = z.object({
+  client_name: z.string().min(2, "Company name required"),
+  primary_contact_name: z.string().min(2, "Contact name required"),
+  primary_contact_email: z.string().email("Valid email required"),
+  service_center_id: z.string().optional(),
+  cpa_id: z.string().optional(),
+  stage_id: z.string().optional(),
+});
+
+type AssociatedUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "Client User" | "Service Center User" | "CPA User";
+};
+
+export default function NewClientPage() {
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [associatedUsers, setAssociatedUsers] = useState<AssociatedUser[]>([]);
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    role: "Client User" as const,
+  });
+
+  /* ------------------- FETCH SQL DATA ------------------- */
+  const { data: serviceCenters } = useSWR("service-centers-list", fetchServiceCenters);
+  const { data: cpas } = useSWR("cpas-list", fetchCPAs);
+  const { data: stages } = useSWR("stages-master-list", fetchStagesList);
+
+  const form = useForm<z.infer<typeof Schema>>({
+    resolver: zodResolver(Schema),
+    defaultValues: {
+      client_name: "",
+      primary_contact_name: "",
+      primary_contact_email: "",
+      service_center_id: "",
+      cpa_id: "",
+      stage_id: "",
+    },
+  });
+
+  /* ------------------- ADD USER ------------------- */
+  function addUser() {
+    if (!newUser.name.trim() || !newUser.email.trim()) {
+      toast({
+        title: "Error",
+        description: "Name and email required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAssociatedUsers([...associatedUsers, { id: `user-${Date.now()}`, ...newUser }]);
+    setNewUser({ name: "", email: "", role: "Client User" });
+  }
+
+  /* ------------------- REMOVE USER ------------------- */
+  function removeUser(id: string) {
+    setAssociatedUsers(associatedUsers.filter((u) => u.id !== id));
+  }
+
+  /* ------------------- SUBMIT FORM ------------------- */
+  async function onSubmit(values: z.infer<typeof Schema>) {
+    try {
+      setIsSubmitting(true);
+
+      const res = await createClient({
+        clientName: values.client_name,
+        primaryContactName: values.primary_contact_name,
+        primaryContactEmail: values.primary_contact_email,
+
+        // 👇 FIXED FIELD NAME & VALUE
+        service_center_id: Number(values.service_center_id) || null,
+
+        cpaId: Number(values.cpa_id) || null,
+        stageId: Number(values.stage_id) || null,
+        associatedUsers,
+      });
+
+      toast({
+        title: "Client Created",
+        description: "New client added successfully",
+      });
+
+      router.push(`/admin/clients/${res.clientId}`);
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create client",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  /* ------------------- UI ------------------- */
+  return (
+    <div className="mx-auto max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle>New Client</CardTitle>
+        </CardHeader>
+
+        <CardContent className="grid gap-3">
+
+          {/* Company Name */}
+          <div className="grid gap-2">
+            <Label>Company Name</Label>
+            <Input {...form.register("client_name")} placeholder="Acme LLC" />
+          </div>
+
+          {/* Primary Contact */}
+          <div className="grid gap-2">
+            <Label>Primary Contact</Label>
+            <Input {...form.register("primary_contact_name")} placeholder="John Doe" />
+          </div>
+
+          {/* Email */}
+          <div className="grid gap-2">
+            <Label>Email</Label>
+            <Input {...form.register("primary_contact_email")} placeholder="john@example.com" />
+          </div>
+
+          {/* Service Center */}
+          <div className="grid gap-2">
+            <Label>Service Center</Label>
+
+            <Select
+              value={form.watch("service_center_id")}
+              onValueChange={(v) => form.setValue("service_center_id", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Assign service center" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {(serviceCenters?.data || []).map((sc: any) => (
+                  <SelectItem
+                    key={sc.service_center_id}
+                    value={String(sc.service_center_id)}
+                  >
+                    {sc.center_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+
+
+          {/* CPA */}
+          <div className="grid gap-2">
+            <Label>CPA</Label>
+
+            <Select
+              value={form.watch("cpa_id")}
+              onValueChange={(v) => form.setValue("cpa_id", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Assign CPA" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {(cpas?.data || []).map((c: any) => (
+                  <SelectItem key={c.cpa_id} value={String(c.cpa_id)}>
+                    {c.cpa_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Initial Stage */}
+          <div className="grid gap-2">
+            <Label>Initial Stage</Label>
+
+            <Select
+              value={form.watch("stage_id")}
+              onValueChange={(v) => form.setValue("stage_id", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select stage" />
+              </SelectTrigger>
+
+              <SelectContent>
+                {(stages?.data || []).map((s: any) => (
+                  <SelectItem key={s.stage_id} value={String(s.stage_id)}>
+                    {s.stage_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Associated Users */}
+          <div className="border-t pt-4 mt-4">
+            <Label className="font-semibold">Associated Users</Label>
+
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              <Input
+                placeholder="Name"
+                value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+              />
+
+              <Input
+                placeholder="Email"
+                type="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              />
+
+              <Select
+                value={newUser.role}
+                onValueChange={(v) => setNewUser({ ...newUser, role: v as any })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Client User">Client User</SelectItem>
+                  <SelectItem value="Service Center User">Service Center User</SelectItem>
+                  <SelectItem value="CPA User">CPA User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button type="button" className="w-full mt-2" variant="outline" onClick={addUser}>
+              <Plus className="mr-1 size-4" /> Add another user
+            </Button>
+
+            {associatedUsers.length > 0 && (
+              <div className="space-y-2 mt-2">
+                {associatedUsers.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between border p-2 rounded-md">
+                    <div>
+                      <div className="font-medium">{u.name}</div>
+                      <div className="text-xs">{u.email}</div>
+                      <div className="text-xs text-muted-foreground">{u.role}</div>
+                    </div>
+
+                    <Button variant="ghost" size="sm" onClick={() => removeUser(u.id)}>
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Buttons */}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Button>
+
+            <Button disabled={isSubmitting} onClick={form.handleSubmit(onSubmit)}>
+              {isSubmitting ? "Creating..." : "Create Client"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
