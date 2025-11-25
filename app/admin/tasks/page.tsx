@@ -25,18 +25,19 @@ type TaskRow = {
 export default function AdminTasksPage() {
   const { page, setPage, pageSize, q, setQ } = useServerTableState();
 
-  // Tasks – server-side pagination only (no q wired yet)
+  // Fetch task list
   const { data: tasksData } = useSWR(["tasks", page, pageSize], () =>
     fetchTasks({ page, pageSize })
   );
 
-  // Clients – for client_name mapping
+  // Fetch all clients (for client name mapping)
   const { data: clientsData } = useSWR(["clients"], () =>
-    fetchClients({ page: 1, pageSize: 100 })
+    fetchClients({ page: 1, pageSize: 200 })
   );
 
   const openDrawer = useUIStore((s) => s.openDrawer);
 
+  // Safely get client name
   const getClientName = (clientId: number) => {
     const list = clientsData?.data || [];
     const found = list.find((c: any) => c.client_id === clientId);
@@ -57,16 +58,9 @@ export default function AdminTasksPage() {
       key: "assigneeRole",
       header: "Assigned User",
       render: (row) => {
-        switch (row.assigneeRole) {
-          case "CLIENT":
-            return getClientName(row.clientId);
-          case "SERVICE_CENTER":
-            return "Service Center";
-          case "CPA":
-            return "CPA";
-          default:
-            return row.assigneeRole;
-        }
+        // 👇 FINAL & CORRECT RULE
+        // Assigned User should display only assigned_to_role value
+        return row.assigneeRole || "Unknown";
       },
     },
     {
@@ -88,7 +82,7 @@ export default function AdminTasksPage() {
         </Button>
       </div>
 
-      {/* SEARCH (currently only client-side, not passed to API) */}
+      {/* SEARCH */}
       <TableToolbar q={q} setQ={setQ} />
 
       {/* TABLE */}

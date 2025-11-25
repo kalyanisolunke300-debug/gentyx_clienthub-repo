@@ -57,23 +57,39 @@ export async function fetchClientTasks(params?: { clientId?: string }) {
 
 /* -------------------------------------------------------------
     (NEW) ADMIN — FETCH ALL TASKS
-    calls: /api/tasks/list?page=&pageSize=
+    calls: /api/tasks?page=&pageSize=
 --------------------------------------------------------------*/
-export async function fetchTasks({
-  page = 1,
-  pageSize = 10,
-}: {
-  page?: number;
-  pageSize?: number;
-}) {
+// export async function fetchTasks({
+//   page = 1,
+//   pageSize = 10,
+// }: {
+//   page?: number;
+//   pageSize?: number;
+// }) {
+//   const res = await fetch(
+//     `/api/tasks/list?page=${page}&pageSize=${pageSize}`,
+//     { cache: "no-store" }
+//   );
+
+//   if (!res.ok) throw new Error("Failed to fetch tasks");
+//   return res.json(); // {success, data, page, pageSize, total}
+// }
+
+// FETCH TASKS FOR SPECIFIC CLIENT (used inside client detail page)
+export async function fetchTasks(params?: { clientId?: string }) {
+  if (!params?.clientId) {
+    throw new Error("clientId is required for fetchTasks()");
+  }
+
   const res = await fetch(
-    `/api/tasks/list?page=${page}&pageSize=${pageSize}`,
+    `/api/tasks/list?clientId=${params.clientId}`,
     { cache: "no-store" }
   );
 
   if (!res.ok) throw new Error("Failed to fetch tasks");
-  return res.json(); // {success, data, page, pageSize, total}
+  return res.json(); // { success, data: [...] }
 }
+
 
 /* -------------------------------------------------------------
     FETCH DOCUMENTS (calls: /api/documents/get )
@@ -122,43 +138,33 @@ export async function fetchAuditLogs(params?: { clientId?: string }) {
 /* -------------------------------------------------------------
     ASSIGN TASK (calls: /api/tasks/add )
 --------------------------------------------------------------*/
-// FIXED: Updated payload type to match backend fields
 export async function assignTask(payload: {
-  taskTitle?: string;
-  title?: string;
-  clientId: string | number;
-  assignedToRole?: string;
-  assigneeRole?: string;
+  clientId: number;
+  taskTitle: string;
+  assignedToRole: string;
   dueDate?: string | null;
-  assignedUsers?: string[];
-  stageId?: number;
+  description?: string;
   orderNumber?: number;
 }) {
-
-  console.log("API assignTask payload:", payload);
-
   const res = await fetch("/api/tasks/add", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      taskTitle: payload.title,
-      clientId: Number(payload.clientId),
-      assignedToRole: payload.assigneeRole,
+      clientId: payload.clientId,
+      taskTitle: payload.taskTitle,
+      assignedToRole: payload.assignedToRole,
       dueDate: payload.dueDate || null,
-      // temporarily not using assignedUsers — backend update next
-      stageId: 1,
-      orderNumber: 1,
+      description: payload.description || "",
+      orderNumber: payload.orderNumber || 1,
     }),
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("assignTask API Error:", text);
-    throw new Error("Failed to assign task");
-  }
-
-  return res.json();
+  const json = await res.json();
+  
+  if (!json.success) throw new Error(json.error || "Failed to assign task");
+  return json;
 }
+
 
 
 // FETCH SERVICE CENTERS
@@ -216,3 +222,47 @@ export async function createClient(payload: any) {
   return res.json();
 }
 
+export async function fetchDefaultStages() {
+  const res = await fetch("/api/stages/default", { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch default stages");
+  return res.json();
+}
+
+export async function fetchClientStages(clientId: number | string) {
+  const res = await fetch(`/api/stages/client/get?clientId=${clientId}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch client stages");
+  return res.json(); 
+}
+
+export async function saveClientStages(payload: {
+  clientId: number | string;
+  stages: any[];
+  subtasks: Record<string, any[]>;
+}) {
+  const res = await fetch("/api/stages/client/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) throw new Error("Failed to save client stages");
+  return res.json();
+}
+
+
+// SET STAGE FOR A CLIENT
+export async function setStage(payload: {
+  clientId: number;
+  stageName: string;
+}) {
+  const res = await fetch("/api/stages/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return res.json();
+}

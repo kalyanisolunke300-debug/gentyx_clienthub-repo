@@ -45,6 +45,9 @@ type TasksResponse = {
   data: Task[];
 };
 
+// We will extend Task with client_name for the table
+type TaskRowWithClientName = Task & { client_name: string };
+
 export default function AdminDashboard() {
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
@@ -169,24 +172,18 @@ export default function AdminDashboard() {
       key: "client_name",
       header: "Client",
     },
-
-    // 🔥 SHOW SERVICE CENTER NAME (NOT ID)
     {
       key: "service_center_name",
       header: "Service Center",
     },
-
-    // 🔥 SHOW CPA NAME (NOT ID)
     {
       key: "cpa_name",
       header: "CPA",
     },
-
     {
       key: "stage_name",
       header: "Stage",
     },
-
     {
       key: "progress",
       header: "Progress",
@@ -199,7 +196,6 @@ export default function AdminDashboard() {
         </div>
       ),
     },
-
     {
       key: "status",
       header: "Status",
@@ -207,24 +203,60 @@ export default function AdminDashboard() {
     },
   ];
 
+  // ---------- BUILD CLIENT LOOKUP + MERGE INTO TASKS ----------
+
+  // Map: client_id -> client_name
+  const clientNameMap: Record<number, string> = {};
+  clientRows.forEach((c) => {
+    if (c.client_id != null) {
+      clientNameMap[c.client_id] = c.client_name;
+    }
+  });
+
+  // Extend each task with client_name
+  const tasksWithClientNames: TaskRowWithClientName[] = taskRows.map((t) => {
+    const anyTask = t as any;
+
+    // Support both DB shapes: client_id (snake) or clientId (camel)
+    const clientId: number | undefined =
+      typeof anyTask.client_id !== "undefined"
+        ? anyTask.client_id
+        : anyTask.clientId;
+
+    return {
+      ...t,
+      client_name:
+        (clientId != null ? clientNameMap[clientId] : undefined) ||
+        "Unknown",
+    };
+  });
+
   // ---------- TASKS TABLE ----------
 
-  const taskCols: Column<Task>[] = [
-    { key: "clientId", header: "Client" },
+  // ---------- TASKS TABLE (show client_id directly) ----------
+
+  // ---------- TASKS TABLE (show client id directly) ----------
+  const taskCols: Column<any>[] = [
+    {
+      key: "client",            // virtual key, just for the table
+      header: "Client",
+      render: (row: any) => row.client_id ?? row.clientId ?? "-",
+    },
     { key: "title", header: "Title" },
     { key: "assigneeRole", header: "Assigned User" },
     {
       key: "dueDate",
       header: "Due",
-      render: (r) =>
+      render: (r: any) =>
         r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "-",
     },
     {
       key: "status",
       header: "Status",
-      render: (r) => <StatusPill status={r.status} />,
+      render: (r: any) => <StatusPill status={r.status} />,
     },
   ];
+
 
   return (
     <div className="space-y-6">
@@ -326,15 +358,6 @@ export default function AdminDashboard() {
                 >
                   Assign
                 </Button>
-                {/* <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    openDrawer("setStage", { clientId: row.client_id })
-                  }
-                >
-                  Set Stage
-                </Button> */}
               </div>
             )}
           />
@@ -350,11 +373,13 @@ export default function AdminDashboard() {
           <DataTable
             columns={taskCols}
             rows={taskRows}
-            onRowAction={(row: Task) => (
+            onRowAction={(row: any) => (
               <Button
                 size="sm"
                 onClick={() =>
-                  openDrawer("uploadDoc", { clientId: row.clientId })
+                  openDrawer("uploadDoc", {
+                    clientId: row.client_id ?? row.clientId,
+                  })
                 }
               >
                 Upload Doc
@@ -363,6 +388,8 @@ export default function AdminDashboard() {
           />
         </CardContent>
       </Card>
+
+
     </div>
   );
 }

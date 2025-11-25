@@ -1,3 +1,4 @@
+// types.ts
 export type UserRole = "ADMIN" | "CLIENT" | "SERVICE_CENTER" | "CPA";
 
 export type ClientProfile = {
@@ -39,7 +40,7 @@ export type Task = {
   id: string;
   title: string;
   description?: string;
-  clientId: string;
+  client_id: string;
   stage?: string;
   assigneeRole: UserRole;
   createdByRole: UserRole;

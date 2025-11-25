@@ -1,6 +1,6 @@
 // components/widgets/assign-task-form.tsx
 "use client";
- 
+
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,7 @@ import {
   fetchServiceCenters,
   fetchCPAs,
 } from "@/lib/api";
- 
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,10 +23,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUIStore } from "@/store/ui-store";
- 
+
 import { useState, useEffect } from "react";
 import useSWR from "swr";
- 
+import { mutate } from "swr";
+
+
 /* -------------------- ZOD SCHEMA -------------------- */
 const Schema = z.object({
   title: z.string().min(2, "Title is required"),
@@ -34,31 +36,30 @@ const Schema = z.object({
   assigneeRole: z.enum(["CLIENT", "SERVICE_CENTER", "CPA"]),
   dueDate: z.string().optional(),
   assignedUsers: z.array(z.string()).optional(),
+  
 });
- 
+
 /* ======================= FORM ======================= */
 export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   const { toast } = useToast();
   const closeDrawer = useUIStore((s) => s.closeDrawer);
- 
+
   const [assignedUsers, setAssignedUsers] = useState<string[]>([]);
   const [userOptions, setUserOptions] = useState<any[]>([]);
- 
+
   /* ------------------- LOAD SQL DATA ------------------- */
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })
   );
- 
+
   const { data: serviceCenters } = useSWR(["service-centers"], () =>
     fetchServiceCenters()
   );
- 
+
   const { data: cpas } = useSWR(["cpas"], () => fetchCPAs());
- 
-  const prefilledClientId = context?.clientId
-    ? String(context.clientId)
-    : "";
- 
+
+  const prefilledClientId = context?.clientId ? String(context.clientId) : "";
+
   /* ------------------- FORM SETUP ------------------- */
   const form = useForm<z.infer<typeof Schema>>({
     resolver: zodResolver(Schema),
@@ -70,18 +71,17 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
       assignedUsers: [],
     },
   });
- 
+
   /* ------------- LOAD USER DROPDOWN OPTIONS ------------- */
   useEffect(() => {
     const role = form.getValues("assigneeRole");
     const selectedClientId = form.getValues("clientId");
- 
+
     if (role === "CLIENT" && selectedClientId) {
-      // Find selected client from SQL list
       const selected = clients?.data?.find(
         (c: any) => String(c.client_id) === String(selectedClientId)
       );
- 
+
       if (selected) {
         setUserOptions([
           {
@@ -91,7 +91,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         ]);
       }
     }
- 
+
     if (role === "SERVICE_CENTER") {
       setUserOptions(
         serviceCenters?.map((sc: any) => ({
@@ -100,7 +100,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         })) || []
       );
     }
- 
+
     if (role === "CPA") {
       setUserOptions(
         cpas?.map((c: any) => ({
@@ -109,10 +109,18 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         })) || []
       );
     }
-  }, [form.watch("assigneeRole"), form.watch("clientId"), clients, serviceCenters, cpas]);
- 
+  }, [
+    form.watch("assigneeRole"),
+    form.watch("clientId"),
+    clients,
+    serviceCenters,
+    cpas,
+  ]);
+
   /* ------------------- SUBMIT LOGIC ------------------- */
   async function onSubmit(values: z.infer<typeof Schema>) {
+    console.log("🧩 Assign Task Form Data:", values); // ✅ Corrected
+
     if (!values.title.trim()) {
       toast({
         title: "Error",
@@ -121,7 +129,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
       });
       return;
     }
- 
+
     if (assignedUsers.length === 0) {
       toast({
         title: "Error",
@@ -130,7 +138,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
       });
       return;
     }
- 
+
     if (!values.clientId) {
       toast({
         title: "Error",
@@ -139,39 +147,53 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
       });
       return;
     }
- 
-    const payload = {
-      title: values.title,
-      clientId: Number(values.clientId),
-      assigneeRole: values.assigneeRole,
-      dueDate: values.dueDate || null,
-      assignedUsers,
-    };
- 
-    console.log("ASSIGN PAYLOAD →", payload);
- 
-    await assignTask(payload);
- 
-    toast({
-      title: "Task Assigned",
-      description: "The task has been added successfully.",
-    });
- 
-    closeDrawer();
+
+  const payload = {
+    taskTitle: values.title,               // rename title → taskTitle
+    clientId: Number(values.clientId),
+    assignedToRole: values.assigneeRole,   // rename assigneeRole → assignedToRole
+    dueDate: values.dueDate || null,
+    description: "",                       // backend expects description
+    orderNumber: 1,                        // backend expects orderNumber
+    // assignedUsers removed (your SQL table does NOT support it)
+  };
+
+    console.log("🚀 Final Payload Sent to assignTask():", payload);
+
+    try {
+        await assignTask(payload);
+
+        // 🔄 Refresh UI 
+        mutate(["tasks", payload.clientId]);
+        mutate(["stages", payload.clientId]);
+
+        toast({
+          title: "Task Assigned",
+          description: "The task has been added successfully.",
+        });
+        closeDrawer();
+
+    } catch (error: any) {
+      console.error("❌ Error assigning task:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to assign task.",
+        variant: "destructive",
+      });
+    }
   }
- 
+
   const assigneeRole = form.watch("assigneeRole");
- 
+
   /* ======================= UI ======================= */
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3">
- 
       {/* Title */}
       <div className="grid gap-2">
         <Label>Title</Label>
         <Input {...form.register("title")} placeholder="Task title" />
       </div>
- 
+
       {/* Client Dropdown */}
       {assigneeRole === "CLIENT" && (
         <div className="grid gap-2">
@@ -193,7 +215,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
           </Select>
         </div>
       )}
- 
+
       {/* Role */}
       <div className="grid gap-2">
         <Label>Assignee Role</Label>
@@ -211,11 +233,11 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
           </SelectContent>
         </Select>
       </div>
- 
+
       {/* Users */}
       <div className="grid gap-2">
         <Label>Select Users</Label>
- 
+
         <div className="border rounded-md p-2 max-h-40 overflow-y-auto">
           {userOptions.length > 0 ? (
             userOptions.map((u: any) => (
@@ -244,7 +266,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
           )}
         </div>
       </div>
- 
+
       {/* Due Date */}
       <div className="grid gap-2">
         <Label>Due Date</Label>
@@ -254,7 +276,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
           onFocus={(e) => e.currentTarget.showPicker?.()}
         />
       </div>
- 
+
       {/* Buttons */}
       <div className="flex justify-end gap-2 mt-3">
         <Button type="button" variant="outline" onClick={closeDrawer}>

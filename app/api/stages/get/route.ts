@@ -1,3 +1,4 @@
+// app/api/stages/get/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
@@ -16,19 +17,32 @@ export async function GET(req: Request) {
 
     const pool = await getDbPool();
 
-    // Fetch stages
+    // -------------------------
+    // FETCH CLIENT STAGES
+    // -------------------------
     const stagesResult = await pool.request()
       .input("clientId", sql.Int, clientId)
       .query(`
-        SELECT * 
-        FROM dbo.onboarding_stages 
-        WHERE client_id = @clientId 
+        SELECT 
+          client_stage_id,
+          client_id,
+          stage_name,
+          order_number,
+          status,
+          is_required,
+          completed_at,
+          created_at,
+          updated_at
+        FROM dbo.client_stages
+        WHERE client_id = @clientId
         ORDER BY order_number ASC;
       `);
 
     const stages = stagesResult.recordset;
 
-    // Fetch tasks for each stage
+    // -------------------------
+    // FETCH TASKS
+    // -------------------------
     const tasksResult = await pool.request()
       .input("clientId", sql.Int, clientId)
       .query(`
@@ -40,10 +54,10 @@ export async function GET(req: Request) {
 
     const tasks = tasksResult.recordset;
 
-    // Group tasks under their stages
+    // Group tasks under stage_id
     const stagesWithTasks = stages.map(stage => ({
       ...stage,
-      tasks: tasks.filter(t => t.stage_id === stage.stage_id)
+      tasks: tasks.filter(t => t.stage_id === stage.client_stage_id),
     }));
 
     return NextResponse.json({ success: true, data: stagesWithTasks });

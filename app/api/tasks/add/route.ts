@@ -6,14 +6,28 @@ import sql from "mssql";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
+    // 🔍 Debug log – see exactly what is arriving
+    console.log("🔍 Incoming /api/tasks/add body:", body);
+
+    // Accept BOTH old + new payload shapes
     const {
-      stageId = 1,
-      clientId,
-      taskTitle,
+      stageId: rawStageId,
+      clientId: rawClientId,
+      taskTitle: rawTaskTitle,
+      title,              // old key
+      description = "",
       dueDate,
-      assignedToRole = "CLIENT",
-      orderNumber = 1,
+      assignedToRole,     // new key
+      assigneeRole,       // old key
+      orderNumber: rawOrderNumber,
     } = body;
+
+    const stageId = Number(rawStageId ?? 1);
+    const clientId = rawClientId != null ? Number(rawClientId) : undefined;
+    const taskTitle = rawTaskTitle || title; // ✅ support both
+    const role = assignedToRole || assigneeRole || "CLIENT";
+    const orderNumber = Number(rawOrderNumber ?? 1);
 
     if (!clientId || !taskTitle) {
       return NextResponse.json(
@@ -27,21 +41,28 @@ export async function POST(req: Request) {
 
     const pool = await getDbPool();
 
-    await pool
+    const result = await pool
       .request()
-      .input("stageId", sql.Int, stageId)
+      .input("stage_id", sql.Int, stageId)
       .input("clientId", sql.Int, clientId)
       .input("taskTitle", sql.VarChar(255), taskTitle)
+      .input("description", sql.VarChar(sql.MAX), description)
       .input("dueDate", sql.DateTime, dueDate || null)
-      .input("assignedToRole", sql.VarChar(50), assignedToRole)
+      .input("assignedToRole", sql.VarChar(50), role)
       .input("orderNumber", sql.Int, orderNumber)
       .query(`
         INSERT INTO dbo.onboarding_tasks
-        (stage_id, client_id, task_title, due_date, assigned_to_role, status, order_number, created_at)
-        VALUES (@stageId, @clientId, @taskTitle, @dueDate, @assignedToRole, 'Pending', @orderNumber, GETDATE());
+        (stage_id, client_id, task_title, description, assigned_to_role, due_date, status, order_number, created_at, updated_at)
+        OUTPUT inserted.task_id
+        VALUES (@stageId, @clientId, @taskTitle, @description, @assignedToRole, @dueDate, 'Pending', @orderNumber, GETDATE(), GETDATE());
       `);
 
-    return NextResponse.json({ success: true });
+    const insertedId = result.recordset[0].task_id;
+
+    return NextResponse.json({
+      success: true,
+      taskId: insertedId,
+    });
   } catch (err: any) {
     console.error("POST /api/tasks/add error:", err);
     return NextResponse.json(

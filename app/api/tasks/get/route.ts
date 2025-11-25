@@ -1,6 +1,8 @@
+// app/api/tasks/get/route.ts
+
 import { NextResponse } from "next/server";
-import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { getDbPool } from "@/lib/db";
 
 export async function GET(req: Request) {
   try {
@@ -16,25 +18,25 @@ export async function GET(req: Request) {
 
     const pool = await getDbPool();
 
-    // 1) Fetch stages for this client
-    const stageResult = await pool.request()
+    // 1️⃣ Fetch CLIENT STAGES (correct table)
+    const stagesResult = await pool.request()
       .input("clientId", sql.Int, clientId)
       .query(`
         SELECT 
-          stage_id,
+          client_stage_id,
           stage_name,
           order_number,
           status,
           is_required
-        FROM dbo.onboarding_stages
+        FROM dbo.client_stages
         WHERE client_id = @clientId
         ORDER BY order_number ASC
       `);
 
-    const stages = stageResult.recordset;
+    const stages = stagesResult.recordset;
 
-    // 2) Fetch all tasks for this client
-    const taskResult = await pool.request()
+    // 2️⃣ Fetch TASKS for this client
+    const tasksResult = await pool.request()
       .input("clientId", sql.Int, clientId)
       .query(`
         SELECT
@@ -50,37 +52,20 @@ export async function GET(req: Request) {
         ORDER BY stage_id, order_number ASC
       `);
 
-    const tasks = taskResult.recordset;
+    const tasks = tasksResult.recordset;
 
-    // 3) Group tasks under each stage
-    let totalTasks = 0;
-    let completedTasks = 0;
+    // 3️⃣ Attach tasks to stages
+    const stageData = stages.map(stage => ({
+      ...stage,
+      tasks: tasks.filter(t => t.stage_id === stage.client_stage_id)
+    }));
 
-    const stageData = stages.map(stage => {
-      const sTasks = tasks.filter(t => t.stage_id === stage.stage_id);
+    // 4️⃣ COUNT PROGRESS
+    const totalTasks = tasks.length;
+    const completed = tasks.filter(t => t.status === "Completed").length;
 
-      const sTotal = sTasks.length;
-      const sCompleted = sTasks.filter(t => t.status === "Completed").length;
-
-      totalTasks += sTotal;
-      completedTasks += sCompleted;
-
-      return {
-        stage_id: stage.stage_id,
-        stage_name: stage.stage_name,
-        order_number: stage.order_number,
-        status: stage.status,
-        is_required: stage.is_required,
-        totalTasks: sTotal,
-        completedTasks: sCompleted,
-        progress: sTotal === 0 ? 0 : Math.round((sCompleted / sTotal) * 100),
-        tasks: sTasks
-      };
-    });
-
-    // 4) Calculate overall progress
     const overallProgress =
-      totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+      totalTasks === 0 ? 0 : Math.round((completed / totalTasks) * 100);
 
     return NextResponse.json({
       success: true,
@@ -90,10 +75,10 @@ export async function GET(req: Request) {
       },
     });
 
-  } catch (err) {
+  } catch (err: any) {
     console.error("GET /api/tasks/get error:", err);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch tasks" },
+      { success: false, error: err.message },
       { status: 500 }
     );
   }

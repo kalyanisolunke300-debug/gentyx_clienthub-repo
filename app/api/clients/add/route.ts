@@ -1,3 +1,4 @@
+// app/api/clients/add/route.ts
 import { NextResponse } from "next/server";
 import sql from "mssql";
 import { getDbPool } from "@/lib/db";
@@ -12,6 +13,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    // FRONTEND FIX:
+    // serviceCenterId   ---> service_center_id
+    // stageId           ---> stageId
+    // Everything else same
     const {
       clientName,
       code,
@@ -19,7 +24,7 @@ export async function POST(req: Request) {
       primaryContactName,
       primaryContactEmail,
       primaryContactPhone,
-      service_center_id,   // ✅ UPDATED: correct name
+      serviceCenterId,  // FRONTEND FIELD NAME
       cpaId,
       stageId,
       associatedUsers,
@@ -45,7 +50,7 @@ export async function POST(req: Request) {
       .input("primaryContactName", sql.NVarChar(255), primaryContactName)
       .input("primaryContactEmail", sql.NVarChar(255), primaryContactEmail)
       .input("primaryContactPhone", sql.NVarChar(50), primaryContactPhone)
-      .input("service_center_id", sql.Int, service_center_id || null)  // ✅ FIXED
+      .input("service_center_id", sql.Int, serviceCenterId || null)
       .input("cpaId", sql.Int, cpaId || null)
       .input("stageId", sql.Int, stageId || null)
       .query(`
@@ -80,7 +85,7 @@ export async function POST(req: Request) {
           0,
           'Active',
           @cpaId,
-          @service_center_id      -- ✅ FIXED
+          @service_center_id
         );
       `);
 
@@ -156,6 +161,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, clientId });
+
   } catch (err: any) {
     console.error("POST /api/clients/add error:", err);
     return NextResponse.json(

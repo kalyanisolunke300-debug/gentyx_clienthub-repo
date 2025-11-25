@@ -1,3 +1,4 @@
+// components/widgets/set-stage-form.tsx
 "use client"
 
 import { z } from "zod"
@@ -10,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useUIStore } from "@/store/ui-store"
 import { mockStages } from "@/lib/mock"
+import { mutate } from "swr";
+
 
 const Schema = z.object({
   clientId: z.string().min(1, "Client ID required"),
@@ -27,15 +30,29 @@ export function SetStageForm({ context }: { context?: Record<string, any> }) {
     },
   })
 
-  async function onSubmit(values: z.infer<typeof Schema>) {
-    try {
-      await setStage(values)
-      toast({ title: "Success", description: "Stage updated and progress recalculated" })
-      closeDrawer()
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to update stage", variant: "destructive" })
-    }
+async function onSubmit(values: z.infer<typeof Schema>) {
+  try {
+      await setStage({
+        clientId: Number(values.clientId),
+        stageName: values.stage, // 🔥 send the name, not ID
+      });
+
+    mutate(["stages", values.clientId]); // refresh UI
+
+    toast({
+      title: "Success",
+      description: "Stage updated and progress recalculated",
+    });
+
+    closeDrawer();
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: "Failed to update stage",
+      variant: "destructive",
+    });
   }
+}
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3">
@@ -52,8 +69,10 @@ export function SetStageForm({ context }: { context?: Record<string, any> }) {
           </SelectTrigger>
           <SelectContent>
             {mockStages.map((s) => (
-              <SelectItem key={s.id} value={s.name}>
-                {s.name}
+              // <SelectItem key={s.id} value={s.name}>
+              <SelectItem key={s.id} value={String(s.id)}>
+  
+              {s.name}
               </SelectItem>
             ))}
           </SelectContent>

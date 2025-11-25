@@ -1,3 +1,4 @@
+// app/admin/clients/[id]/page.tsx
 "use client";
 
 import { useParams } from "next/navigation";
@@ -12,6 +13,8 @@ import {
   fetchMessages,
   fetchAuditLogs,
 } from "@/lib/api";
+// ✅ add this
+import { fetchClientTasks } from "@/lib/api";
 
 import {
   Card,
@@ -42,7 +45,7 @@ import { Send } from "lucide-react";
 type ClientTask = {
   task_id: number;
   task_title: string;
-  assignee_role: string;
+  assigned_to_role: string;
   status: string;
   due_date: string | null;
 };
@@ -77,10 +80,23 @@ export default function ClientProfilePage() {
   // ----------------- FETCHING ------------------
   const { data: client } = useSWR(["client", id], () => fetchClient(id));
 
-  const { data: tasksResponse } = useSWR(["tasks", id], () =>
-    fetchTasks({ clientId: id })
+  // const { data: tasksResponse } = useSWR(["tasks", id], () =>
+  //   fetchTasks({ clientId: id } as any)
+  // );
+  // const taskRows: ClientTask[] = tasksResponse?.data || [];
+  const { data: clientTasksResponse } = useSWR(
+    ["clientTasks", id],
+    () => fetchClientTasks({ clientId: id }) // <-- correct API
   );
-  const taskRows: ClientTask[] = tasksResponse?.data || [];
+
+  // tasksResponse.data.tasks → this is correct shape from your API
+  // const taskRows: ClientTask[] =
+  //   clientTasksResponse?.data?.tasks || [];
+// Flatten tasks from all stages
+const taskRows: ClientTask[] =
+  clientTasksResponse?.data?.stages
+    ?.flatMap((s: any) => s.tasks || []) || [];
+
 
   const { data: docsResponse } = useSWR(["docs", id], () =>
     fetchDocuments({ clientId: id })
@@ -98,7 +114,7 @@ export default function ClientProfilePage() {
 
   const { data: stagesResponse, mutate: mutateStages } = useSWR(
     ["stages", id],
-    () => fetch(`/api/stageget?clientId=${id}`).then((r) => r.json())
+    () => fetch(`/api/stages/get?clientId=${id}`).then((r) => r.json())
   );
 
   const stages = stagesResponse?.data || [];
@@ -154,21 +170,40 @@ export default function ClientProfilePage() {
   };
 
   // ----------------- TABLE COLUMNS ------------------
-  const taskCols: Column<ClientTask>[] = [
-    { key: "task_title", header: "Title" },
-    { key: "assignee_role", header: "Assigned User" },
-    {
-      key: "due_date",
-      header: "Due",
-      render: (r) =>
-        r.due_date ? new Date(r.due_date).toLocaleDateString() : "-",
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (r) => <StatusPill status={r.status} />,
-    },
-  ];
+  // const taskCols: Column<ClientTask>[] = [
+  //   { key: "task_title", header: "Title" },
+  //   { key: "assigned_to_role", header: "Assigned User" },
+  //   {
+  //     key: "due_date",
+  //     header: "Due",
+  //     render: (r) =>
+  //       r.due_date ? new Date(r.due_date).toLocaleDateString() : "-",
+  //   },
+  //   {
+  //     key: "status",
+  //     header: "Status",
+  //     render: (r) => <StatusPill status={r.status} />,
+  //   },
+  // ];
+const taskCols: Column<ClientTask>[] = [
+  { key: "task_title", header: "Title" },
+
+  { key: "assigned_to_role", header: "Assigned User" },
+
+  {
+    key: "due_date",
+    header: "Due",
+    render: (r) =>
+      r.due_date ? new Date(r.due_date).toLocaleDateString() : "-",
+  },
+
+  {
+    key: "status",
+    header: "Status",
+    render: (r) => <StatusPill status={r.status} />,
+  },
+];
+
 
   const docCols: Column<ClientDocument>[] = [
     { key: "name", header: "Name" },
@@ -248,7 +283,7 @@ export default function ClientProfilePage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="Stages">Stages & Associated Tasks</TabsTrigger>
+          {/* <TabsTrigger value="Stages">Stages & Associated Tasks</TabsTrigger> */}
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
@@ -256,41 +291,68 @@ export default function ClientProfilePage() {
         </TabsList>
 
         {/* ---------- OVERVIEW ---------- */}
-        <TabsContent value="overview" className="grid gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Client Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm">
-              <div>Client ID: {client?.client_id}</div>
-              <div>Code: {client?.code}</div>
-              {/* <div>SLA #: {client?.sla_number ?? "-"}</div> */}
-              {/* <div>Service Center ID: {client?.service_center_id ?? "-"}</div> */}
-              {/* <div>CPA ID: {client?.cpa_id ?? "-"}</div> */}
-              <div>
-                Created:{" "}
-                {client?.created_at
-                  ? new Date(client.created_at).toLocaleString()
-                  : "-"}
-              </div>
-              <div>
-                Updated:{" "}
-                {client?.updated_at
-                  ? new Date(client.updated_at).toLocaleString()
-                  : "-"}
-              </div>
-              <div>Stage: {stageName}</div>
-              <div>Progress: {progress}%</div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+ <TabsContent value="overview" className="grid gap-4">
+  {/* CLIENT SUMMARY */}
+  <Card>
+    <CardHeader><CardTitle>Client Summary</CardTitle></CardHeader>
+    <CardContent className="grid gap-2 text-sm">
+      <div>Client ID: {client?.client_id}</div>
+      <div>Code: {client?.code}</div>
+      <div>
+        Created: {client?.created_at ? new Date(client.created_at).toLocaleString() : "-"}
+      </div>
+      <div>
+        Updated: {client?.updated_at ? new Date(client.updated_at).toLocaleString() : "-"}
+      </div>
+      <div>Stage: {stageName}</div>
+      <div>Progress: {progress}%</div>
+    </CardContent>
+  </Card>
+
+  {/* STAGE TIMELINE */}
+  <Card>
+    <CardHeader><CardTitle>Stage Timeline</CardTitle></CardHeader>
+    <CardContent className="text-sm">
+      {stages.length === 0 ? (
+        <div className="text-muted-foreground">No stages found for this client.</div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          {stages
+            .sort((a,b) => a.order_number - b.order_number)
+            .map((stage, index) => (
+              <span key={stage.client_stage_id} className="flex items-center">
+                <span
+                  className={`px-2 py-1 rounded-md border text-xs ${
+                    stage.status === "In Progress"
+                      ? "bg-blue-100 border-blue-300 text-blue-800"
+                      : stage.status === "Completed"
+                      ? "bg-green-100 border-green-300 text-green-800"
+                      : "bg-gray-100 border-gray-300 text-gray-700"
+                  }`}
+                >
+                  {stage.stage_name}
+                </span>
+
+                {index < stages.length - 1 && (
+                  <span className="mx-2 text-muted-foreground">→</span>
+                )}
+              </span>
+            ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+</TabsContent>
+        {/* ---------- STAGES & TASKS ---------- */}
+
+
 
         <TabsContent value="Stages">
   <div className="grid gap-4">
     {stages.map((stage: any) => (
-      <Card key={stage.stage_id} className="border rounded-lg">
+      <Card key={stage.client_stage_id} className="border rounded-lg">
         <CardHeader
-          onClick={() => toggleStage(stage.stage_id)}
+          onClick={() => toggleStage(stage.client_stage_id)}
           className="cursor-pointer flex flex-row items-center justify-between"
         >
           <div>
@@ -301,12 +363,12 @@ export default function ClientProfilePage() {
           </div>
           <ChevronDown
             className={`transition-transform ${
-              openStage === stage.stage_id ? "rotate-180" : ""
+              openStage === stage.client_stage_id ? "rotate-180" : ""
             }`}
           />
         </CardHeader>
 
-        {openStage === stage.stage_id && (
+        {openStage === stage.client_stage_id && (
           <CardContent className="space-y-3">
             {stage.tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">No tasks for this stage.</p>

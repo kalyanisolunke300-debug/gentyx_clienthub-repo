@@ -1,3 +1,4 @@
+// app/api/stages/update/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
@@ -5,30 +6,35 @@ import sql from "mssql";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { stageId, stageName, orderNumber, status } = body;
+    const { clientId, stageName } = body;
 
-    if (!stageId) {
+    if (!clientId || !stageName) {
       return NextResponse.json(
-        { success: false, error: "stageId is required" },
+        { success: false, error: "clientId and stageName are required" },
         { status: 400 }
       );
     }
 
     const pool = await getDbPool();
 
+    // 1️⃣ Reset all stages to Not Started
     await pool.request()
-      .input("stageId", sql.Int, stageId)
-      .input("stageName", sql.VarChar(255), stageName)
-      .input("orderNumber", sql.Int, orderNumber)
-      .input("status", sql.VarChar(50), status)
+      .input("clientId", sql.Int, clientId)
       .query(`
-        UPDATE dbo.onboarding_stages
-        SET 
-          stage_name = COALESCE(@stageName, stage_name),
-          order_number = COALESCE(@orderNumber, order_number),
-          status = COALESCE(@status, status),
-          updated_at = GETDATE()
-        WHERE stage_id = @stageId;
+        UPDATE onboarding_stages
+        SET status = 'Not Started'
+        WHERE client_id = @clientId
+      `);
+
+    // 2️⃣ Set the selected stage to In Progress
+    await pool.request()
+      .input("clientId", sql.Int, clientId)
+      .input("stageName", sql.VarChar(255), stageName)
+      .query(`
+        UPDATE onboarding_stages
+        SET status = 'In Progress'
+        WHERE client_id = @clientId
+        AND stage_name = @stageName
       `);
 
     return NextResponse.json({ success: true });
