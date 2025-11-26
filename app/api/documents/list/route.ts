@@ -1,6 +1,6 @@
 // app/api/documents/list/route.ts
 import { NextResponse } from "next/server";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { BlobServiceClient, BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } from "@azure/storage-blob";
 
 export async function GET(req: Request) {
   try {
@@ -14,21 +14,46 @@ export async function GET(req: Request) {
       );
     }
 
-    const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
-    const containerClient = blobServiceClient.getContainerClient("clienthub");
+    const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
+    const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
+    const containerName = "clienthub";
 
-    // folder example: client-14/*
+    const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+
+    const blobServiceClient = new BlobServiceClient(
+      `https://${accountName}.blob.core.windows.net`,
+      sharedKeyCredential
+    );
+
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+
     const prefix = `client-${clientId}/`;
+
     const result: any[] = [];
 
     for await (const item of containerClient.listBlobsFlat({ prefix })) {
+      const blobClient = containerClient.getBlobClient(item.name);
+
+      // Generate SAS token valid for 1 hour
+      const sas = generateBlobSASQueryParameters(
+        {
+          containerName,
+          blobName: item.name,
+          permissions: BlobSASPermissions.from({ read: true }), // Read only
+          startsOn: new Date(new Date().valueOf() - 1000 * 60),
+          expiresOn: new Date(new Date().valueOf() + 1000 * 60 * 60), // 1 hour
+        },
+        sharedKeyCredential
+      ).toString();
+
+      const sasUrl = `${blobClient.url}?${sas}`;
+
       result.push({
         name: item.name.split("/").pop(),
         path: item.name,
         type: item.properties.contentType || "Unknown",
         size: item.properties.contentLength || 0,
-        url: containerClient.getBlockBlobClient(item.name).url,
+        url: sasUrl,
       });
     }
 

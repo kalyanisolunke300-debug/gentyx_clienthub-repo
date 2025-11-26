@@ -113,7 +113,14 @@ const taskRows: ClientTask[] = clientTasksResponse?.data || [];
   fetchClientDocuments(id)
   );
 
-const docs = docsResponse?.data || [];
+const docs =
+  docsResponse?.data?.map((doc: any) => ({
+    name: doc.name,
+    type: doc.type,
+    size: doc.size,
+    path: doc.path,
+    url: doc.url,   // ✅ VERY IMPORTANT
+  })) || [];
 
   const { data: msgsResponse } = useSWR(["msgs", id], () =>
     fetchMessages({ clientId: id })
@@ -468,11 +475,18 @@ const taskCols: Column<ClientTask>[] = [
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => window.open(row.url, "_blank")}
+                onClick={() => {
+                  if (!row.url) {
+                    alert("URL missing");
+                    return;
+                  }
+                  window.open(row.url, "_blank");
+                }}
               >
                 Preview
               </Button>
             )}
+
           />
         )}
       </TabsContent>

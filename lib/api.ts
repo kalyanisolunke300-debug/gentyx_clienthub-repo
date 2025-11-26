@@ -297,13 +297,23 @@ export async function fetchClientTasksSimple(clientId: string) {
 
 // FETCH CLIENT DOCUMENTS (calls: /api/documents/list )
 
-export async function fetchClientDocuments(clientId: string) {
-  const res = await fetch(`/api/documents/list?clientId=${clientId}`);
-  return res.json();
-}
-// export async function fetchClientDocuments(clientId: string | number) {
-//   const res = await fetch(`/api/documents/get?clientId=${clientId}`, {
-//     cache: "no-store",
-//   });
+// export async function fetchClientDocuments(clientId: string) {
+//   const res = await fetch(`/api/documents/list?clientId=${clientId}`);
 //   return res.json();
 // }
+export async function fetchClientDocuments(clientId: string) {
+  const res = await fetch(`/api/documents/list?clientId=${clientId}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return { data: [] };
+  }
+
+  const json = await res.json();
+
+  return {
+    data: json.data || []
+  };
+}
