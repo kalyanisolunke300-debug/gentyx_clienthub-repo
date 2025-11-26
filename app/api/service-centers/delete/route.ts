@@ -1,6 +1,7 @@
+// app/api/service-centers/delete/route.ts
 import { NextResponse } from "next/server";
-import sql from "mssql";
 import { getDbPool } from "@/lib/db";
+import sql from "mssql";
 
 export async function DELETE(req: Request) {
   try {
@@ -9,36 +10,36 @@ export async function DELETE(req: Request) {
 
     if (!id) {
       return NextResponse.json(
-        { success: false, error: "Missing service center ID" },
+        { success: false, error: "id is required" },
         { status: 400 }
       );
     }
 
     const pool = await getDbPool();
 
-    // Delete users associated with this center
-    await pool
-      .request()
-      .input("center_id", sql.Int, id)
+    // 1️⃣ Delete users belonging to this service center
+    await pool.request()
+      .input("id", sql.Int, id)
       .query(`
-        DELETE FROM service_center_users 
-        WHERE center_id = @center_id
+        DELETE FROM dbo.service_center_users
+        WHERE center_id = @id;
       `);
 
-    // Delete the service center itself
-    await pool
-      .request()
-      .input("center_id", sql.Int, id)
+    // 2️⃣ Now delete the service center
+    await pool.request()
+      .input("id", sql.Int, id)
       .query(`
-        DELETE FROM service_centers 
-        WHERE center_id = @center_id
+        DELETE FROM dbo.service_centers
+        WHERE service_center_id = @id;
       `);
 
     return NextResponse.json({
       success: true,
-      message: "Service center deleted successfully",
+      message: "Service Center deleted successfully",
     });
+
   } catch (err: any) {
+    console.error("DELETE SERVICE CENTER ERROR:", err);
     return NextResponse.json(
       { success: false, error: err.message },
       { status: 500 }

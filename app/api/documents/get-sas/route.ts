@@ -2,49 +2,57 @@
 import { NextResponse } from "next/server";
 import {
   BlobServiceClient,
+  StorageSharedKeyCredential,
   generateBlobSASQueryParameters,
-  BlobSASPermissions,
-  SASProtocol,
-  StorageSharedKeyCredential
+  BlobSASPermissions
 } from "@azure/storage-blob";
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const path = url.searchParams.get("path"); // full blob path
+    const { searchParams } = new URL(req.url);
+    const path = searchParams.get("path"); // client-14/PDF/file.pdf
+
     if (!path) {
       return NextResponse.json(
-        { success: false, error: "Missing path" },
+        { error: "Missing file path" },
         { status: 400 }
       );
     }
 
-    const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
-    const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
-    const containerName = "clienthub";
+    const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
+    const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
+    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
 
-    const sharedKey = new StorageSharedKeyCredential(accountName, accountKey);
+    const sharedKeyCredential = new StorageSharedKeyCredential(account, key);
+
+    const blobServiceClient = new BlobServiceClient(
+      `https://${account}.blob.core.windows.net`,
+      sharedKeyCredential
+    );
+
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const blobClient = containerClient.getBlobClient(path);
+
+    // SAS expiry = 5 minutes
+    const expiresOn = new Date(Date.now() + 5 * 60 * 1000);
 
     const sas = generateBlobSASQueryParameters(
       {
         containerName,
         blobName: path,
-        permissions: BlobSASPermissions.parse("r"), // read only
-        protocol: SASProtocol.Https,
-        expiresOn: new Date(Date.now() + 15 * 60 * 1000) // 15 min
+        permissions: BlobSASPermissions.parse("r"),
+        expiresOn,
       },
-      sharedKey
+      sharedKeyCredential
     ).toString();
 
-    const sasUrl = `https://${accountName}.blob.core.windows.net/${containerName}/${path}?${sas}`;
+    const sasUrl = `${blobClient.url}?${sas}`;
 
-    return NextResponse.json({
-      success: true,
-      sasUrl
-    });
+    return NextResponse.json({ sasUrl });
+
   } catch (err: any) {
     return NextResponse.json(
-      { success: false, error: err.message },
+      { error: err.message },
       { status: 500 }
     );
   }

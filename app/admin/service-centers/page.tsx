@@ -1,3 +1,4 @@
+// app/admin/service-centers/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -47,6 +48,7 @@ export default function ServiceCentersPage() {
     role: "User",
   });
 
+  const [isSaving, setIsSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
@@ -148,7 +150,7 @@ async function loadCenters() {
   // ------------------------------
   // CREATE / UPDATE
   // ------------------------------
-  async function saveCenter() {
+async function saveCenter() {
   if (!formData.center_name) {
     toast({
       title: "Error",
@@ -158,59 +160,61 @@ async function loadCenters() {
     return;
   }
 
-  let payload: any;
+  setIsSaving(true); // START LOADING
 
-  // CREATE → use API expected keys
-  if (!editing) {
-    payload = {
-      name: formData.center_name,   // API expects "name"
-      email: formData.email,
-      users: users.map(u => ({
-        name: u.name,
-        email: u.email,
-        role: u.role,
-      })),
-    };
-  }
+  try {
+    let payload: any;
 
-  // UPDATE
-  else {
-    payload = {
-      center_id: editing.center_id,
-      center_name: formData.center_name,
-      center_code: formData.center_code,
-      email: formData.email,
-      users: users.map(u => ({
-        name: u.name,
-        email: u.email,
-        role: u.role,
-      })),
-    };
-  }
-
-  const res = await fetch(
-    editing ? "/api/service-centers/update" : "/api/service-centers/create",
-    {
-      method: editing ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    if (!editing) {
+      payload = {
+        name: formData.center_name,
+        email: formData.email,
+        users: users.map(u => ({
+          name: u.name,
+          email: u.email,
+          role: u.role,
+        })),
+      };
+    } else {
+      payload = {
+        center_id: editing.center_id,
+        center_name: formData.center_name,
+        center_code: formData.center_code,
+        email: formData.email,
+        users: users.map(u => ({
+          name: u.name,
+          email: u.email,
+          role: u.role,
+        })),
+      };
     }
-  );
 
-  const json = await res.json();
+    const res = await fetch(
+      editing ? "/api/service-centers/update" : "/api/service-centers/create",
+      {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }
+    );
 
-  if (!json.success) {
-    toast({ title: "Error", description: json.error, variant: "destructive" });
-    return;
+    const json = await res.json();
+
+    if (!json.success) {
+      toast({ title: "Error", description: json.error, variant: "destructive" });
+      return;
+    }
+
+    toast({
+      title: editing ? "Updated" : "Created",
+      description: `Service Center ${editing ? "updated" : "created"} successfully`,
+    });
+
+    setOpen(false);
+    loadCenters();
+  } finally {
+    setIsSaving(false); // STOP LOADING
   }
-
-  toast({
-    title: editing ? "Updated" : "Created",
-    description: `Service Center ${editing ? "updated" : "created"} successfully`,
-  });
-
-  setOpen(false);
-  loadCenters();
 }
 
   // ------------------------------
@@ -356,8 +360,8 @@ async function loadCenters() {
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editing ? "Update" : "Create"}
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? "Updating..." : editing ? "Update" : "Create"}
                 </Button>
               </div>
             </form>

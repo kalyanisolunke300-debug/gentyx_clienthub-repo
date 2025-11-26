@@ -73,6 +73,14 @@ type AuditLog = {
   at: string | Date;
 };
 
+type StageItem = {
+  client_stage_id: number;
+  stage_name: string;
+  order_number: number;
+  status: string;
+};
+
+
 export default function ClientProfilePage() {
   const { id } = useParams<{ id: string }>();
   const openDrawer = useUIStore((s) => s.openDrawer);
@@ -346,8 +354,9 @@ const taskCols: Column<ClientTask>[] = [
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           {stages
-            .sort((a,b) => a.order_number - b.order_number)
-            .map((stage, index) => (
+            .sort((a: any, b: any) => a.order_number - b.order_number)
+            .map((stage: any, index: number) => (
+
               <span key={stage.client_stage_id} className="flex items-center">
                 <span
                   className={`px-2 py-1 rounded-md border text-xs ${

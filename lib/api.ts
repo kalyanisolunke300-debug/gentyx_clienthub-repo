@@ -94,15 +94,20 @@ export async function fetchTasks(params?: { clientId?: string }) {
 /* -------------------------------------------------------------
     FETCH DOCUMENTS (calls: /api/documents/get )
 --------------------------------------------------------------*/
-export async function fetchDocuments(params?: { clientId?: string }) {
-  const qs = new URLSearchParams();
-  if (params?.clientId) qs.set("clientId", params.clientId);
+// export async function fetchDocuments(params?: { clientId?: string }) {
+//   const qs = new URLSearchParams();
+//   if (params?.clientId) qs.set("clientId", params.clientId);
 
-  const res = await fetch(`/api/documents/get?${qs.toString()}`, {
-    cache: "no-store",
-  });
+//   const res = await fetch(`/api/documents/get?${qs.toString()}`, {
+//     cache: "no-store",
+//   });
 
-  if (!res.ok) throw new Error("Failed to fetch documents");
+//   if (!res.ok) throw new Error("Failed to fetch documents");
+//   return res.json();
+// }
+export async function fetchDocuments() {
+  const res = await fetch("/api/documents/list");
+  if (!res.ok) return [];
   return res.json();
 }
 
@@ -301,19 +306,23 @@ export async function fetchClientTasksSimple(clientId: string) {
 //   const res = await fetch(`/api/documents/list?clientId=${clientId}`);
 //   return res.json();
 // }
-export async function fetchClientDocuments(clientId: string) {
-  const res = await fetch(`/api/documents/list?clientId=${clientId}`, {
-    method: "GET",
-    cache: "no-store",
-  });
+// export async function fetchClientDocuments(clientId: string) {
+//   const res = await fetch(`/api/documents/list?clientId=${clientId}`, {
+//     method: "GET",
+//     cache: "no-store",
+//   });
 
-  if (!res.ok) {
-    return { data: [] };
-  }
+//   if (!res.ok) {
+//     return { data: [] };
+//   }
 
-  const json = await res.json();
+//   const json = await res.json();
 
-  return {
-    data: json.data || []
-  };
+//   return {
+//     data: json.data || []
+//   };
+// }
+export async function fetchClientDocuments(clientId: string | number) {
+  const res = await fetch(`/api/documents/get-by-client?id=${clientId}`);
+  return res.json();
 }

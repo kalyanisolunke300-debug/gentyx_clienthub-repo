@@ -36,18 +36,39 @@ export type DocumentFile = {
   notes?: string;
 };
 
+// export type Task = {
+//   id: string;
+//   title: string;
+//   description?: string;
+//   client_id: string;
+//   stage?: string;
+//   assigneeRole: UserRole;
+//   createdByRole: UserRole;
+//   status: "Pending" | "In Review" | "Approved" | "Rejected";
+//   dueDate?: string;
+//   createdAt: string;
+//   updatedAt?: string;
+//   attachments?: DocumentFile[];
+// };
+ 
 export type Task = {
   id: string;
   title: string;
   description?: string;
-  client_id: string;
+ 
+  clientId: string;
+  clientName?: string;   // ✅ ADDED THIS
+ 
   stage?: string;
   assigneeRole: UserRole;
   createdByRole: UserRole;
+ 
   status: "Pending" | "In Review" | "Approved" | "Rejected";
   dueDate?: string;
+ 
   createdAt: string;
   updatedAt?: string;
+ 
   attachments?: DocumentFile[];
 };
 

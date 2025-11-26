@@ -1,3 +1,4 @@
+// app/api/service-centers/get/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 

@@ -239,32 +239,50 @@ export default function AdminDashboard() {
     };
   });
 
-  // ---------- TASKS TABLE ----------
 
-  // ---------- TASKS TABLE (show client_id directly) ----------
 
   // ---------- TASKS TABLE (show client id directly) ----------
-  const taskCols: Column<any>[] = [
+  // const taskCols: Column<any>[] = [
+  //   {
+  //     key: "client",            // virtual key, just for the table
+  //     header: "Client",
+  //     render: (row: any) => row.client_id ?? row.clientId ?? "-",
+  //   },
+  //   { key: "title", header: "Title" },
+  //   { key: "assigneeRole", header: "Assigned User" },
+  //   {
+  //     key: "dueDate",
+  //     header: "Due",
+  //     render: (r: any) =>
+  //       r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "-",
+  //   },
+  //   {
+  //     key: "status",
+  //     header: "Status",
+  //     render: (r: any) => <StatusPill status={r.status} />,
+  //   },
+  // ];
+
+  const taskCols: Column<Task>[] = [
     {
-      key: "client",            // virtual key, just for the table
+      key: "clientName",
       header: "Client",
-      render: (row: any) => row.client_id ?? row.clientId ?? "-",
+      render: (r) => r.clientName || `#${r.clientId}`,
     },
     { key: "title", header: "Title" },
     { key: "assigneeRole", header: "Assigned User" },
     {
       key: "dueDate",
       header: "Due",
-      render: (r: any) =>
+      render: (r) =>
         r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "-",
     },
     {
       key: "status",
       header: "Status",
-      render: (r: any) => <StatusPill status={r.status} />,
+      render: (r) => <StatusPill status={r.status} />,
     },
   ];
-
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function GET() {
   try {
@@ -8,21 +7,23 @@ export async function GET() {
 
     const result = await pool.request().query(`
       SELECT 
-        center_id AS id,
-        center_name AS name,
+        service_center_id AS center_id,
+        center_code,
+        center_name,
         email,
-        created_at
+        created_at,
+        updated_at
       FROM dbo.service_centers
-      ORDER BY center_id DESC;
+      ORDER BY service_center_id DESC
     `);
 
     return NextResponse.json({
       success: true,
-      data: result.recordset
+      data: result.recordset,
     });
 
   } catch (err: any) {
-    console.error("GET /service-centers/list:", err);
+    console.error("SERVICE CENTER LIST ERROR:", err);
     return NextResponse.json(
       { success: false, error: err.message },
       { status: 500 }
