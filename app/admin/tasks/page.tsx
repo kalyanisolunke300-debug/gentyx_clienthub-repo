@@ -2,7 +2,7 @@
 "use client";
 
 import useSWR from "swr";
-import { fetchTasks, fetchClients } from "@/lib/api";
+import { fetchAllTasks, fetchClients } from "@/lib/api";
 import {
   DataTable,
   type Column,
@@ -27,7 +27,8 @@ export default function AdminTasksPage() {
 
   // Fetch task list
   const { data: tasksData } = useSWR(["tasks", page, pageSize], () =>
-    fetchTasks({ page, pageSize })
+    // fetchTasks({ page, pageSize })
+    fetchAllTasks({ page, pageSize })
   );
 
   // Fetch all clients (for client name mapping)

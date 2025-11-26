@@ -1,12 +1,12 @@
-// app/api/documents/get/route.ts
+// app/api/tasks/client/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 
 export async function GET(req: Request) {
   try {
-    const url = new URL(req.url);
-    const clientId = url.searchParams.get("clientId");
+    const { searchParams } = new URL(req.url);
+    const clientId = searchParams.get("clientId");
 
     if (!clientId) {
       return NextResponse.json(
@@ -16,20 +16,26 @@ export async function GET(req: Request) {
     }
 
     const pool = await getDbPool();
-    const result = await pool
-      .request()
+
+    const result = await pool.request()
       .input("clientId", sql.Int, clientId)
       .query(`
-        SELECT *
-        FROM dbo.client_documents
+        SELECT 
+          task_id,
+          task_title,
+          assigned_to_role,
+          due_date,
+          status
+        FROM dbo.onboarding_tasks
         WHERE client_id = @clientId
-        ORDER BY uploaded_at DESC
+        ORDER BY task_id DESC
       `);
 
     return NextResponse.json({
       success: true,
-      data: result.recordset,
+      data: result.recordset
     });
+
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message },
@@ -37,4 +43,3 @@ export async function GET(req: Request) {
     );
   }
 }
-

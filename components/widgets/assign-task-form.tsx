@@ -46,7 +46,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
 
   const [assignedUsers, setAssignedUsers] = useState<string[]>([]);
   const [userOptions, setUserOptions] = useState<any[]>([]);
-
+  const [isSubmitting, setIsSubmitting] = useState(false);  
   /* ------------------- LOAD SQL DATA ------------------- */
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })
@@ -118,15 +118,84 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   ]);
 
   /* ------------------- SUBMIT LOGIC ------------------- */
-  async function onSubmit(values: z.infer<typeof Schema>) {
-    console.log("🧩 Assign Task Form Data:", values); // ✅ Corrected
+  // async function onSubmit(values: z.infer<typeof Schema>) {
+  //   console.log("🧩 Assign Task Form Data:", values); // ✅ Corrected
 
+  //   if (!values.title.trim()) {
+  //     toast({
+  //       title: "Error",
+  //       description: "Title is required",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
+
+  //   if (assignedUsers.length === 0) {
+  //     toast({
+  //       title: "Error",
+  //       description: "Please select at least one user",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
+
+  //   if (!values.clientId) {
+  //     toast({
+  //       title: "Error",
+  //       description: "Client ID is required",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
+
+  // const payload = {
+  //   taskTitle: values.title,               // rename title → taskTitle
+  //   clientId: Number(values.clientId),
+  //   assignedToRole: values.assigneeRole,   // rename assigneeRole → assignedToRole
+  //   dueDate: values.dueDate || null,
+  //   description: "",                       // backend expects description
+  //   orderNumber: 1,                        // backend expects orderNumber
+  //   // assignedUsers removed (your SQL table does NOT support it)
+  // };
+
+  //   console.log("🚀 Final Payload Sent to assignTask():", payload);
+
+  //   try {
+  //       await assignTask(payload);
+
+  //       // 🔄 Refresh UI 
+  //       mutate(["tasks", payload.clientId]);
+  //       mutate(["stages", payload.clientId]);
+
+  //       toast({
+  //         title: "Task Assigned",
+  //         description: "The task has been added successfully.",
+  //       });
+  //       closeDrawer();
+
+  //   } catch (error: any) {
+  //     console.error("❌ Error assigning task:", error);
+  //     toast({
+  //       title: "Error",
+  //       description: error.message || "Failed to assign task.",
+  //       variant: "destructive",
+  //     });
+  //   }
+  // }
+async function onSubmit(values: z.infer<typeof Schema>) {
+  console.log("🧩 Assign Task Form Data:", values);
+
+  if (isSubmitting) return; // ⛔ Prevent double click
+  setIsSubmitting(true);    // 🔥 Start loading
+
+  try {
     if (!values.title.trim()) {
       toast({
         title: "Error",
         description: "Title is required",
         variant: "destructive",
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -136,6 +205,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         description: "Please select at least one user",
         variant: "destructive",
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -145,43 +215,45 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         description: "Client ID is required",
         variant: "destructive",
       });
+      setIsSubmitting(false);
       return;
     }
 
-  const payload = {
-    taskTitle: values.title,               // rename title → taskTitle
-    clientId: Number(values.clientId),
-    assignedToRole: values.assigneeRole,   // rename assigneeRole → assignedToRole
-    dueDate: values.dueDate || null,
-    description: "",                       // backend expects description
-    orderNumber: 1,                        // backend expects orderNumber
-    // assignedUsers removed (your SQL table does NOT support it)
-  };
+    const payload = {
+      taskTitle: values.title,
+      clientId: Number(values.clientId),
+      assignedToRole: values.assigneeRole,
+      dueDate: values.dueDate || null,
+      description: "",
+      orderNumber: 1,
+    };
 
     console.log("🚀 Final Payload Sent to assignTask():", payload);
 
-    try {
-        await assignTask(payload);
+    await assignTask(payload);
 
-        // 🔄 Refresh UI 
-        mutate(["tasks", payload.clientId]);
-        mutate(["stages", payload.clientId]);
+    // 🔄 Refresh UI 
+    mutate(["tasks", payload.clientId]);
+    mutate(["stages", payload.clientId]);
 
-        toast({
-          title: "Task Assigned",
-          description: "The task has been added successfully.",
-        });
-        closeDrawer();
+    toast({
+      title: "Task Assigned",
+      description: "The task has been added successfully.",
+    });
 
-    } catch (error: any) {
-      console.error("❌ Error assigning task:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to assign task.",
-        variant: "destructive",
-      });
-    }
+    closeDrawer();
+
+  } catch (error: any) {
+    console.error("❌ Error assigning task:", error);
+    toast({
+      title: "Error",
+      description: error.message || "Failed to assign task.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsSubmitting(false);   // 🔥 Turn loading OFF
   }
+}
 
   const assigneeRole = form.watch("assigneeRole");
 
@@ -282,7 +354,11 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         <Button type="button" variant="outline" onClick={closeDrawer}>
           Cancel
         </Button>
-        <Button type="submit">Assign</Button>
+      
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Assigning..." : "Assign"}
+        </Button>
+
       </div>
     </form>
   );

@@ -266,3 +266,44 @@ export async function setStage(payload: {
 
   return res.json();
 }
+/* -------------------------------------------------------------
+    ADMIN — FETCH ALL TASKS (NO CLIENT ID REQUIRED)
+    calls: /api/tasks/list
+--------------------------------------------------------------*/
+export async function fetchAllTasks({
+  page = 1,
+  pageSize = 10,
+}: {
+  page?: number;
+  pageSize?: number;
+}) {
+  const res = await fetch(
+    `/api/tasks/list?page=${page}&pageSize=${pageSize}`,
+    { cache: "no-store" }
+  );
+
+  if (!res.ok) throw new Error("Failed to fetch all tasks");
+  return res.json(); // {success, data, page, pageSize, total}
+}
+
+// FETCH SIMPLE TASKS FOR A CLIENT (used inside client detail page) 
+export async function fetchClientTasksSimple(clientId: string) {
+  const res = await fetch(`/api/tasks/client?clientId=${clientId}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch simple tasks");
+  return res.json();
+}
+
+// FETCH CLIENT DOCUMENTS (calls: /api/documents/list )
+
+export async function fetchClientDocuments(clientId: string) {
+  const res = await fetch(`/api/documents/list?clientId=${clientId}`);
+  return res.json();
+}
+// export async function fetchClientDocuments(clientId: string | number) {
+//   const res = await fetch(`/api/documents/get?clientId=${clientId}`, {
+//     cache: "no-store",
+//   });
+//   return res.json();
+// }

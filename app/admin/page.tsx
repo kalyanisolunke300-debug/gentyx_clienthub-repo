@@ -30,7 +30,9 @@ import {
 import { DataTable, type Column } from "@/components/data-table";
 import { ProgressRing } from "@/components/widgets/progress-ring";
 import { StatusPill } from "@/components/widgets/status-pill";
-import { fetchClients, fetchTasks, fetchDocuments } from "@/lib/api";
+// import { fetchClients, fetchTasks, fetchDocuments } from "@/lib/api";
+import { fetchClients, fetchAllTasks, fetchDocuments } from "@/lib/api";
+
 import { useUIStore } from "@/store/ui-store";
 import type { ClientProfile, Task, DocumentFile } from "@/types";
 
@@ -60,10 +62,16 @@ export default function AdminDashboard() {
     () => fetchClients({})
   );
 
-  // Tasks (no client filter on dashboard)
+  // // Tasks (no client filter on dashboard)
+  // const { data: tasks } = useSWR<TasksResponse>(
+  //   ["tasks"],
+  //   () => fetchTasks({})
+  // );
+
+  // Tasks — load ALL tasks for dashboard
   const { data: tasks } = useSWR<TasksResponse>(
-    ["tasks"],
-    () => fetchTasks({})
+    ["dashboard-tasks"],
+    () => fetchAllTasks({ page: 1, pageSize: 200 })
   );
 
   // Documents

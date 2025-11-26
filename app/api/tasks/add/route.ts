@@ -6,35 +6,30 @@ import sql from "mssql";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
-    // 🔍 Debug log – see exactly what is arriving
     console.log("🔍 Incoming /api/tasks/add body:", body);
 
-    // Accept BOTH old + new payload shapes
     const {
       stageId: rawStageId,
       clientId: rawClientId,
       taskTitle: rawTaskTitle,
-      title,              // old key
+      title,
       description = "",
       dueDate,
-      assignedToRole,     // new key
-      assigneeRole,       // old key
+      assignedToRole,
+      assigneeRole,
       orderNumber: rawOrderNumber,
     } = body;
 
+    // fallback values
     const stageId = Number(rawStageId ?? 1);
     const clientId = rawClientId != null ? Number(rawClientId) : undefined;
-    const taskTitle = rawTaskTitle || title; // ✅ support both
+    const taskTitle = rawTaskTitle || title;
     const role = assignedToRole || assigneeRole || "CLIENT";
     const orderNumber = Number(rawOrderNumber ?? 1);
 
     if (!clientId || !taskTitle) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "clientId and taskTitle are required",
-        },
+        { success: false, error: "clientId and taskTitle are required" },
         { status: 400 }
       );
     }
@@ -43,7 +38,7 @@ export async function POST(req: Request) {
 
     const result = await pool
       .request()
-      .input("stage_id", sql.Int, stageId)
+      .input("stageId", sql.Int, stageId)         // ✅ FIXED
       .input("clientId", sql.Int, clientId)
       .input("taskTitle", sql.VarChar(255), taskTitle)
       .input("description", sql.VarChar(sql.MAX), description)
@@ -63,6 +58,7 @@ export async function POST(req: Request) {
       success: true,
       taskId: insertedId,
     });
+
   } catch (err: any) {
     console.error("POST /api/tasks/add error:", err);
     return NextResponse.json(

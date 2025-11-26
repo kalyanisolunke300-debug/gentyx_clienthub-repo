@@ -12,9 +12,10 @@ import {
   fetchDocuments,
   fetchMessages,
   fetchAuditLogs,
+  fetchClientTasksSimple,
+  fetchClientDocuments   // ✅ ADD THIS
 } from "@/lib/api";
-// ✅ add this
-import { fetchClientTasks } from "@/lib/api";
+
 
 import {
   Card,
@@ -84,24 +85,35 @@ export default function ClientProfilePage() {
   //   fetchTasks({ clientId: id } as any)
   // );
   // const taskRows: ClientTask[] = tasksResponse?.data || [];
+  // const { data: clientTasksResponse } = useSWR(
+  //   ["clientTasks", id],
+  //   () => fetchClientTasks({ clientId: id }) // <-- correct API
+  // );
   const { data: clientTasksResponse } = useSWR(
-    ["clientTasks", id],
-    () => fetchClientTasks({ clientId: id }) // <-- correct API
+    ["clientTasksSimple", id],
+    () => fetchClientTasksSimple(id)
   );
 
   // tasksResponse.data.tasks → this is correct shape from your API
   // const taskRows: ClientTask[] =
   //   clientTasksResponse?.data?.tasks || [];
 // Flatten tasks from all stages
-const taskRows: ClientTask[] =
-  clientTasksResponse?.data?.stages
-    ?.flatMap((s: any) => s.tasks || []) || [];
+// const taskRows: ClientTask[] =
+//   clientTasksResponse?.data?.stages
+//     ?.flatMap((s: any) => s.tasks || []) || [];
+const taskRows: ClientTask[] = clientTasksResponse?.data || [];
 
+
+  // const { data: docsResponse } = useSWR(["docs", id], () =>
+  //   fetchDocuments({ clientId: id })
+  // );
+  // const docs: ClientDocument[] = docsResponse?.data || docsResponse || [];
 
   const { data: docsResponse } = useSWR(["docs", id], () =>
-    fetchDocuments({ clientId: id })
+  fetchClientDocuments(id)
   );
-  const docs: ClientDocument[] = docsResponse?.data || docsResponse || [];
+
+const docs = docsResponse?.data || [];
 
   const { data: msgsResponse } = useSWR(["msgs", id], () =>
     fetchMessages({ clientId: id })
@@ -205,15 +217,24 @@ const taskCols: Column<ClientTask>[] = [
 ];
 
 
-  const docCols: Column<ClientDocument>[] = [
+  // const docCols: Column<ClientDocument>[] = [
+  //   { key: "name", header: "Name" },
+  //   { key: "type", header: "Type" },
+  //   {
+  //     key: "status",
+  //     header: "Status",
+  //     render: (r) => <StatusPill status={r.status || "Uploaded"} />,
+  //   },
+  //   { key: "notes", header: "Notes" },
+  // ];
+  const docCols: Column<any>[] = [
     { key: "name", header: "Name" },
     { key: "type", header: "Type" },
     {
-      key: "status",
-      header: "Status",
-      render: (r) => <StatusPill status={r.status || "Uploaded"} />,
+      key: "size",
+      header: "Size",
+      render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
     },
-    { key: "notes", header: "Notes" },
   ];
 
   // ----------------- CLIENT META ------------------
@@ -415,6 +436,11 @@ const taskCols: Column<ClientTask>[] = [
 
         {/* ---------- TASKS ---------- */}
         <TabsContent value="tasks">
+        {taskRows.length === 0 ? (
+          <div className="text-center py-10 text-gray-500 text-sm">
+            No tasks available for this client.
+          </div>
+        ) : (
           <DataTable
             columns={taskCols}
             rows={taskRows}
@@ -424,20 +450,33 @@ const taskCols: Column<ClientTask>[] = [
               </Button>
             )}
           />
-        </TabsContent>
+        )}
+      </TabsContent>
+
 
         {/* ---------- DOCUMENTS ---------- */}
         <TabsContent value="documents">
+        {docs.length === 0 ? (
+          <div className="text-center py-10 text-gray-500 text-sm">
+            No documents available for this client.
+          </div>
+        ) : (
           <DataTable
             columns={docCols}
             rows={docs}
-            onRowAction={() => (
-              <Button size="sm" variant="outline">
-                Review
+            onRowAction={(row) => (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => window.open(row.url, "_blank")}
+              >
+                Preview
               </Button>
             )}
           />
-        </TabsContent>
+        )}
+      </TabsContent>
+
 
         {/* ---------- MESSAGES ---------- */}
         <TabsContent value="messages">
