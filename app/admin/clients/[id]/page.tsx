@@ -41,6 +41,8 @@ import { DataTable, type Column } from "@/components/data-table";
 import { useUIStore } from "@/store/ui-store";
 import { useToast } from "@/hooks/use-toast";
 import { Send } from "lucide-react";
+import { useRouter } from "next/navigation";
+
 
 // ------------------ TYPES ------------------
 type ClientTask = {
@@ -85,37 +87,32 @@ export default function ClientProfilePage() {
   const { id } = useParams<{ id: string }>();
   const openDrawer = useUIStore((s) => s.openDrawer);
   const { toast } = useToast();
+  const router = useRouter();
 
   // ----------------- FETCHING ------------------
   const { data: client } = useSWR(["client", id], () => fetchClient(id));
 
-  // const { data: tasksResponse } = useSWR(["tasks", id], () =>
-  //   fetchTasks({ clientId: id } as any)
-  // );
-  // const taskRows: ClientTask[] = tasksResponse?.data || [];
-  // const { data: clientTasksResponse } = useSWR(
-  //   ["clientTasks", id],
-  //   () => fetchClientTasks({ clientId: id }) // <-- correct API
-  // );
+
   const { data: clientTasksResponse } = useSWR(
     ["clientTasksSimple", id],
     () => fetchClientTasksSimple(id)
   );
 
-  // tasksResponse.data.tasks → this is correct shape from your API
-  // const taskRows: ClientTask[] =
-  //   clientTasksResponse?.data?.tasks || [];
-// Flatten tasks from all stages
-// const taskRows: ClientTask[] =
-//   clientTasksResponse?.data?.stages
-//     ?.flatMap((s: any) => s.tasks || []) || [];
+
 const taskRows: ClientTask[] = clientTasksResponse?.data || [];
 
+// ----------------- TASK PAGINATION ------------------
+const [taskPage, setTaskPage] = useState(1);
+const [taskPageSize, setTaskPageSize] = useState(5);
 
-  // const { data: docsResponse } = useSWR(["docs", id], () =>
-  //   fetchDocuments({ clientId: id })
-  // );
-  // const docs: ClientDocument[] = docsResponse?.data || docsResponse || [];
+const totalTasks = taskRows.length;
+const totalTaskPages = Math.ceil(totalTasks / taskPageSize);
+
+const paginatedTasks = taskRows.slice(
+  (taskPage - 1) * taskPageSize,
+  taskPage * taskPageSize
+);
+
 
   const { data: docsResponse } = useSWR(["docs", id], () =>
   fetchClientDocuments(id)
@@ -139,12 +136,20 @@ const docs =
   );
   const audits: AuditLog[] = auditsResponse || [];
 
-  const { data: stagesResponse, mutate: mutateStages } = useSWR(
-    ["stages", id],
-    () => fetch(`/api/stages/get?clientId=${id}`).then((r) => r.json())
+  const { data: stageData } = useSWR(
+    ["clientStages", id],
+    () => fetch(`/api/stages/client/get?clientId=${id}`).then((r) => r.json())
   );
 
-  const stages = stagesResponse?.data || [];
+  const stages = stageData?.data || [];
+  const subtasksFlat = stageData?.subtasks || [];
+
+  const subtasksByStage = stages.map((stage: any) => ({
+    ...stage,
+    subtasks: subtasksFlat.filter(
+      (s: any) => s.client_stage_id === stage.client_stage_id
+    ),
+  }));
 
   // ----------------- MESSAGES HANDLING ------------------
   const [messageText, setMessageText] = useState("");
@@ -165,7 +170,7 @@ const docs =
 
       toast({ title: "Task updated" });
       mutate(["tasks", id]); // refresh tasks
-      mutateStages(); // refresh stages
+      // mutateStages(); // refresh stages
     } catch (err) {
       toast({ title: "Failed to update task", variant: "destructive" });
     }
@@ -197,21 +202,6 @@ const docs =
   };
 
   // ----------------- TABLE COLUMNS ------------------
-  // const taskCols: Column<ClientTask>[] = [
-  //   { key: "task_title", header: "Title" },
-  //   { key: "assigned_to_role", header: "Assigned User" },
-  //   {
-  //     key: "due_date",
-  //     header: "Due",
-  //     render: (r) =>
-  //       r.due_date ? new Date(r.due_date).toLocaleDateString() : "-",
-  //   },
-  //   {
-  //     key: "status",
-  //     header: "Status",
-  //     render: (r) => <StatusPill status={r.status} />,
-  //   },
-  // ];
 const taskCols: Column<ClientTask>[] = [
   { key: "task_title", header: "Title" },
 
@@ -232,16 +222,7 @@ const taskCols: Column<ClientTask>[] = [
 ];
 
 
-  // const docCols: Column<ClientDocument>[] = [
-  //   { key: "name", header: "Name" },
-  //   { key: "type", header: "Type" },
-  //   {
-  //     key: "status",
-  //     header: "Status",
-  //     render: (r) => <StatusPill status={r.status || "Uploaded"} />,
-  //   },
-  //   { key: "notes", header: "Notes" },
-  // ];
+
   const docCols: Column<any>[] = [
     { key: "name", header: "Name" },
     { key: "type", header: "Type" },
@@ -285,15 +266,11 @@ const taskCols: Column<ClientTask>[] = [
 
           <Button
             variant="outline"
-            onClick={() =>
-              openDrawer("setStage", {
-                clientId: id,
-                stageId: client?.stage_id,
-              })
-            }
+            onClick={() => router.push(`/admin/stages?clientId=${id}`)}
           >
             Set Stage
           </Button>
+
 
           <Button
             onClick={() =>
@@ -407,41 +384,28 @@ const taskCols: Column<ClientTask>[] = [
 
         {openStage === stage.client_stage_id && (
           <CardContent className="space-y-3">
-            {stage.tasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tasks for this stage.</p>
-            ) : (
-              stage.tasks.map((task: any) => (
-                <div
-                  key={task.task_id}
-                  className="flex items-center justify-between border p-3 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{task.task_title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Due:{" "}
-                      {task.due_date
-                        ? new Date(task.due_date).toLocaleDateString()
-                        : "—"}
-                    </p>
-                  </div>
+        {(stage.subtasks ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">No subtasks for this stage.</p>
+        ) : (
+          (stage.subtasks ?? []).map((st: any) => (
+            <div
+              key={st.subtask_id}
+              className="flex items-center justify-between border p-2 rounded"
+            >
+              <div>
+                <p className="font-medium">{st.subtask_title}</p>
+                <p className="text-xs text-muted-foreground">
+                  Order: {st.order_number ?? "-"}
+                </p>
+              </div>
 
-                  <div className="flex items-center gap-2">
-                    <StatusPill status={task.status} />
+              <StatusPill status={st.status} />
+            </div>
+          ))
+        )}
 
-                    <select
-                      className="border rounded px-2 py-1 text-sm"
-                      value={task.status}
-                      onChange={(e) =>
-                        updateTaskStatus(task.task_id, e.target.value)
-                      }
-                    >
-                      <option value="PENDING">Pending</option>
-                      <option value="COMPLETED">Completed</option>
-                    </select>
-                  </div>
-                </div>
-              ))
-            )}
+
+   
           </CardContent>
         )}
       </Card>
@@ -449,25 +413,172 @@ const taskCols: Column<ClientTask>[] = [
   </div>
 </TabsContent>
 
+{/* ---------- TASKS ---------- */}
+<TabsContent value="tasks">
 
-        {/* ---------- TASKS ---------- */}
-        <TabsContent value="tasks">
-        {taskRows.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 text-sm">
-            No tasks available for this client.
-          </div>
-        ) : (
+  {/* ---------- CLIENT TASKS CARD ---------- */}
+  <Card className="mt-4">
+    <CardHeader>
+      <CardTitle>Client Tasks</CardTitle>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+
+      {taskRows.length === 0 ? (
+        <div className="text-center py-10 text-gray-500 text-sm">
+          No tasks available for this client.
+        </div>
+      ) : (
+        <>
+          {/* ---------- TABLE ---------- */}
           <DataTable
             columns={taskCols}
-            rows={taskRows}
+            rows={paginatedTasks}
             onRowAction={() => (
               <Button size="sm" variant="outline">
                 Approve
               </Button>
             )}
           />
-        )}
-      </TabsContent>
+
+          {/* ---------- PAGINATION UI ---------- */}
+          <div className="flex items-center justify-between py-2 text-sm text-muted-foreground">
+
+            {/* Items per page */}
+            <div className="flex items-center gap-2">
+              <span>Items per page:</span>
+              <select
+                className="border rounded px-2 py-1"
+                value={taskPageSize}
+                onChange={(e) => {
+                  setTaskPageSize(Number(e.target.value));
+                  setTaskPage(1);
+                }}
+              >
+                {[5, 10, 20, 50].map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Page info */}
+            <div>
+              {`${(taskPage - 1) * taskPageSize + 1}–${Math.min(
+                taskPage * taskPageSize,
+                totalTasks
+              )} of ${totalTasks} items`}
+            </div>
+
+            {/* Prev / Next buttons */}
+            <div className="flex items-center gap-2">
+              <span>Page {taskPage} of {totalTaskPages}</span>
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={taskPage <= 1}
+                onClick={() => setTaskPage(taskPage - 1)}
+              >
+                Prev
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={taskPage >= totalTaskPages}
+                onClick={() => setTaskPage(taskPage + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+    </CardContent>
+  </Card>
+
+  {/* ---------- STAGE SUB-TASKS CARD ---------- */}
+  <Card className="mt-6">
+    <CardHeader>
+      <CardTitle>Stage Sub-Tasks</CardTitle>
+    </CardHeader>
+
+    <CardContent className="space-y-4">
+      {subtasksByStage.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No stage subtasks found.
+        </p>
+      )}
+
+      {subtasksByStage.map((stage: any) => (
+        <div
+          key={stage.client_stage_id}
+          className="border rounded-lg"
+        >
+          {/* Stage Row */}
+          <div
+            className="flex items-center justify-between p-3 cursor-pointer"
+            onClick={() =>
+              setOpenStage((prev) =>
+                prev === stage.client_stage_id
+                  ? null
+                  : stage.client_stage_id
+              )
+            }
+          >
+            <div>
+              <p className="font-semibold">{stage.stage_name}</p>
+              <p className="text-xs text-muted-foreground">
+                Status: {stage.status}
+              </p>
+            </div>
+
+            <ChevronDown
+              className={`transition-transform ${
+                openStage === stage.client_stage_id
+                  ? "rotate-180"
+                  : ""
+              }`}
+            />
+          </div>
+
+          {/* Subtasks */}
+          {openStage === stage.client_stage_id && (
+            <div className="border-t p-3 space-y-2">
+              {stage.subtasks.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No subtasks in this stage.
+                </p>
+              )}
+
+              {stage.subtasks.map((st: any) => (
+                <div
+                  key={st.subtask_id}
+                  className="flex items-center justify-between border p-2 rounded"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {st.subtask_title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Order: {st.order_number ?? "-"}
+                    </p>
+                  </div>
+
+                  <StatusPill status={st.status} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </CardContent>
+  </Card>
+
+</TabsContent>
 
 
         {/* ---------- DOCUMENTS ---------- */}

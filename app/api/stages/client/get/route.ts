@@ -27,17 +27,23 @@ export async function GET(req: Request) {
         ORDER BY order_number
       `);
 
-    const subtasks = await pool
-      .request()
-      .input("clientId", sql.Int, Number(clientId))
-      .query(`
-        SELECT s.client_stage_id, t.subtask_title, t.status
-        FROM client_stages s
-        LEFT JOIN client_stage_subtasks t
-          ON s.client_stage_id = t.client_stage_id
-        WHERE s.client_id = @clientId
-        ORDER BY s.order_number, t.order_number
-      `);
+      const subtasks = await pool
+        .request()
+        .input("clientId", sql.Int, Number(clientId))
+        .query(`
+          SELECT 
+            s.client_stage_id,
+            t.subtask_id,
+            t.subtask_title,
+            t.status,
+            t.order_number
+          FROM client_stages s
+          LEFT JOIN client_stage_subtasks t
+            ON s.client_stage_id = t.client_stage_id
+          WHERE s.client_id = @clientId
+          ORDER BY s.order_number, t.order_number
+        `);
+
 
     return NextResponse.json({
       success: true,

@@ -48,6 +48,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useRouter } from "next/navigation";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+
+import {
+  Command,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandInput,
+} from "@/components/ui/command";
+
+import { ChevronsUpDown } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 
 // type SubTask = { title: string; status: string };
@@ -61,6 +79,17 @@ export default function StagesPage() {
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })
   );
+  const searchParams = useSearchParams();
+  const clientIdFromUrl = searchParams.get("clientId");
+
+  const updateSubtask = (stageId: string, index: number, title: string) => {
+  setSubTasks(prev => ({
+    ...prev,
+    [stageId]: (prev[stageId] || []).map((t, i) =>
+      i === index ? { ...t, title } : t
+    )
+    }));
+    };
 
   const [stages, setStages] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
@@ -71,8 +100,17 @@ export default function StagesPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [subTasks, setSubTasks] = useState<Record<string, SubTask[]>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+
 
   const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+  if (clientIdFromUrl) {
+    setSelectedClientId(clientIdFromUrl);
+    }
+  }, [clientIdFromUrl]);
 
 useEffect(() => {
   if (!selectedClientId) return;
@@ -148,18 +186,7 @@ useEffect(() => {
     setStages(reordered);
   }
 
-  // // Sync data to local state (load default stage templates)
-  // if (data?.data && stages.length === 0) {
-  //   setStages(
-  //     data.data.map((s: any, index: number) => ({
-  //       id: s.stage_id,
-  //       name: s.stage_name,
-  //       isRequired: s.is_required ?? false,
-  //       order: s.order_number ?? index + 1,
-  //       status: "Not Started",
-  //     }))
-  //   );
-  // }
+
 
   function handleOpenDialog(stage?: any) {
     if (stage) {
@@ -282,24 +309,48 @@ useEffect(() => {
       <CardContent className="grid gap-4">
         <div className="grid gap-2">
           <Label htmlFor="client-select">Select Client (Required)</Label>
-          <Select
-            value={selectedClientId}
-            onValueChange={setSelectedClientId}
-          >
-            <SelectTrigger id="client-select">
-              <SelectValue placeholder="Choose a client to manage their stages" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients?.data?.map((c: any) => (
-                <SelectItem
-                  key={c.client_id}
-                  value={c.client_id.toString()}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-[291px] justify-between"
                 >
-                  {c.client_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {selectedClientId ? (
+                  clients?.data?.find((x: any) => x.client_id.toString() === selectedClientId)?.client_name
+                ) : (
+                  <span className="font-normal text-muted-foreground">
+                    Choose a client to manage their stages
+                  </span>
+                )}
+
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search client..." />
+
+                  <CommandList className="max-h-60 overflow-y-auto">
+                    <CommandEmpty>No client found.</CommandEmpty>
+
+                    <CommandGroup>
+                      {clients?.data?.map((c: any) => (
+                        <CommandItem
+                          key={c.client_id}
+                          value={c.client_name}
+                          onSelect={() => setSelectedClientId(c.client_id.toString())}
+                        >
+                          {c.client_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
         </div>
 
         {selectedClientId && (
@@ -315,52 +366,35 @@ useEffect(() => {
               >
                 {stages.map((stage) => (
                   <SortableStageItem 
-                  key={`stage-${stage.id}`} 
-                  stage={stage} 
+                    key={`stage-${stage.id}`} 
+                    stage={stage} 
                     subtasks={subTasks}
-                      addSubtask={(id: string | number, title: string) => {
-                        const key = id.toString();
-                        const safeTitle = title?.trim() || "";
+                    addSubtask={(id: string | number, title: string) => {
+                      const key = id.toString();
+                      const safeTitle = title?.trim() || "";
 
-                        console.log("STORING SUBTASK:", safeTitle);
-
-                        setSubTasks(prev => ({
-                          ...prev,
-                          [key]: [
-                            ...(prev[key] || []),
-                            { title: safeTitle, status: "Not Started" }
-                          ],
-                        }));
-                      }}
-
+                      setSubTasks(prev => ({
+                        ...prev,
+                        [key]: [
+                          ...(prev[key] || []),
+                          { title: safeTitle, status: "Not Started" }
+                        ],
+                      }));
+                    }}
 
                     removeSubtask={(id, idx) => {
                       const key = id.toString();
-
                       setSubTasks(prev => ({
                         ...prev,
                         [key]: (prev[key] || []).filter((_, i) => i !== idx),
                       }));
                     }}
 
+                    updateSubtask={updateSubtask}     // <-- ✅ ADD THIS LINE
+
                     onEdit={handleOpenDialog}
                     onDelete={handleDelete}
-                //     onStageStatusChange={(id: string, status: string) =>
-                //       setStages((prev) =>
-                //         prev.map((s) =>
-                //           s.id === id ? { ...s, status } : s
-                //         )
-                //       )
-                //     }
-                // onSubtaskStatusChange={(stageId: string, index: number, status: string) => {
-                //   const key = String(stageId);
-                //   setSubTasks((prev) => ({
-                //     ...prev,
-                //     [key]: (prev[key] || []).map((t, i) =>
-                //       i === index ? { ...t, status } : t
-                //     ),
-                //   }));
-                // }}
+
                     onStageStatusChange={(id: string, status: string) =>
                       setStages((prev) =>
                         prev.map((s) =>
@@ -368,118 +402,140 @@ useEffect(() => {
                         )
                       )
                     }
-
                   />
+
                 ))}
               </SortableContext>
             </DndContext>
+              {stages.length > 0 && selectedClientId && (
+                <div className="flex justify-center gap-4 pt-4">
 
-            {stages.length > 0 && selectedClientId && (
-              <div className="flex justify-center pt-4">
-                <Button
-                  disabled={isSaving}
-                  onClick={async () => {
-                    setIsSaving(true);
-
-                    const formattedStages = stages.map((stage) => ({
-                      name: stage.name,
-                      isRequired: stage.isRequired,
-                      order: stage.order,
-                      status: stage.status || "Not Started",
-
-                      // Subtasks formatted cleanly
-                      subtasks: (subTasks[String(stage.id)] || []).map((t) => ({
-                        title: t.title,
-                        status: t.status || "Not Started",
-                      })),
-                    }));
+                  {/* CANCEL BUTTON */}
+                  <Button
+                    variant="outline"
+                    className="text-muted-foreground"
+                    onClick={() => setCancelOpen(true)}
+                  >
+                    Cancel
+                  </Button>
 
 
-                    const payload = {
-                      clientId: Number(selectedClientId),
-                      stages: formattedStages,
-                    };
+                  {/* SAVE BUTTON */}
+                  <Button
+                    disabled={isSaving}
+                    onClick={async () => {
+                      setIsSaving(true);
 
-                    console.log("FINAL PAYLOAD:", payload);
+                      const formattedStages = stages.map((stage) => ({
+                        name: stage.name,
+                        isRequired: stage.isRequired,
+                        order: stage.order,
+                        status: stage.status || "Not Started",
+                        subtasks: (subTasks[String(stage.id)] || []).map((t) => ({
+                          title: t.title,
+                          status: t.status || "Not Started",
+                        })),
+                      }));
 
-                    try {
-                      const res = await fetch("/api/stages/client/save", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(payload),
-                      });
+                      const payload = {
+                        clientId: Number(selectedClientId),
+                        stages: formattedStages,
+                      };
 
-                      const json = await res.json();
+                      console.log("FINAL PAYLOAD:", payload);
 
-                      if (!json.success) {
-                        toast({
-                          title: "Save Failed",
-                          description: json.error,
-                          variant: "destructive",
-                        });
-                      } else {
-                        toast({
-                          title: "Success",
-                          description: "Client stages saved successfully",
+                      try {
+                        const res = await fetch("/api/stages/client/save", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(payload),
                         });
 
-                        // 🟢 Re-fetch updated data to reload UI cleanly
-                        const reload = await fetch(`/api/stages/client/get?clientId=${selectedClientId}`);
-                        const updated = await reload.json();
+                        const json = await res.json();
 
-                        if (updated.success) {
-                          setStages(
-                            updated.data.map((s: any, index: number) => ({
-                              id: s.client_stage_id,
-                              name: s.stage_name,
-                              isRequired: s.is_required ?? false,
-                              order: s.order_number ?? index + 1,
-                              status: s.status || "Not Started",
-                            }))
-                          );
-
-                          const subs: Record<string, any[]> = {};
-                          updated.subtasks.forEach((st: any) => {
-                            const key = String(st.client_stage_id);
-                            if (!subs[key]) subs[key] = [];
-                            subs[key].push({
-                              title: st.subtask_title,
-                              status: st.status,
-                            });
+                        if (!json.success) {
+                          toast({
+                            title: "Save Failed",
+                            description: json.error,
+                            variant: "destructive",
                           });
-                          setSubTasks(subs);
+                        } else {
+                          toast({
+                            title: "Success",
+                            description: "Client stages saved successfully",
+                          });
+
+                          const reload = await fetch(`/api/stages/client/get?clientId=${selectedClientId}`);
+                          const updated = await reload.json();
+
+                          if (updated.success) {
+                            setStages(
+                              updated.data.map((s: any, index: number) => ({
+                                id: s.client_stage_id,
+                                name: s.stage_name,
+                                isRequired: s.is_required ?? false,
+                                order: s.order_number ?? index + 1,
+                                status: s.status || "Not Started",
+                              }))
+                            );
+
+                            const subs: Record<string, any[]> = {};
+                            updated.subtasks.forEach((st: any) => {
+                              const key = String(st.client_stage_id);
+                              if (!subs[key]) subs[key] = [];
+                              subs[key].push({
+                                title: st.subtask_title,
+                                status: st.status,
+                              });
+                            });
+                            setSubTasks(subs);
+                          }
+
+                          toast({
+                            title: "Updated",
+                            description: "All stages reloaded successfully",
+                          });
                         }
 
-                        // 🧹 Clear local temporary inputs
+                      } catch (error) {
                         toast({
-                          title: "Updated",
-                          description: "All stages reloaded successfully",
+                          title: "Error",
+                          description: "Failed to save stages. Please try again.",
+                          variant: "destructive",
                         });
                       }
 
+                      setIsSaving(false);
+                    }}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {isSaving ? "Saving..." : "💾 Save Stages"}
+                  </Button>
+                </div>
+              )}
 
-                    } catch (error) {
-                      const message =
-                        error instanceof Error
-                          ? error.message
-                          : "Failed to save stages. Please try again.";
+              <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel Changes?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to cancel? All unsaved changes will be lost.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
 
-                      toast({
-                        title: "Error",
-                        description: message,
-                        variant: "destructive",
-                      });
-                    }
+                  <div className="flex justify-end gap-2 pt-4">
+                    <AlertDialogCancel>Back</AlertDialogCancel>
 
-                    setIsSaving(false);
-                  }}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  {isSaving ? "Saving..." : "💾 Save Stages"}
-                </Button>
+                    <AlertDialogAction
+                      className="bg-destructive text-white hover:bg-destructive/90"
+                      onClick={() => window.location.reload()}
+                    >
+                      Yes, Cancel
+                    </AlertDialogAction>
+                  </div>
+                </AlertDialogContent>
+              </AlertDialog>
 
-              </div>
-            )}
           </div>
         )}
       </CardContent>
