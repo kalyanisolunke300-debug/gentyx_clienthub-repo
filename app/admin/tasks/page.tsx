@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
 import { StatusPill } from "@/components/widgets/status-pill";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TaskRow = {
   id: number;
@@ -23,22 +24,20 @@ type TaskRow = {
 };
 
 export default function AdminTasksPage() {
-  const { page, setPage, pageSize, q, setQ } = useServerTableState();
+  const { page, setPage, pageSize, setPageSize, q, setQ } = useServerTableState();
 
-  // Fetch task list
-  const { data: tasksData } = useSWR(["tasks", page, pageSize], () =>
-    // fetchTasks({ page, pageSize })
-    fetchAllTasks({ page, pageSize })
+  // Load ALL tasks so frontend pagination works
+  const { data: tasksData } = useSWR(["tasks"], () =>
+    fetchAllTasks({ page: 1, pageSize: 500 })
   );
 
-  // Fetch all clients (for client name mapping)
+  // Load clients for name mapping
   const { data: clientsData } = useSWR(["clients"], () =>
-    fetchClients({ page: 1, pageSize: 200 })
+    fetchClients({ page: 1, pageSize: 500 })
   );
 
   const openDrawer = useUIStore((s) => s.openDrawer);
 
-  // Safely get client name
   const getClientName = (clientId: number) => {
     const list = clientsData?.data || [];
     const found = list.find((c: any) => c.client_id === clientId);
@@ -51,18 +50,11 @@ export default function AdminTasksPage() {
       header: "Client Name",
       render: (row) => getClientName(row.clientId),
     },
-    {
-      key: "title",
-      header: "Title",
-    },
+    { key: "title", header: "Title" },
     {
       key: "assigneeRole",
       header: "Assigned User",
-      render: (row) => {
-        // 👇 FINAL & CORRECT RULE
-        // Assigned User should display only assigned_to_role value
-        return row.assigneeRole || "Unknown";
-      },
+      render: (row) => row.assigneeRole || "Unknown",
     },
     {
       key: "status",
@@ -71,7 +63,15 @@ export default function AdminTasksPage() {
     },
   ];
 
-  const rows = (tasksData?.data || []) as TaskRow[];
+  // FRONTEND PAGINATION
+  const allTasks: TaskRow[] = tasksData?.data || [];
+  const total = allTasks.length;
+
+  const rows = allTasks.slice((page - 1) * pageSize, page * pageSize);
+
+  // MATERIAL STYLE COUNTER
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
 
   return (
     <div className="grid gap-4">
@@ -97,11 +97,43 @@ export default function AdminTasksPage() {
         )}
       />
 
-      {/* PAGINATION */}
+      {/* MATERIAL STYLE PAGINATION BAR */}
+      <div className="flex items-center justify-between text-sm text-muted-foreground py-3 px-1 border-t">
+
+        {/* ITEMS PER PAGE DROPDOWN */}
+        <div className="flex items-center gap-2">
+          <span>Items per page:</span>
+          <Select
+            value={String(pageSize)}
+            onValueChange={(val) => {
+              setPageSize(Number(val));
+              setPage(1); // reset to page 1
+            }}
+          >
+            <SelectTrigger className="w-20 h-8">
+              <SelectValue placeholder={pageSize} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="20">20</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* COUNT DISPLAY */}
+        <div>
+          {start}–{end} of {total} items
+        </div>
+      </div>
+
+      {/* BOTTOM PAGINATION BUTTONS */}
       <TablePagination
-        page={tasksData?.page || 1}
-        pageSize={tasksData?.pageSize || 10}
-        total={tasksData?.total || 0}
+        page={page}
+        pageSize={pageSize}
+        total={total}
         setPage={setPage}
       />
     </div>

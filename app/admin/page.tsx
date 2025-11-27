@@ -35,6 +35,8 @@ import { fetchClients, fetchAllTasks, fetchDocuments } from "@/lib/api";
 
 import { useUIStore } from "@/store/ui-store";
 import type { ClientProfile, Task, DocumentFile } from "@/types";
+import { useState } from "react";
+
 
 // Shape returned by fetchClients() for this page
 type ClientsResponse = {
@@ -59,8 +61,9 @@ export default function AdminDashboard() {
   // Clients (no pagination needed here)
   const { data: clients } = useSWR<ClientsResponse>(
     ["clients"],
-    () => fetchClients({})
+    () => fetchClients({ page: 1, pageSize: 500 })  // 👈 LOAD ALL CLIENTS
   );
+
 
   // // Tasks (no client filter on dashboard)
   // const { data: tasks } = useSWR<TasksResponse>(
@@ -83,6 +86,40 @@ export default function AdminDashboard() {
   const clientRows: ClientProfile[] = clients?.data ?? [];
   const taskRows: Task[] = tasks?.data ?? [];
   const docRows: DocumentFile[] = docs ?? [];
+
+  // ---------- PAGINATION STATE ----------
+
+  // Clients pagination
+  const [clientPage, setClientPage] = useState(1);
+  // const clientPageSize = 10;
+
+  // Tasks pagination
+  const [taskPage, setTaskPage] = useState(1);
+  // const taskPageSize = 10;
+
+  // NEW – page size dropdown state
+  const [clientPageSize, setClientPageSize] = useState(10);
+  const [taskPageSize, setTaskPageSize] = useState(10);
+
+  // Paginated results - Client Table
+  const paginatedClients = clientRows.slice(
+    (clientPage - 1) * clientPageSize,
+    clientPage * clientPageSize
+  );
+
+  const clientTotalPages = Math.ceil(clientRows.length / clientPageSize);
+  const clientStart = (clientPage - 1) * clientPageSize + 1;
+  const clientEnd = Math.min(clientPage * clientPageSize, clientRows.length);
+
+  // Paginated results - tasks Table
+  const paginatedTasks = taskRows.slice(
+    (taskPage - 1) * taskPageSize,
+    taskPage * taskPageSize
+  );
+
+  const taskTotalPages = Math.ceil(taskRows.length / taskPageSize);
+  const taskStart = (taskPage - 1) * taskPageSize + 1;
+  const taskEnd = Math.min(taskPage * taskPageSize, taskRows.length);
 
   // ---------- KPI VALUES ----------
 
@@ -372,7 +409,7 @@ export default function AdminDashboard() {
         <CardContent>
           <DataTable
             columns={clientCols}
-            rows={clientRows}
+            rows={paginatedClients}
             onRowAction={(row: ClientProfile) => (
               <div className="flex gap-2">
                 <Button
@@ -387,6 +424,53 @@ export default function AdminDashboard() {
               </div>
             )}
           />
+
+          {/* Pagination Buttons */}
+            <div className="flex items-center justify-between mt-4">
+
+              {/* LEFT SIDE: items per page + count */}
+              <div className="flex items-center gap-2 text-sm">
+                <span>Items per page:</span>
+
+                <select
+                  className="border rounded px-2 py-1"
+                  value={clientPageSize}
+                  onChange={(e) => {
+                    setClientPageSize(Number(e.target.value));
+                    setClientPage(1);
+                  }}
+                >
+                  {[5, 10, 20, 50, 100].map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <span>
+                  {clientStart}–{clientEnd} of {clientRows.length} items
+                </span>
+              </div>
+
+              {/* RIGHT SIDE: Prev Next */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={clientPage === 1}
+                  onClick={() => setClientPage(clientPage - 1)}
+                >
+                  Prev
+                </Button>
+
+                <Button
+                  variant="outline"
+                  disabled={clientPage === clientTotalPages}
+                  onClick={() => setClientPage(clientPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+
+            </div>
+
         </CardContent>
       </Card>
 
@@ -398,7 +482,7 @@ export default function AdminDashboard() {
         <CardContent>
           <DataTable
             columns={taskCols}
-            rows={taskRows}
+            rows={paginatedTasks}
             onRowAction={(row: any) => (
               <Button
                 size="sm"
@@ -412,6 +496,52 @@ export default function AdminDashboard() {
               </Button>
             )}
           />
+
+          {/* Pagination Buttons */}
+          <div className="flex items-center justify-between mt-4">
+
+            <div className="flex items-center gap-2 text-sm">
+              <span>Items per page:</span>
+
+              <select
+                className="border rounded px-2 py-1"
+                value={taskPageSize}
+                onChange={(e) => {
+                  setTaskPageSize(Number(e.target.value));
+                  setTaskPage(1);
+                }}
+              >
+                {[5, 10, 20, 50, 100].map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+
+              <span>
+                {taskStart}–{taskEnd} of {taskRows.length} items
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={taskPage === 1}
+                onClick={() => setTaskPage(taskPage - 1)}
+              >
+                Prev
+              </Button>
+
+              <Button
+                variant="outline"
+                disabled={taskPage === taskTotalPages}
+                onClick={() => setTaskPage(taskPage + 1)}
+              >
+                Next
+              </Button>
+            </div>
+
+          </div>
+
+
         </CardContent>
       </Card>
 

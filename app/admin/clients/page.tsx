@@ -13,12 +13,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+
 import { StatusPill } from "@/components/widgets/status-pill";
 import { ProgressRing } from "@/components/widgets/progress-ring";
 import type { ClientProfile } from "@/types";
 
 export default function AdminClientsList() {
   const { page, setPage, pageSize, q, setQ } = useServerTableState();
+  const [clientPageSize, setClientPageSize] = useState(10);
+
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
 
@@ -30,6 +34,13 @@ export default function AdminClientsList() {
   );
 
   const clientRows: ClientProfile[] = data?.data || [];
+  // ---- Client Pagination Calculations ----
+  const clientTotalItems = data?.total || clientRows.length;
+
+  const clientTotalPages = Math.ceil(clientTotalItems / clientPageSize);
+
+  const clientStart = (page - 1) * clientPageSize + 1;
+  const clientEnd = Math.min(page * clientPageSize, clientTotalItems);
 
   // ---------- TABLE COLUMNS ----------
   const cols: Column<ClientProfile>[] = [
@@ -116,12 +127,37 @@ export default function AdminClientsList() {
       />
 
       {/* ---------- PAGINATION ---------- */}
-      <TablePagination
-        page={data?.page || 1}
-        pageSize={data?.pageSize || 10}
-        total={data?.total || 0}
-        setPage={setPage}
-      />
+      <div className="flex items-center justify-between px-2 py-3 text-sm">
+
+        {/* LEFT SIDE — ITEMS PER PAGE */}
+        <div className="flex items-center gap-2">
+          <span>Items per page</span>
+
+          <select
+            className="border rounded px-2 py-1"
+            value={clientPageSize}
+            onChange={(e) => setClientPageSize(Number(e.target.value))}
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+
+          <span>
+            {clientStart}–{clientEnd} of {clientTotalItems} items
+          </span>
+        </div>
+
+        {/* RIGHT SIDE — PREV / NEXT (existing pagination) */}
+        <TablePagination
+          page={page}
+          pageSize={clientPageSize}
+          total={clientTotalItems}
+          setPage={setPage}
+        />
+      </div>
+
     </div>
   );
 }
