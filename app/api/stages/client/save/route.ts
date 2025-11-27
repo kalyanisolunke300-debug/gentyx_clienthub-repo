@@ -10,23 +10,26 @@ export async function POST(req: Request) {
     const { clientId, stages } = await req.json();
     const pool = await getDbPool();
 
-    // Start fresh transaction
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
 
     try {
-      // 🔹 Delete existing records for client
+      // 🔥 1️⃣ Delete old stages + subtasks
       await transaction.request()
         .input("clientId", sql.Int, clientId)
         .query(`
           DELETE FROM dbo.client_stage_subtasks 
-          WHERE client_stage_id IN (SELECT client_stage_id FROM dbo.client_stages WHERE client_id = @clientId);
+          WHERE client_stage_id IN (
+            SELECT client_stage_id FROM dbo.client_stages WHERE client_id = @clientId
+          );
 
           DELETE FROM dbo.client_stages WHERE client_id = @clientId;
         `);
 
-      // 🔹 Reinsert stages & subtasks
+      // 🔥 2️⃣ Insert new stages & subtasks
       for (const stage of stages) {
+
+        // Insert STAGE
         const stageInsert = await transaction.request()
           .input("clientId", sql.Int, clientId)
           .input("stageName", sql.NVarChar, stage.name)
@@ -34,39 +37,48 @@ export async function POST(req: Request) {
           .input("isRequired", sql.Bit, stage.isRequired ? 1 : 0)
           .input("status", sql.NVarChar, stage.status || "Not Started")
           .query(`
-            INSERT INTO dbo.client_stages (client_id, stage_name, order_number, is_required, status, created_at)
+            INSERT INTO dbo.client_stages
+            (client_id, stage_name, order_number, is_required, status, created_at)
             OUTPUT INSERTED.client_stage_id
             VALUES (@clientId, @stageName, @orderNum, @isRequired, @status, GETDATE());
           `);
 
         const stageId = stageInsert.recordset[0].client_stage_id;
+        console.log("🟩 Inserted Stage ID:", stageId);
 
-        // ✅ Insert subtasks if present
-        if (Array.isArray(stage.subtasks)) {
+        // Insert SUBTASKS
+        if (stage.subtasks && stage.subtasks.length > 0) {
           for (let i = 0; i < stage.subtasks.length; i++) {
             const sub = stage.subtasks[i];
-            if (!sub || !sub.title?.trim()) continue;
+
+            // Prevent null title from crashing
+            const safeTitle = (sub.title || "").trim();
+
+            console.log("➡️ Subtask Insert:", safeTitle);
 
             await transaction.request()
               .input("stageId", sql.Int, stageId)
-              .input("title", sql.NVarChar, sub.title.trim())
-              .input("orderNum", sql.Int, i + 1)
+              .input("title", sql.NVarChar, safeTitle)
               .input("status", sql.NVarChar, sub.status || "Not Started")
+              .input("orderNum", sql.Int, i + 1)
               .query(`
-                INSERT INTO dbo.client_stage_subtasks (client_stage_id, subtask_title, order_number, status, created_at)
-                VALUES (@stageId, @title, @orderNum, @status, GETDATE());
+                INSERT INTO dbo.client_stage_subtasks
+                (client_stage_id, subtask_title, status, order_number, created_at)
+                VALUES (@stageId, @title, @status, @orderNum, GETDATE());
               `);
           }
         }
       }
 
+      // 🔥 3️⃣ Commit transaction
       await transaction.commit();
-      console.log("✅ Stages + subtasks saved successfully.");
-      return NextResponse.json({ success: true, message: "Stages saved successfully" });
+
+      console.log("✅ Stages + Subtasks saved successfully.");
+      return NextResponse.json({ success: true });
 
     } catch (innerErr) {
       await transaction.rollback();
-      console.error("Transaction rolled back:", innerErr);
+      console.error("❌ Transaction rolled back:", innerErr);
       throw innerErr;
     }
 

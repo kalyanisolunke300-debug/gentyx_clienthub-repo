@@ -51,7 +51,10 @@ import {
 
 
 // type SubTask = { title: string; status: string };
-type SubTask = { title: string; status?: string };
+type SubTask = {
+  title: string;
+  status: string;  // always required for SQL insert
+};
 
 export default function StagesPage() {
   const { data } = useSWR(["stages"], () => fetchStagesList());
@@ -82,7 +85,7 @@ useEffect(() => {
       // 🟢 Client already has stages — load them
       setStages(
         json.data.map((s: any, index: number) => ({
-          id: s.client_stage_id,
+          id: String(s.client_stage_id),
           name: s.stage_name,
           isRequired: s.is_required ?? false,
           order: s.order_number ?? index + 1,
@@ -193,8 +196,8 @@ useEffect(() => {
     } else {
     const newStage = {
       // id: Date.now(),            // <-- always numeric
-      id: `temp-${Date.now()}`,
-
+      // id: `temp-${Date.now()}`,
+      id: String(-Date.now()), 
       tempId: true,              // <-- mark as temporary ID
       name: formData.name,
       isRequired: formData.isRequired,
@@ -311,23 +314,29 @@ useEffect(() => {
                 strategy={verticalListSortingStrategy}
               >
                 {stages.map((stage) => (
-                  <SortableStageItem
-                    key={stage.id}
-                    stage={stage}
+                  <SortableStageItem 
+                  key={`stage-${stage.id}`} 
+                  stage={stage} 
                     subtasks={subTasks}
-                    addSubtask={(id: string, title: string) => {
-                      if (!title.trim()) return;
-                      const key = String(id);
-                      setSubTasks((prev) => ({
-                        ...prev,
-                        [key]: [
-                          ...(prev[key] || []),
-                          { title, status: "Not Started" },
-                        ],
-                      }));
-                    }}
+                      addSubtask={(id: string | number, title: string) => {
+                        const key = id.toString();
+                        const safeTitle = title?.trim() || "";
+
+                        console.log("STORING SUBTASK:", safeTitle);
+
+                        setSubTasks(prev => ({
+                          ...prev,
+                          [key]: [
+                            ...(prev[key] || []),
+                            { title: safeTitle, status: "Not Started" }
+                          ],
+                        }));
+                      }}
+
+
                     removeSubtask={(id, idx) => {
-                      const key = String(id);
+                      const key = id.toString();
+
                       setSubTasks(prev => ({
                         ...prev,
                         [key]: (prev[key] || []).filter((_, i) => i !== idx),
@@ -377,8 +386,14 @@ useEffect(() => {
                       isRequired: stage.isRequired,
                       order: stage.order,
                       status: stage.status || "Not Started",
-                      subtasks: subTasks[String(stage.id)] || [],
+
+                      // Subtasks formatted cleanly
+                      subtasks: (subTasks[String(stage.id)] || []).map((t) => ({
+                        title: t.title,
+                        status: t.status || "Not Started",
+                      })),
                     }));
+
 
                     const payload = {
                       clientId: Number(selectedClientId),

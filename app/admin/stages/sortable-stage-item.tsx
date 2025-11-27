@@ -1,4 +1,4 @@
-// /app/admin/stages/sortable-stage-item.tsx
+//  app/admin/stages/sortable-stage-item.tsx
 "use client";
 
 import { CSS } from "@dnd-kit/utilities";
@@ -16,8 +16,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState } from "react";
+// import { useState } from "react";
+import { useState, useRef } from "react";
+
 import { motion, AnimatePresence } from "framer-motion";
+
+
+/* ---------------- TYPES ---------------- */
+
+export interface Subtask {
+  title: string;
+  status: string;
+}
+
+export interface SortableStageItemProps {
+  stage: {
+    id: string;
+    name: string;
+    order: number;
+    isRequired: boolean;
+    status: string;
+  };
+  subtasks: Record<string, Subtask[]>;
+
+  addSubtask: (stageId: string, title: string) => void;
+  removeSubtask: (stageId: string, index: number) => void;
+
+  onEdit: (stage: any) => void;
+  onDelete: (id: string) => void;
+
+  onStageStatusChange: (id: string, status: string) => void;
+}
+
+/* -------------- STAGE STATUSES --------------- */
 
 const STATUS_OPTIONS = [
   "Not Started",
@@ -27,15 +58,7 @@ const STATUS_OPTIONS = [
   "Approved",
 ];
 
-type SortableStageItemProps = {
-  stage: any;
-  subtasks: Record<string, any[]>;
-  addSubtask: (id: string, title: string) => void;
-  removeSubtask: (id: string, index: number) => void;
-  onEdit: (stage: any) => void;
-  onDelete: (id: string) => void;
-  onStageStatusChange: (id: string, status: string) => void;
-};
+/* ---------------- COMPONENT ---------------- */
 
 export function SortableStageItem({
   stage,
@@ -46,6 +69,7 @@ export function SortableStageItem({
   onDelete,
   onStageStatusChange,
 }: SortableStageItemProps) {
+  const [inputValue, setInputValue] = useState("");
   const {
     attributes,
     listeners,
@@ -64,10 +88,11 @@ export function SortableStageItem({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const [inputValue, setInputValue] = useState("");
+  // const [inputValue, setInputValue] = useState<string>("");
+  const inputRef = useRef("");
 
   const stageStatus = stage.status || "Not Started";
-  const taskList = subtasks[stage.id] || [];
+  const stageSubtasks: Subtask[] = subtasks[stage.id] || [];
 
   return (
     <div
@@ -75,7 +100,7 @@ export function SortableStageItem({
       style={style}
       className="rounded-md border p-3 bg-white shadow-sm"
     >
-      {/* Header Row */}
+      {/* HEADER */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div
@@ -115,17 +140,20 @@ export function SortableStageItem({
         </div>
       </div>
 
-      {/* Stage status */}
+      {/* STAGE STATUS */}
       <div className="ml-6 mb-3 flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Stage Status</span>
 
         <Select
           value={stageStatus}
-          onValueChange={(value) => onStageStatusChange(stage.id, value)}
+          onValueChange={(value: string) =>
+            onStageStatusChange(stage.id, value)
+          }
         >
           <SelectTrigger className="h-7 w-40 text-xs">
             <SelectValue />
           </SelectTrigger>
+
           <SelectContent>
             {STATUS_OPTIONS.map((s) => (
               <SelectItem key={s} value={s}>
@@ -136,59 +164,69 @@ export function SortableStageItem({
         </Select>
       </div>
 
-      {/* Subtasks section */}
+      {/* SUBTASKS */}
       <div className="ml-6 mt-2 border-t pt-2">
         <div className="text-xs font-semibold text-muted-foreground mb-2">
           Sub-Tasks
         </div>
 
-        {/* Render subtasks */}
+        {/* SUBTASK LIST */}
         <div className="grid gap-1 mb-2">
           <AnimatePresence>
-            {taskList.length > 0 &&
-              taskList.map((task, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.25 }}
-                  className="text-sm bg-muted p-1 rounded flex items-center justify-between gap-2"
+            {stageSubtasks.map((t, index: number) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center justify-between bg-gray-100 rounded px-2 py-1 text-sm"
+              >
+                <span className="truncate">{t.title}</span>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 w-5 p-0 text-destructive"
+                  onClick={() => removeSubtask(stage.id, index)}
                 >
-                  <span className="truncate">{task.title}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-5 w-5 p-0 text-destructive"
-                    onClick={() => removeSubtask(stage.id, idx)}
-                  >
-                    ×
-                  </Button>
-                </motion.div>
-              ))}
+                  ×
+                </Button>
+              </motion.div>
+            ))}
           </AnimatePresence>
         </div>
 
-        {/* Add Subtask */}
+        {/* ADD SUBTASK FIELD */}
         <div className="flex gap-1">
+        <div className="flex gap-1">
+
           <Input
-            size={1}
             placeholder="Add sub-task..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             className="text-xs h-7"
           />
+
           <Button
             size="sm"
             variant="outline"
             className="h-7"
             onClick={() => {
-              if (!inputValue.trim()) return;
-              addSubtask(stage.id, inputValue.trim());
-              setInputValue("");
+              const title = inputValue.trim();
+              if (!title) return;
+
+              addSubtask(stage.id.toString(), title);
+
+              console.log("SUBTASK ADDED:", title);
+
+              setInputValue("");  // <-- THIS RESETS INPUT PROPERLY
             }}
           >
             <Plus className="size-3" />
           </Button>
+
+        </div>
+
         </div>
       </div>
     </div>
