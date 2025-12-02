@@ -7,7 +7,6 @@ export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
 
-    // ❌ Remove role requirement – now role comes from DB
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email and password are required." },
@@ -17,7 +16,6 @@ export async function POST(req: NextRequest) {
 
     const pool = await getDbPool();
 
-    // 🔍 Get user by email ONLY
     const result = await pool
       .request()
       .input("email", sql.NVarChar, email)
@@ -29,31 +27,40 @@ export async function POST(req: NextRequest) {
 
     const user = result.recordset[0];
 
-    // ❌ If no user found
-    if (!user) {
+    if (!user || user.password !== password) {
       return NextResponse.json(
         { success: false, message: "Invalid email or password." },
         { status: 401 }
       );
     }
 
-    // ❌ Compare password (plain text for now)
-    if (user.password !== password) {
-      return NextResponse.json(
-        { success: false, message: "Invalid email or password." },
-        { status: 401 }
-      );
-    }
-
-    // ✅ Return role from DB
-    return NextResponse.json({
+    // --- CREATE COOKIES ---
+    const response = NextResponse.json({
       success: true,
       user: {
         id: user.id,
         email: user.email,
-        role: user.role, // ← This determines the dashboard redirect
+        role: user.role,
       },
     });
+
+    // Cookie: Token (use user.id for now)
+    response.cookies.set("clienthub_token", user.id.toString(), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+
+    // Cookie: Role
+    response.cookies.set("clienthub_role", user.role, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+
+    return response;
   } catch (error) {
     console.error("Login API error:", error);
     return NextResponse.json(

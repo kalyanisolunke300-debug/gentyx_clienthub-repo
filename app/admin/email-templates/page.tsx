@@ -1,7 +1,9 @@
+// app/admin/email-templates/page.tsx
 "use client"
 
-import useSWR from "swr"
-import { fetchEmailTemplates } from "@/lib/api"
+import useSWR, { mutate } from "swr"
+// import { fetchEmailTemplates } from "@/lib/api"
+import { fetchEmailTemplates, createEmailTemplate, updateEmailTemplate, deleteEmailTemplate } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,11 +23,21 @@ export default function EmailTemplatesPage() {
   const [editingId, setEditingId] = React.useState<string | null>(null)
   const [formData, setFormData] = React.useState({ name: "", subject: "", body: "" })
   const { toast } = useToast()
+  const [isSaving, setIsSaving] = React.useState(false);
 
   // Sync data to local state
-  if (data && templates.length === 0) {
-    setTemplates(data)
-  }
+  React.useEffect(() => {
+    if (data) {
+      setTemplates(data);
+
+      // 🔥 Ensure selected template updates too
+      if (selected) {
+        const updated = data.find((t: any) => t.id === selected);
+        if (updated) setSelected(updated.id);
+      }
+    }
+  }, [data]);
+
 
   const tpl = templates.find((t) => t.id === selected)
 
@@ -40,34 +52,40 @@ export default function EmailTemplatesPage() {
     setOpen(true)
   }
 
-  function handleSave() {
-    if (!formData.name.trim() || !formData.subject.trim() || !formData.body.trim()) {
-      toast({ title: "Error", description: "All fields are required", variant: "destructive" })
-      return
-    }
+async function handleSave() {
+  if (!formData.name.trim() || !formData.subject.trim() || !formData.body.trim()) {
+    toast({ title: "Error", description: "All fields are required", variant: "destructive" });
+    return;
+  }
+
+  try {
+    setIsSaving(true); // 🔥 Disable button
 
     if (editingId) {
-      setTemplates(templates.map((t) => (t.id === editingId ? { ...t, ...formData } : t)))
-      toast({ title: "Updated", description: "Template updated successfully" })
+      await updateEmailTemplate({
+        id: Number(editingId),   // 🔥 FIX HERE
+        ...formData
+      });
+      toast({ title: "Updated", description: "Template updated successfully" });
     } else {
-      const newTemplate = {
-        id: `tpl-${Date.now()}`,
-        ...formData,
-        isDefault: false,
-      }
-      setTemplates([...templates, newTemplate])
-      toast({ title: "Created", description: "Template created successfully" })
+      await createEmailTemplate(formData);
+      toast({ title: "Created", description: "Template created successfully" });
     }
 
-    setOpen(false)
-  }
+    mutate(["templates"]); // refresh list
+    setOpen(false);
 
-  function handleDelete(id: string) {
-    setTemplates(templates.filter((t) => t.id !== id))
-    if (selected === id) setSelected(null)
-    toast({ title: "Deleted", description: "Template deleted successfully" })
+  } finally {
+    setIsSaving(false); // re-enable button
   }
+}
 
+ 
+  async function handleDelete(id: number) {
+    await deleteEmailTemplate(id);
+    toast({ title: "Deleted", description: "Template deleted successfully" });
+    setSelected(null);
+  }
   function handleUploadTemplate(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -163,7 +181,9 @@ export default function EmailTemplatesPage() {
                     <Button variant="outline" onClick={() => setOpen(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={handleSave}>{editingId ? "Update" : "Create"}</Button>
+                      <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? "Updating..." : editingId ? "Update" : "Create"}
+                      </Button>
                   </div>
                 </div>
               </DialogContent>

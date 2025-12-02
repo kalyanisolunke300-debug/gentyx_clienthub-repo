@@ -326,3 +326,56 @@ export async function fetchClientDocuments(clientId: string | number) {
   const res = await fetch(`/api/documents/get-by-client?id=${clientId}`);
   return res.json();
 }
+
+
+/* -------------------------------------------------------------
+    EMAIL TEMPLATE API CALLS
+--------------------------------------------------------------*/
+ 
+// GET all templates
+export async function fetchEmailTemplates() {
+  const res = await fetch("/api/email-templates/get", { cache: "no-store" });
+  const json = await res.json();
+  return json.data || [];
+}
+ 
+// CREATE template
+export async function createEmailTemplate(payload: {
+  name: string;
+  subject: string;
+  body: string;
+}) {
+  const res = await fetch("/api/email-templates/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+ 
+  return res.json();
+}
+ 
+// UPDATE template
+export async function updateEmailTemplate(payload: {
+  id: number | string;
+  name: string;
+  subject: string;
+  body: string;
+}) {
+  const res = await fetch("/api/email-templates/update", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+ 
+  return res.json();
+}
+ 
+// DELETE template
+export async function deleteEmailTemplate(id: number | string) {
+  const res = await fetch(`/api/email-templates/delete?id=${id}`, {
+    method: "DELETE"
+  });
+ 
+  return res.json();
+}
+ 
