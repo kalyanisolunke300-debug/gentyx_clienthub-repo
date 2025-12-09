@@ -34,7 +34,7 @@ const NewClientSchema = z.object({
   primaryContactPhone: z.string().optional(),
   serviceCenterId: z.string().optional(),
   cpaId: z.string().optional(),
-  stageId: z.string().optional(),
+  // stageId: z.string().optional(),
   associatedUsers: z
     .array(
       z.object({
@@ -76,7 +76,7 @@ export function NewClientForm() {
       primaryContactPhone: "",
       serviceCenterId: "",
       cpaId: "",
-      stageId: "",
+      // stageId: "",
       associatedUsers: [],
     },
   });
@@ -101,7 +101,7 @@ export function NewClientForm() {
           ? Number(values.serviceCenterId)
           : null,
         cpaId: values.cpaId ? Number(values.cpaId) : null,
-        stageId: values.stageId ? Number(values.stageId) : null,
+        // stageId: values.stageId ? Number(values.stageId) : null,
         associatedUsers: (values.associatedUsers || []).map((u) => ({
           name: u.name,
           email: u.email,
@@ -158,13 +158,23 @@ export function NewClientForm() {
 
       {/* Primary Contact */}
       <div className="grid gap-2">
-        <Label>Primary Contact</Label>
+        <Label>Primary Contact Name</Label>
         <Input
           {...form.register("primaryContactName")}
           placeholder="Jane Doe"
         />
       </div>
 
+      {/* Email */}
+      {/* <div className="grid gap-2">
+        <Label>Primary Contact Phone</Label>
+        <Input
+          type="email"
+          {...form.register("primaryContactEmail")}
+          placeholder="jane@example.com"
+        />
+      </div> */}
+      
       {/* Email */}
       <div className="grid gap-2">
         <Label>Email</Label>
@@ -174,15 +184,15 @@ export function NewClientForm() {
           placeholder="jane@example.com"
         />
       </div>
-
       {/* Phone */}
       <div className="grid gap-2">
         <Label>Phone</Label>
         <Input
           {...form.register("primaryContactPhone")}
-          placeholder="+1-555-555-5555"
+          placeholder="555-888-3333"
         />
       </div>
+
 
       {/* Code + SLA */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -249,7 +259,7 @@ export function NewClientForm() {
       {/* Initial Stage */}
       {/* If you already have stages API, you can hook it here.
           For now, simple free-text / numeric entry: */}
-      <div className="grid gap-2">
+      {/* <div className="grid gap-2">
         <Label>Initial Stage ID</Label>
         <Input
           {...form.register("stageId")}
@@ -259,7 +269,9 @@ export function NewClientForm() {
           (For now, enter the Stage ID manually. We can hook a stages dropdown
           later.)
         </p>
-      </div>
+      </div> */}
+
+
 
       {/* Associated Users */}
       <div className="mt-4 border-t pt-4">

@@ -1,14 +1,13 @@
-import type React from "react";
+// app/layout.tsx
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+
 import { ThemeProvider } from "@/components/theme-provider";
 import { CommandBar } from "@/components/command-bar";
 import ConditionalShell from "@/components/conditional-shell";
+import { Analytics } from "@vercel/analytics/next";
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+import SessionHandler from "./session-handler";
 
 export const metadata: Metadata = {
   title: "ClientHub",
@@ -24,10 +23,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
+        {/* 🔥 Auto Logout After 2 Hours */}
+        <SessionHandler />
+
+        {/* App Core */}
         <ThemeProvider>
           <ConditionalShell>{children}</ConditionalShell>
           <CommandBar />
         </ThemeProvider>
+
         <Analytics />
       </body>
     </html>

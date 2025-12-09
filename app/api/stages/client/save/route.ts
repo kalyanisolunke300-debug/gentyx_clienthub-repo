@@ -3,6 +3,20 @@ import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 
+// ✅ SERVER-SIDE FINAL STAGE STATUS AUTHORITY
+function computeFinalStageStatus(subtasks: any[]) {
+  if (!subtasks || subtasks.length === 0) return "Not Started";
+
+  const allCompleted = subtasks.every(
+    (t) => (t.status || "").toLowerCase() === "completed"
+  );
+
+  if (allCompleted) return "Completed";
+
+  return "In Progress";
+}
+
+
 export async function POST(req: Request) {
   try {
     console.log("STAGE SAVE API CALLED");
@@ -28,20 +42,23 @@ export async function POST(req: Request) {
 
       // 🔥 2️⃣ Insert new stages & subtasks
       for (const stage of stages) {
+            // ✅ ✅ AUTO-CALCULATE FINAL STATUS (DO NOT TRUST FRONTEND)
+            const finalStatus = computeFinalStageStatus(stage.subtasks || []);
 
-        // Insert STAGE
-        const stageInsert = await transaction.request()
-          .input("clientId", sql.Int, clientId)
-          .input("stageName", sql.NVarChar, stage.name)
-          .input("orderNum", sql.Int, stage.order)
-          .input("isRequired", sql.Bit, stage.isRequired ? 1 : 0)
-          .input("status", sql.NVarChar, stage.status || "Not Started")
-          .query(`
-            INSERT INTO dbo.client_stages
-            (client_id, stage_name, order_number, is_required, status, created_at)
-            OUTPUT INSERTED.client_stage_id
-            VALUES (@clientId, @stageName, @orderNum, @isRequired, @status, GETDATE());
-          `);
+            // Insert STAGE
+            const stageInsert = await transaction.request()
+              .input("clientId", sql.Int, clientId)
+              .input("stageName", sql.NVarChar, stage.name)
+              .input("orderNum", sql.Int, stage.order)
+              .input("isRequired", sql.Bit, stage.isRequired ? 1 : 0)
+              .input("status", sql.NVarChar, finalStatus)   // ✅ SERVER AUTHORITY
+              .query(`
+                INSERT INTO dbo.client_stages
+                (client_id, stage_name, order_number, is_required, status, created_at)
+                OUTPUT INSERTED.client_stage_id
+                VALUES (@clientId, @stageName, @orderNum, @isRequired, @status, GETDATE());
+              `);
+
 
         const stageId = stageInsert.recordset[0].client_stage_id;
         console.log("🟩 Inserted Stage ID:", stageId);
@@ -61,11 +78,13 @@ export async function POST(req: Request) {
               .input("title", sql.NVarChar, safeTitle)
               .input("status", sql.NVarChar, sub.status || "Not Started")
               .input("orderNum", sql.Int, i + 1)
+              .input("dueDate", sql.Date, sub.due_date || null)   // <-- ⭐ NEW FIELD
               .query(`
                 INSERT INTO dbo.client_stage_subtasks
-                (client_stage_id, subtask_title, status, order_number, created_at)
-                VALUES (@stageId, @title, @status, @orderNum, GETDATE());
+                (client_stage_id, subtask_title, status, order_number, due_date, created_at)
+                VALUES (@stageId, @title, @status, @orderNum, @dueDate, GETDATE());
               `);
+
           }
         }
       }

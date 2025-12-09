@@ -9,7 +9,9 @@ export async function POST(req: Request) {
     const formData = await req.formData();
 
     const clientId = formData.get("clientId") as string;
-    const fileType = formData.get("fileType") as string;
+    // const fileType = formData.get("fileType") as string;
+    const fileType = (formData.get("fileType") as string)?.toUpperCase();
+
     const file = formData.get("file") as File;
 
     if (!clientId || !fileType || !file) {

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     const clientId = rawClientId != null ? Number(rawClientId) : undefined;
     const taskTitle = rawTaskTitle || title;
     const role = assignedToRole || assigneeRole || "CLIENT";
-    const orderNumber = Number(rawOrderNumber ?? 1);
+    // const orderNumber = Number(rawOrderNumber ?? 1);
 
     if (!clientId || !taskTitle) {
       return NextResponse.json(
@@ -35,6 +35,18 @@ export async function POST(req: Request) {
     }
 
     const pool = await getDbPool();
+
+    // ✅ AUTO-INCREMENT order_number per client
+    const orderResult = await pool.request()
+      .input("clientId", sql.Int, clientId)
+      .query(`
+        SELECT ISNULL(MAX(order_number), 0) + 1 AS nextOrder
+        FROM dbo.onboarding_tasks
+        WHERE client_id = @clientId
+      `);
+
+    const orderNumber = orderResult.recordset[0].nextOrder;
+
 
     const result = await pool
       .request()
@@ -49,7 +61,7 @@ export async function POST(req: Request) {
         INSERT INTO dbo.onboarding_tasks
         (stage_id, client_id, task_title, description, assigned_to_role, due_date, status, order_number, created_at, updated_at)
         OUTPUT inserted.task_id
-        VALUES (@stageId, @clientId, @taskTitle, @description, @assignedToRole, @dueDate, 'Pending', @orderNumber, GETDATE(), GETDATE());
+        VALUES (@stageId, @clientId, @taskTitle, @description, @assignedToRole, @dueDate, 'Not Started', @orderNumber, GETDATE(), GETDATE());
       `);
 
     const insertedId = result.recordset[0].task_id;

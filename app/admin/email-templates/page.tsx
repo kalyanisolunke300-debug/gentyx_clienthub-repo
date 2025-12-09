@@ -141,11 +141,11 @@ async function handleSave() {
                   <Plus className="size-4" />
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingId ? "Edit" : "Add New"} Template</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4">
+                <div className="grid gap-4 pb-4">
                   <div className="grid gap-2">
                     <Label htmlFor="tpl-name">Template Name</Label>
                     <Input
@@ -207,9 +207,9 @@ async function handleSave() {
         <CardHeader className="flex items-center justify-between">
           <CardTitle>Editor</CardTitle>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            {/* <Button variant="outline" size="sm">
               Preview
-            </Button>
+            </Button> */}
             {tpl && (
               <>
                 <Button size="sm" variant="ghost" onClick={() => handleOpenDialog(tpl)}>

@@ -28,7 +28,9 @@ import { motion, AnimatePresence } from "framer-motion";
 export interface Subtask {
   title: string;
   status: string;
+  due_date?: string | null;
 }
+
 
 export interface SortableStageItemProps {
   stage: {
@@ -39,7 +41,12 @@ export interface SortableStageItemProps {
     status: string;
   };
   subtasks: Record<string, Subtask[]>;
-  updateSubtask: (stageId: string, index: number, title: string) => void;
+  // updateSubtask: (stageId: string, index: number, title: string) => void;
+  updateSubtask: (
+    stageId: string,
+    index: number,
+    updates: Partial<Subtask>
+  ) => void;
 
   addSubtask: (stageId: string, title: string) => void;
   removeSubtask: (stageId: string, index: number) => void;
@@ -56,8 +63,8 @@ const STATUS_OPTIONS = [
   "Not Started",
   "In Progress",
   "Completed",
-  "Cancelled",
-  "Approved",
+  // "Cancelled",
+  // "Approved",
 ];
 
 /* ---------------- COMPONENT ---------------- */
@@ -184,13 +191,57 @@ export function SortableStageItem({
                 transition={{ duration: 0.2 }}
                 className="flex items-center justify-between bg-gray-100 rounded px-2 py-1 text-sm"
               >
-            <Input
+            {/* <Input
               value={t.title}
               className="h-7 text-xs w-full mr-2"
               onChange={(e) =>
-                updateSubtask(stage.id.toString(), index, e.target.value)
+                  updateSubtask(stage.id.toString(), index, { title: e.target.value })
+              }
+
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-5 w-5 p-0 text-destructive"
+              onClick={() => removeSubtask(stage.id, index)}
+            >
+              <Trash2 className="size-4" />
+            </Button> */}
+            <Input
+              value={t.title}
+              className="h-7 text-xs w-[45%]"
+              onChange={(e) =>
+                updateSubtask(stage.id.toString(), index, { title: e.target.value })
               }
             />
+
+            <Input
+              type="date"
+              value={t.due_date ?? ""}
+              className="h-7 text-xs w-[25%]"
+              onChange={(e) =>
+                updateSubtask(stage.id.toString(), index, { due_date: e.target.value })
+              }
+            />
+
+            <Select
+              value={t.status || "Not Started"}
+              onValueChange={(value) =>
+                updateSubtask(stage.id.toString(), index, { status: value })
+              }
+            >
+              <SelectTrigger className="h-7 w-[20%] text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Not Started">Not Started</SelectItem>
+                <SelectItem value="In Progress">In Progress</SelectItem>
+                <SelectItem value="Completed">Completed</SelectItem>
+                {/* <SelectItem value="Blocked">Blocked</SelectItem>
+                <SelectItem value="On Hold">On Hold</SelectItem> */}
+              </SelectContent>
+            </Select>
+
             <Button
               size="sm"
               variant="ghost"

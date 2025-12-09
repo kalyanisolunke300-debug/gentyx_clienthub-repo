@@ -71,8 +71,10 @@ import { useSearchParams } from "next/navigation";
 // type SubTask = { title: string; status: string };
 type SubTask = {
   title: string;
-  status: string;  // always required for SQL insert
+  status: string;
+  due_date?: string | null;   // ⭐ NEW FIELD
 };
+
 
 export default function StagesPage() {
   const { data } = useSWR(["stages"], () => fetchStagesList());
@@ -81,20 +83,55 @@ export default function StagesPage() {
   );
   const searchParams = useSearchParams();
   const clientIdFromUrl = searchParams.get("clientId");
+  
 
-  const updateSubtask = (stageId: string, index: number, title: string) => {
-  setSubTasks(prev => ({
-    ...prev,
-    [stageId]: (prev[stageId] || []).map((t, i) =>
-      i === index ? { ...t, title } : t
-    )
-    }));
+// const updateSubtask = (
+//   stageId: string,
+//   index: number,
+//   updates: Partial<SubTask>
+// ) => {
+//   setSubTasks(prev => ({
+//     ...prev,
+//     [stageId]: (prev[stageId] || []).map((t, i) =>
+//       i === index ? { ...t, ...updates } : t
+//     ),
+//   }));
+// };
+const updateSubtask = (stageId: string, index: number, updates: Partial<SubTask>) => {
+  setSubTasks((prev) => {
+    const updated = { ...prev };
+    const list = [...(updated[stageId] || [])];
+
+    list[index] = {
+      ...list[index],
+      ...updates,
     };
+
+    updated[stageId] = list;
+
+    // ✅ AUTO UPDATE STAGE STATUS BASED ON SUBTASKS
+    const newStatus = computeStageStatus(list);
+
+    setStages(prevStages =>
+      prevStages.map(s =>
+        String(s.id) === String(stageId)
+          ? { ...s, status: newStatus }
+          : s
+      )
+    );
+
+    return updated;
+  });
+};
+
+
 
   const [stages, setStages] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: "", isRequired: false });
+  const [clientOpen, setClientOpen] = useState(false);
+
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -102,6 +139,15 @@ export default function StagesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
 
+  // ✅ AUTO STAGE STATUS CALCULATOR
+  const computeStageStatus = (tasks: SubTask[] = []) => {
+    if (tasks.length === 0) return "Not Started";
+
+    const allCompleted = tasks.every(t => t.status === "Completed");
+    if (allCompleted) return "Completed";
+
+    return "In Progress";
+  };
 
   const { toast } = useToast();
   const router = useRouter();
@@ -136,11 +182,14 @@ useEffect(() => {
       json.subtasks.forEach((st: any) => {
         const key = String(st.client_stage_id);
         if (!subs[key]) subs[key] = [];
+
         subs[key].push({
           title: st.subtask_title,
           status: st.status,
+          due_date: st.due_date ? st.due_date.substring(0, 10) : null,  // ⭐ FIX
         });
       });
+
 
       setSubTasks(subs);
     } 
@@ -257,99 +306,125 @@ useEffect(() => {
 
   return (
     <Card>
-      <CardHeader className="flex items-center justify-between">
-        <CardTitle>Stages</CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-1 size-4" /> Add Stage
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Stage</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Stage Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="e.g., KYC, Accounting Setup"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="required"
-                  checked={formData.isRequired}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isRequired: e.target.checked })
-                  }
-                  className="rounded"
-                />
-                <Label htmlFor="required" className="cursor-pointer">
-                  Required stage
-                </Label>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSave}>Create</Button>
-              </div>
+  <CardHeader className="flex items-center justify-between">
+  <CardTitle>Stages</CardTitle>
+
+  {selectedClientId && (
+    <div className="flex items-center gap-2">
+      
+      {/* ✅ VIEW CLIENT BUTTON */}
+      <Button
+        variant="outline"
+        onClick={() => router.push(`/admin/clients/${selectedClientId}`)}
+      >
+        View Client
+      </Button>
+
+      {/* ✅ ADD STAGE BUTTON */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="mr-1 size-4" /> Add Stage
+          </Button>
+        </DialogTrigger>
+
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Stage</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Stage Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                placeholder="e.g., KYC, Accounting Setup"
+              />
             </div>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="required"
+                checked={formData.isRequired}
+                onChange={(e) =>
+                  setFormData({ ...formData, isRequired: e.target.checked })
+                }
+                className="rounded"
+              />
+              <Label htmlFor="required" className="cursor-pointer">
+                Required stage
+              </Label>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>Create</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )}
+</CardHeader>
+
 
       <CardContent className="grid gap-4">
         <div className="grid gap-2">
           <Label htmlFor="client-select">Select Client (Required)</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  className="w-[291px] justify-between"
-                >
-                {selectedClientId ? (
-                  clients?.data?.find((x: any) => x.client_id.toString() === selectedClientId)?.client_name
-                ) : (
-                  <span className="font-normal text-muted-foreground">
-                    Choose a client to manage their stages
-                  </span>
-                )}
+            <Popover open={clientOpen} onOpenChange={setClientOpen}>
+  <PopoverTrigger asChild>
+    <Button
+      variant="outline"
+      role="combobox"
+      className="w-[291px] justify-between"
+    >
+      {selectedClientId ? (
+        clients?.data?.find(
+          (x: any) => x.client_id.toString() === selectedClientId
+        )?.client_name
+      ) : (
+        <span className="font-normal text-muted-foreground">
+          Choose a client to manage their stages
+        </span>
+      )}
 
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
+      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+    </Button>
+  </PopoverTrigger>
 
-              <PopoverContent className="w-full p-0">
-                <Command>
-                  <CommandInput placeholder="Search client..." />
+  <PopoverContent className="w-full p-0">
+    <Command>
+      <CommandInput placeholder="Search client..." />
 
-                  <CommandList className="max-h-60 overflow-y-auto">
-                    <CommandEmpty>No client found.</CommandEmpty>
+      <CommandList className="max-h-60 overflow-y-auto">
+        <CommandEmpty>No client found.</CommandEmpty>
 
-                    <CommandGroup>
-                      {clients?.data?.map((c: any) => (
-                        <CommandItem
-                          key={c.client_id}
-                          value={c.client_name}
-                          onSelect={() => setSelectedClientId(c.client_id.toString())}
-                        >
-                          {c.client_name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+        <CommandGroup>
+          {clients?.data?.map((c: any) => (
+            <CommandItem
+              key={c.client_id}
+              value={c.client_name}
+              onSelect={() => {
+                setSelectedClientId(c.client_id.toString());
+                setClientOpen(false); // ✅ AUTO CLOSE DROPDOWN
+              }}
+            >
+              {c.client_name}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  </PopoverContent>
+</Popover>
+
 
         </div>
 
@@ -373,22 +448,53 @@ useEffect(() => {
                       const key = id.toString();
                       const safeTitle = title?.trim() || "";
 
-                      setSubTasks(prev => ({
-                        ...prev,
-                        [key]: [
+                      setSubTasks(prev => {
+                        const updatedTasks = [
                           ...(prev[key] || []),
                           { title: safeTitle, status: "Not Started" }
-                        ],
-                      }));
+                        ];
+
+                        // ✅ AUTO UPDATE STAGE STATUS → In Progress
+                        setStages(prevStages =>
+                          prevStages.map(s =>
+                            String(s.id) === key
+                              ? { ...s, status: "In Progress" }
+                              : s
+                          )
+                        );
+
+                        return {
+                          ...prev,
+                          [key]: updatedTasks,
+                        };
+                      });
                     }}
 
-                    removeSubtask={(id, idx) => {
-                      const key = id.toString();
-                      setSubTasks(prev => ({
+
+                  removeSubtask={(id, idx) => {
+                    const key = id.toString();
+
+                    setSubTasks(prev => {
+                      const updatedList = (prev[key] || []).filter((_, i) => i !== idx);
+
+                      // ✅ AUTO UPDATE STAGE STATUS AFTER DELETE
+                      const newStatus = computeStageStatus(updatedList);
+
+                      setStages(prevStages =>
+                        prevStages.map(s =>
+                          String(s.id) === key
+                            ? { ...s, status: newStatus }
+                            : s
+                        )
+                      );
+
+                      return {
                         ...prev,
-                        [key]: (prev[key] || []).filter((_, i) => i !== idx),
-                      }));
-                    }}
+                        [key]: updatedList,
+                      };
+                    });
+                  }}
+
 
                     updateSubtask={updateSubtask}     // <-- ✅ ADD THIS LINE
 
@@ -426,16 +532,22 @@ useEffect(() => {
                     onClick={async () => {
                       setIsSaving(true);
 
-                      const formattedStages = stages.map((stage) => ({
+                    const formattedStages = stages.map((stage) => {
+                      const tasks = subTasks[String(stage.id)] || [];
+                      const autoStatus = computeStageStatus(tasks);
+
+                      return {
                         name: stage.name,
                         isRequired: stage.isRequired,
                         order: stage.order,
-                        status: stage.status || "Not Started",
-                        subtasks: (subTasks[String(stage.id)] || []).map((t) => ({
+                        status: autoStatus,   // ✅ OVERRIDE MANUAL STATUS
+                        subtasks: tasks.map((t) => ({
                           title: t.title,
                           status: t.status || "Not Started",
+                          due_date: t.due_date || null,
                         })),
-                      }));
+                      };
+                    });
 
                       const payload = {
                         clientId: Number(selectedClientId),
@@ -486,8 +598,10 @@ useEffect(() => {
                               subs[key].push({
                                 title: st.subtask_title,
                                 status: st.status,
+                                due_date: st.due_date ? st.due_date.substring(0, 10) : null, // ⭐ FIX
                               });
                             });
+
                             setSubTasks(subs);
                           }
 

@@ -33,9 +33,10 @@ const Schema = z.object({
   client_name: z.string().min(2, "Company name required"),
   primary_contact_name: z.string().min(2, "Contact name required"),
   primary_contact_email: z.string().email("Valid email required"),
+  primary_contact_phone: z.string().optional(),   // ✅ ADDED
   service_center_id: z.string().optional(),
   cpa_id: z.string().optional(),
-  stage_id: z.string().optional(),
+  // stage_id: z.string().optional(),
 });
 
 type AssociatedUser = {
@@ -68,9 +69,10 @@ export default function NewClientPage() {
       client_name: "",
       primary_contact_name: "",
       primary_contact_email: "",
+      primary_contact_phone: "",
       service_center_id: "",
       cpa_id: "",
-      stage_id: "",
+      // stage_id: "",
     },
   });
 
@@ -103,12 +105,12 @@ export default function NewClientPage() {
         clientName: values.client_name,
         primaryContactName: values.primary_contact_name,
         primaryContactEmail: values.primary_contact_email,
-
+        primaryContactPhone: values.primary_contact_phone,
         // 👇 FIXED FIELD NAME & VALUE
         service_center_id: Number(values.service_center_id) || null,
 
         cpaId: Number(values.cpa_id) || null,
-        stageId: Number(values.stage_id) || null,
+        // stageId: Number(values.stage_id) || null,
         associatedUsers,
       });
 
@@ -156,6 +158,14 @@ export default function NewClientPage() {
           <div className="grid gap-2">
             <Label>Email</Label>
             <Input {...form.register("primary_contact_email")} placeholder="john@example.com" />
+          </div>
+          {/* Phone */}
+          <div className="grid gap-2">
+            <Label>Phone</Label>
+            <Input
+              {...form.register("primary_contact_phone")}
+              placeholder="555-888-3333"
+            />
           </div>
 
           {/* Service Center */}
@@ -208,7 +218,7 @@ export default function NewClientPage() {
           </div>
 
           {/* Initial Stage */}
-          <div className="grid gap-2">
+          {/* <div className="grid gap-2">
             <Label>Initial Stage</Label>
 
             <Select
@@ -227,7 +237,7 @@ export default function NewClientPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div> */}
 
           {/* Associated Users */}
           <div className="border-t pt-4 mt-4">

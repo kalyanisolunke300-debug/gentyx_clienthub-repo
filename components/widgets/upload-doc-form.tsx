@@ -47,25 +47,36 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
   /* ------------------------------
         FILE SELECTION HANDLERS
   ------------------------------*/
-  function handleFileSelect(file: File) {
-    setSelectedFile(file);
+function handleFileSelect(file: File) {
+  setSelectedFile(file);
 
-    const ext = file.name.split(".").pop()?.toUpperCase() || "OTHER";
-    const typeMap: Record<string, any> = {
-      PDF: "PDF",
-      XLSX: "XLSX",
-      XLS: "XLSX",
-      DOCX: "DOCX",
-      DOC: "DOCX",
-      JPG: "IMG",
-      JPEG: "IMG",
-      PNG: "IMG",
-      GIF: "IMG",
-    };
+  // Allowed union for the "type" field
+  type FileType = "PDF" | "XLSX" | "DOCX" | "IMG" | "OTHER";
 
-    form.setValue("name", file.name);
-    form.setValue("type", typeMap[ext] || "OTHER");
-  }
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+
+  const typeMap: Record<string, FileType> = {
+    pdf: "PDF",
+    xlsx: "XLSX",
+    xls: "XLSX",
+    docx: "DOCX",
+    doc: "DOCX",
+    jpg: "IMG",
+    jpeg: "IMG",
+    png: "IMG",
+    gif: "IMG",
+    bmp: "IMG",
+    webp: "IMG",
+    svg: "IMG",
+  };
+
+  // TS now knows this is FileType, not just "string"
+  const detected: FileType = typeMap[ext] || "OTHER";
+
+  form.setValue("name", file.name);
+  form.setValue("type", detected);
+}
+
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -146,10 +157,15 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">      
       {/* Client ID */}
-      <div className="grid gap-2">
+      {/* <div className="grid gap-2">
         <Label htmlFor="clientId">Client ID</Label>
         <Input {...form.register("clientId")} placeholder="2" />
+      </div> */}
+      {/* Client Name Header */}
+      <div className="text-lg font-semibold mb-2">
+        {context?.clientName || "Client"}
       </div>
+
 
       {/* Upload Box */}
       <div className="grid gap-2">

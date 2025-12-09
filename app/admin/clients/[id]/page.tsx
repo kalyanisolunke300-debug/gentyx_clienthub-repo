@@ -13,10 +13,17 @@ import {
   fetchMessages,
   fetchAuditLogs,
   fetchClientTasksSimple,
-  fetchClientDocuments   // ✅ ADD THIS
+  fetchClientDocuments,
+  fetchServiceCenters,   // ✅ ADD
+  fetchCPAs              // ✅ ADD
 } from "@/lib/api";
-
-
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -42,6 +49,9 @@ import { useUIStore } from "@/store/ui-store";
 import { useToast } from "@/hooks/use-toast";
 import { Send } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
+import { Pencil, Eye } from "lucide-react";
+
 
 
 // ------------------ TYPES ------------------
@@ -88,6 +98,23 @@ export default function ClientProfilePage() {
   const openDrawer = useUIStore((s) => s.openDrawer);
   const { toast } = useToast();
   const router = useRouter();
+  // ✅ Service Center & CPA Assignment State
+  const [serviceCenters, setServiceCenters] = useState<any[]>([]);
+  const [cpas, setCpas] = useState<any[]>([]);
+
+  const [selectedServiceCenter, setSelectedServiceCenter] = useState<number | null>(null);
+  const [selectedCPA, setSelectedCPA] = useState<number | null>(null);
+ 
+  useEffect(() => {
+    fetchServiceCenters().then((res) => {
+      if (res?.success) setServiceCenters(res.data || []);
+    });
+
+    fetchCPAs().then((res) => {
+      if (res?.success) setCpas(res.data || []);
+    });
+  }, []);
+
 
   // ----------------- FETCHING ------------------
   const { data: client } = useSWR(["client", id], () => fetchClient(id));
@@ -120,12 +147,14 @@ const paginatedTasks = taskRows.slice(
 
 const docs =
   docsResponse?.data?.map((doc: any) => ({
+    id: doc.id,          // ✅ add id so delete API gets documentId
     name: doc.name,
     type: doc.type,
     size: doc.size,
     path: doc.path,
-    url: doc.url,   // ✅ VERY IMPORTANT
+    url: doc.url,
   })) || [];
+
 
   const { data: msgsResponse } = useSWR(["msgs", id], () =>
     fetchMessages({ clientId: id })
@@ -199,7 +228,16 @@ const docs =
     toast({ title: "Message sent" });
 
     mutate(["msgs", id]); // refresh messages
+
+    
   };
+const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"] as const;
+
+const STATUS_COLORS: Record<string, string> = {
+  "Not Started": "bg-amber-100 text-amber-700",
+  "In Progress": "bg-blue-100 text-blue-700",
+  "Completed": "bg-green-100 text-green-700",
+};
 
   // ----------------- TABLE COLUMNS ------------------
 const taskCols: Column<ClientTask>[] = [
@@ -214,29 +252,221 @@ const taskCols: Column<ClientTask>[] = [
       r.due_date ? new Date(r.due_date).toLocaleDateString() : "-",
   },
 
+{
+  key: "status",
+  header: "Status",
+  render: (r) => (
+    <Select
+      value={r.status || "Not Started"}
+      onValueChange={async (value) => {
+        try {
+          await fetch("/api/tasks/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              taskId: r.task_id,
+              status: value, // ✅ must match SQL CHECK constraint
+            }),
+          });
+
+          mutate(["clientTasksSimple", id]); // ✅ refresh client task tab only
+          toast({ title: "Task status updated" });
+        } catch {
+          toast({
+            title: "Failed to update status",
+            variant: "destructive",
+          });
+        }
+      }}
+    >
+      <SelectTrigger
+        className={`h-8 px-3 rounded-full text-xs font-medium border-0 ${
+          STATUS_COLORS[r.status || "Not Started"]
+        }`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+
+      <SelectContent>
+        {STATUS_OPTIONS.map((s) => (
+          <SelectItem key={s} value={s}>
+            {s}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  ),
+},
+
+  // ✅ ACTIONS MUST ALWAYS BE LAST
+ {
+  key: "actions",
+  header: "Actions",
+  className: "text-center", // ✅ centers the HEADER
+  render: (r) => (
+    <div className="flex items-center justify-center gap-2 w-full">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() =>
+          openDrawer("assignTask", {
+            clientId: id,
+            taskId: r.task_id,
+          })
+        }
+      >
+        Edit
+      </Button>
+
+      <Button
+        size="sm"
+        variant="destructive"
+        onClick={async () => {
+          if (!confirm("Delete this task?")) return;
+
+          const res = await fetch("/api/tasks/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ task_id: r.task_id }),
+          });
+
+          if (res.ok) {
+            toast({ title: "Task deleted" });
+            mutate(["clientTasksSimple", id]);
+          } else {
+            toast({
+              title: "Failed to delete task",
+              variant: "destructive",
+            });
+          }
+        }}
+      >
+        Delete
+      </Button>
+    </div>
+  ),
+}
+];
+
+
+  // const docCols: Column<any>[] = [
+  //   { key: "name", header: "Name" },
+  //   { key: "type", header: "Type" },
+  //   {
+  //     key: "size",
+  //     header: "Size",
+  //     render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
+  //   },
+  // ];
+  async function handleDeleteDocument(doc: any) {
+  if (!confirm(`Delete document "${doc.name}"?`)) return;
+
+  const res = await fetch("/api/documents/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      clientId: id,
+      fileName: doc.name,
+      fileType: doc.type,       // IMG, PDF, XLSX...
+      // documentId: doc.id,       // DB ID
+    }),
+  });
+
+  if (!res.ok) {
+    alert("Failed to delete");
+    return;
+  }
+
+  mutate(["docs", id]); // Refresh table
+}
+
+const docCols: Column<any>[] = [
+  { key: "name", header: "Name" },
+  { key: "type", header: "Type" },
   {
-    key: "status",
-    header: "Status",
-    render: (r) => <StatusPill status={r.status} />,
+    key: "size",
+    header: "Size",
+    render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
+  },
+
+  // ⭐ ACTIONS COLUMN (centered + last)
+  {
+    key: "actions",
+    header: "Actions",
+    className: "text-center", // 🟦 ensures header is centered
+    render: (row) => (
+      <div className="flex items-center justify-center gap-3 w-full">
+        {/* Preview */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => window.open(row.url, "_blank")}
+        >
+          Preview
+        </Button>
+
+        {/* Delete */}
+        <Button
+          size="sm"
+          variant="destructive"
+          onClick={() => handleDeleteDocument(row)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    ),
   },
 ];
 
 
 
-  const docCols: Column<any>[] = [
-    { key: "name", header: "Name" },
-    { key: "type", header: "Type" },
-    {
-      key: "size",
-      header: "Size",
-      render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
-    },
-  ];
-
   // ----------------- CLIENT META ------------------
   const clientStatus = client?.status ?? "Not Started";
   const stageName = client?.stage_name ?? "—";
   const progress = client?.progress ?? 0;
+  
+  useEffect(() => {
+    if (client?.service_center_id) {
+      setSelectedServiceCenter(client.service_center_id);
+    }
+
+    if (client?.cpa_id) {
+      setSelectedCPA(client.cpa_id);
+    }
+  }, [client]);
+  
+  async function handleSaveAssignment() {
+  try {
+    const res = await fetch("/api/clients/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId: Number(id),
+        service_center_id: selectedServiceCenter,
+        cpa_id: selectedCPA,
+      }),
+    });
+
+    const json = await res.json();
+
+    if (!json.success) {
+      throw new Error(json.error || "Update failed");
+    }
+
+    toast({ title: "Service Center & CPA updated successfully" });
+
+    // ✅ Refresh client data
+    mutate(["client", id]);
+
+  } catch (err) {
+    console.error("SAVE ASSIGNMENT ERROR:", err);
+    toast({
+      title: "Failed to update assignment",
+      variant: "destructive",
+    });
+  }
+}
+
 
   return (
     <div className="grid gap-4">
@@ -247,48 +477,62 @@ const taskCols: Column<ClientTask>[] = [
             {client?.client_name ?? "Client"}
           </h1>
 
-          <div className="mt-1 flex items-center gap-2 text-sm">
-            <StatusPill status={clientStatus} />
-            <span>Stage: {stageName}</span>
-            {client?.code && (
-              <span className="text-muted-foreground">Code: {client.code}</span>
-            )}
+          <div className="mt-2 text-sm text-muted-foreground flex items-center gap-6">
+            <span>
+              <b>Phone:</b> {client?.primary_contact_phone || "—"}
+            </span>
+
+            <span>
+              <b>Email:</b> {client?.primary_contact_email || "—"}
+            </span>
           </div>
 
-          <div className="mt-1 text-xs text-muted-foreground">
-            Contact: {client?.primary_contact_name} •{" "}
-            {client?.primary_contact_email} • {client?.primary_contact_phone}
-          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <ProgressRing value={progress} />
+          <ProgressRing
+            value={progress}
+            completedStages={client?.completed_stages}
+            totalStages={client?.total_stages}
+          />
 
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/admin/stages?clientId=${id}`)}
-          >
-            Set Stage
-          </Button>
+          
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/admin/stages?clientId=${id}`)}
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          View Stage
+        </Button>
+
+        <Button
+          onClick={() =>
+            openDrawer("assignTask", {
+              clientId: id,
+              stageId: client?.stage_id,
+            })
+          }
+        >
+          Assign Task
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => router.push(`/admin/clients/edit/${id}`)}
+        >
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit Client
+        </Button>
 
 
-          <Button
-            onClick={() =>
-              openDrawer("assignTask", {
-                clientId: id,
-                stageId: client?.stage_id,
-              })
-            }
-          >
-            Assign Task
-          </Button>
 
-          <Button
+
+          {/* <Button
             variant="secondary"
             onClick={() => openDrawer("uploadDoc", { clientId: id })}
           >
             Upload Doc
-          </Button>
+          </Button> */}
         </div>
       </div>
 
@@ -309,20 +553,29 @@ const taskCols: Column<ClientTask>[] = [
   <Card>
     <CardHeader><CardTitle>Client Summary</CardTitle></CardHeader>
     <CardContent className="grid gap-2 text-sm">
-      <div>Client ID: {client?.client_id}</div>
-      <div>Code: {client?.code}</div>
+      {/* <div>Client ID: {client?.client_id}</div> */}
+      <div><b>Code:</b> {client?.code}</div>
+
       <div>
-        Created: {client?.created_at ? new Date(client.created_at).toLocaleString() : "-"}
+        <b>Created:</b>{" "}
+        {client?.created_at
+          ? new Date(client.created_at).toLocaleString()
+          : "-"}
       </div>
+
       <div>
-        Updated: {client?.updated_at ? new Date(client.updated_at).toLocaleString() : "-"}
+        <b>Last Updated:</b>{" "}
+        {client?.updated_at
+          ? new Date(client.updated_at).toLocaleString()
+          : "-"}
       </div>
-      <div>Stage: {stageName}</div>
-      <div>Progress: {progress}%</div>
+
+      <div><b>Progress:</b> {progress}%</div>
+
     </CardContent>
   </Card>
 
-  {/* STAGE TIMELINE */}
+    {/* STAGE TIMELINE */}
   <Card>
     <CardHeader><CardTitle>Stage Timeline</CardTitle></CardHeader>
     <CardContent className="text-sm">
@@ -332,31 +585,112 @@ const taskCols: Column<ClientTask>[] = [
         <div className="flex flex-wrap items-center gap-2">
           {stages
             .sort((a: any, b: any) => a.order_number - b.order_number)
-            .map((stage: any, index: number) => (
+            .map((stage: any, index: number) => {
 
-              <span key={stage.client_stage_id} className="flex items-center">
-                <span
-                  className={`px-2 py-1 rounded-md border text-xs ${
-                    stage.status === "In Progress"
-                      ? "bg-blue-100 border-blue-300 text-blue-800"
-                      : stage.status === "Completed"
-                      ? "bg-green-100 border-green-300 text-green-800"
-                      : "bg-gray-100 border-gray-300 text-gray-700"
-                  }`}
-                >
-                  {stage.stage_name}
+              // ✅ NEW RULE:
+              // GREEN if:
+              // 1) Stage status is Completed
+              // 2) OR all subtasks under this stage are Completed
+
+              const stageWithSubtasks = subtasksByStage.find(
+                (s: any) => s.client_stage_id === stage.client_stage_id
+              );
+
+              const allSubtasksCompleted =
+                stageWithSubtasks?.subtasks?.length > 0 &&
+                stageWithSubtasks.subtasks.every(
+                  (st: any) => st.status === "Completed"
+                );
+
+              const isCompleted =
+                stage.status === "Completed" || allSubtasksCompleted;
+
+              return (
+                <span key={stage.client_stage_id} className="flex items-center">
+                  <span
+                    className={`px-2 py-1 rounded-md border text-xs ${
+                      isCompleted
+                        ? "bg-green-100 border-green-300 text-green-800"
+                        : stage.status === "In Progress"
+                        ? "bg-blue-100 border-blue-300 text-blue-800"
+                        : "bg-red-100 border-red-300 text-red-800"
+                    }`}
+                  >
+                    {stage.stage_name}
+                  </span>
+
+                  {index < stages.length - 1 && (
+                    <span className="mx-2 text-muted-foreground">→</span>
+                  )}
                 </span>
+              );
+            })}
 
-                {index < stages.length - 1 && (
-                  <span className="mx-2 text-muted-foreground">→</span>
-                )}
-              </span>
-            ))}
         </div>
       )}
     </CardContent>
   </Card>
+
+  {/* ✅ ASSIGN SERVICE CENTER & CPA */}
+  <Card>
+    <CardHeader>
+      <CardTitle>Assign Service Center & CPA</CardTitle>
+    </CardHeader>
+
+    <CardContent className="grid gap-4 text-sm">
+
+      <div className="grid gap-2">
+        <div><b>Current Service Center:</b> {client?.service_center_name || "Not Assigned"}</div>
+        <div><b>Current CPA:</b> {client?.cpa_name || "Not Assigned"}</div>
+      </div>
+{/* 
+      <div className="grid grid-cols-2 gap-4">
+
+        <div className="grid gap-1">
+          <label className="text-xs font-medium">Service Center</label>
+          <select
+            className="border rounded px-2 py-2"
+            value={selectedServiceCenter ?? ""}
+            onChange={(e) => setSelectedServiceCenter(Number(e.target.value))}
+          >
+            <option value="">Select</option>
+            {serviceCenters.map((sc) => (
+              <option key={sc.service_center_id} value={sc.service_center_id}>
+                {sc.center_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid gap-1">
+          <label className="text-xs font-medium">CPA</label>
+          <select
+            className="border rounded px-2 py-2"
+            value={selectedCPA ?? ""}
+            onChange={(e) => setSelectedCPA(Number(e.target.value))}
+          >
+            <option value="">Select</option>
+            {cpas.map((cp) => (
+              <option key={cp.cpa_id} value={cp.cpa_id}>
+                {cp.cpa_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSaveAssignment}>
+          Save Assignment
+        </Button>
+      </div> */}
+
+    </CardContent>
+  </Card>
 </TabsContent>
+
+
         {/* ---------- STAGES & TASKS ---------- */}
 
 
@@ -403,9 +737,6 @@ const taskCols: Column<ClientTask>[] = [
             </div>
           ))
         )}
-
-
-   
           </CardContent>
         )}
       </Card>
@@ -415,12 +746,40 @@ const taskCols: Column<ClientTask>[] = [
 
 {/* ---------- TASKS ---------- */}
 <TabsContent value="tasks">
+{/* ---------- TOP ACTION BAR FOR TASKS ---------- */}
+<div className="flex justify-end mb-4">
+  {/* <Button
+    onClick={() =>
+      openDrawer("assignTask", {
+        clientId: id,
+        stageId: client?.stage_id,
+      })
+    }
+  >
+    Assign Task
+  </Button> */}
+</div>
 
   {/* ---------- CLIENT TASKS CARD ---------- */}
   <Card className="mt-4">
-    <CardHeader>
+    {/* <CardHeader>
       <CardTitle>Client Tasks</CardTitle>
-    </CardHeader>
+    </CardHeader>  */}
+  <CardHeader className="flex items-center justify-between">
+    <CardTitle>Seperate Assigned Tasks</CardTitle>
+
+    <Button
+      size="sm"
+      onClick={() =>
+        openDrawer("assignTask", {
+          clientId: id,
+          stageId: client?.stage_id,
+        })
+      }
+    >
+      Assign Task
+    </Button>
+  </CardHeader>
 
     <CardContent className="space-y-4">
 
@@ -431,15 +790,11 @@ const taskCols: Column<ClientTask>[] = [
       ) : (
         <>
           {/* ---------- TABLE ---------- */}
-          <DataTable
-            columns={taskCols}
-            rows={paginatedTasks}
-            onRowAction={() => (
-              <Button size="sm" variant="outline">
-                Approve
-              </Button>
-            )}
-          />
+        <DataTable
+          columns={taskCols}
+          rows={paginatedTasks}
+        />
+
 
           {/* ---------- PAGINATION UI ---------- */}
           <div className="flex items-center justify-between py-2 text-sm text-muted-foreground">
@@ -502,9 +857,18 @@ const taskCols: Column<ClientTask>[] = [
 
   {/* ---------- STAGE SUB-TASKS CARD ---------- */}
   <Card className="mt-6">
-    <CardHeader>
-      <CardTitle>Stage Sub-Tasks</CardTitle>
+    <CardHeader className="flex flex-row items-center justify-between">
+      <CardTitle>Onboarding Tasks</CardTitle>
+
+      {/* ✅ SINGLE UPDATE SUB TASKS BUTTON */}
+      <Button
+        size="sm"
+        onClick={() => router.push(`/admin/stages?clientId=${id}`)}
+      >
+        Update Onboarding Tasks
+      </Button>
     </CardHeader>
+
 
     <CardContent className="space-y-4">
       {subtasksByStage.length === 0 && (
@@ -518,32 +882,35 @@ const taskCols: Column<ClientTask>[] = [
           key={stage.client_stage_id}
           className="border rounded-lg"
         >
-          {/* Stage Row */}
-          <div
-            className="flex items-center justify-between p-3 cursor-pointer"
-            onClick={() =>
-              setOpenStage((prev) =>
-                prev === stage.client_stage_id
-                  ? null
-                  : stage.client_stage_id
-              )
-            }
-          >
-            <div>
-              <p className="font-semibold">{stage.stage_name}</p>
-              <p className="text-xs text-muted-foreground">
-                Status: {stage.status}
-              </p>
-            </div>
+      <div
+        className="flex items-center justify-between p-3 cursor-pointer select-none hover:bg-muted transition"
+        onClick={() =>
+          setOpenStage((prev) =>
+            prev === stage.client_stage_id
+              ? null
+              : stage.client_stage_id
+          )
+        }
+      >
+        {/* LEFT SIDE */}
+        <div>
+          <p className="font-semibold">{stage.stage_name}</p>
+          <p className="text-xs text-muted-foreground">
+            Status: {stage.status}
+          </p>
+        </div>
 
-            <ChevronDown
-              className={`transition-transform ${
-                openStage === stage.client_stage_id
-                  ? "rotate-180"
-                  : ""
-              }`}
-            />
-          </div>
+        {/* RIGHT SIDE (ARROW ONLY – NO CLICK HANDLER HERE) */}
+        <ChevronDown
+          className={`transition-transform ${
+            openStage === stage.client_stage_id
+              ? "rotate-180"
+              : ""
+          }`}
+        />
+      </div>
+
+
 
           {/* Subtasks */}
           {openStage === stage.client_stage_id && (
@@ -554,23 +921,32 @@ const taskCols: Column<ClientTask>[] = [
                 </p>
               )}
 
-              {stage.subtasks.map((st: any) => (
-                <div
-                  key={st.subtask_id}
-                  className="flex items-center justify-between border p-2 rounded"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {st.subtask_title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Order: {st.order_number ?? "-"}
-                    </p>
-                  </div>
+            {stage.subtasks.map((st: any) => (
+              <div
+                key={st.subtask_id}
+                className="flex items-center justify-between border p-2 rounded"
+              >
+                <div>
+                  <p className="font-medium">
+                    {st.subtask_title}
+                  </p>
 
-                  <StatusPill status={st.status} />
+                  <div className="flex gap-4 text-xs text-muted-foreground">
+                    {/* <span>Order: {st.order_number ?? "-"}</span> */}
+
+                    <span>
+                      Due : {" "}
+                      {st.due_date
+                        ? new Date(st.due_date).toLocaleDateString()
+                        : "—"}
+                    </span>
+                  </div>
                 </div>
-              ))}
+
+                <StatusPill status={st.status} />
+              </div>
+            ))}
+
             </div>
           )}
         </div>
@@ -582,34 +958,47 @@ const taskCols: Column<ClientTask>[] = [
 
 
         {/* ---------- DOCUMENTS ---------- */}
-        <TabsContent value="documents">
-        {docs.length === 0 ? (
-          <div className="text-center py-10 text-gray-500 text-sm">
-            No documents available for this client.
-          </div>
-        ) : (
-          <DataTable
-            columns={docCols}
-            rows={docs}
-            onRowAction={(row) => (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  if (!row.url) {
-                    alert("URL missing");
-                    return;
-                  }
-                  window.open(row.url, "_blank");
-                }}
-              >
-                Preview
-              </Button>
-            )}
+<TabsContent value="documents">
+  <div className="border rounded-md p-6 grid gap-4">
 
-          />
+    {/* Always show Upload Document button */}
+    <div className="flex justify-end">
+      {/* <Button
+        onClick={() =>
+          useUIStore.getState().openDrawer("uploadDoc", { clientId: id })
+        }
+      >
+        Upload Document
+      </Button> */}
+      <Button
+        onClick={() =>
+          useUIStore.getState().openDrawer("uploadDoc", { 
+            clientId: id,
+            clientName: client?.client_name
+          })
+        }
+      >
+        Upload Document
+      </Button>
+
+    </div>
+
+    {/* If no documents → Show empty state */}
+    {docs.length === 0 ? (
+      <div className="w-full text-center py-10 text-gray-500 text-sm">
+        No documents available for this client.
+      </div>
+    ) : (
+      /* If documents exist → Show table */
+    <DataTable
+      columns={docCols}
+      rows={docs}
+    />
+
         )}
-      </TabsContent>
+      </div>
+    </TabsContent>
+
 
 
         {/* ---------- MESSAGES ---------- */}

@@ -29,6 +29,7 @@ type ServiceCenter = {
   center_name: string;
   email: string;
   users: AssociatedUser[];
+  clients_assigned: number;
 };
 
 export default function ServiceCentersPage() {
@@ -51,6 +52,11 @@ export default function ServiceCentersPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+  const [openClientsModal, setOpenClientsModal] = useState(false);
+  const [selectedCenter, setSelectedCenter] = useState<ServiceCenter | null>(null);
+  const [assignedClients, setAssignedClients] = useState<any[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+
 
 // ------------------------------
 // LOAD SERVICE CENTERS
@@ -82,6 +88,8 @@ async function loadCenters() {
       center_code: c.center_code ?? c.code ?? "",   // 🔥 ALWAYS SET THIS
       email: c.email,
       users: c.users ?? [],
+      clients_assigned: Number(c.clients_assigned || 0), // ✅ ADD THIS
+
     }));
 
     setServiceCenters(centers);
@@ -217,6 +225,38 @@ async function saveCenter() {
   }
 }
 
+
+
+// ------------------------------  OPEN ASSIGNED CLIENTS MODAL --------------------------------
+async function openAssignedClients(center: ServiceCenter) {
+  setSelectedCenter(center);
+  setOpenClientsModal(true);
+  setLoadingClients(true);
+
+  try {
+    const res = await fetch(
+      `/api/clients/get-by-service-center?serviceCenterId=${center.center_id}`
+    );
+
+    const json = await res.json();
+
+    if (!json.success) {
+      throw new Error(json.error);
+    }
+
+    setAssignedClients(json.data || []);
+  } catch (err) {
+    console.error(err);
+    toast({
+      title: "Error",
+      description: "Failed to load assigned clients",
+      variant: "destructive",
+    });
+  } finally {
+    setLoadingClients(false);
+  }
+}
+
   // ------------------------------
   // DELETE
   // ------------------------------
@@ -242,6 +282,7 @@ async function saveCenter() {
   // UI
   // ------------------------------
   return (
+
     <Card>
       <CardHeader className="flex justify-between items-center">
         <CardTitle>Service Centers</CardTitle>
@@ -377,25 +418,96 @@ async function saveCenter() {
           >
             <div>
               <div className="font-semibold">{center.center_name}</div>
-              <div className="text-xs text-muted-foreground">{center.center_code}</div>
-              <div className="text-xs">{center.email}</div>
+              {/* <div className="text-xs text-muted-foreground">{center.center_code}</div> */}
+            <div className="text-xs">
+              <span className="font-semibold">Email:</span>{" "}
+              {center.email || "—"}
             </div>
 
+            <div className="text-xs">
+              <span className="font-semibold">Clients Assigned:</span>{" "}
+              {center.clients_assigned}
+            </div>
+
+
+            </div>
             <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openAssignedClients(center)}
+              >
+                Open
+              </Button>
+
               <Button size="sm" variant="outline" onClick={() => openDialog(center)}>
                 Edit
               </Button>
               <Button
                 size="sm"
                 variant="destructive"
+                disabled={center.clients_assigned > 0}   // ✅ DISABLE
+                className={center.clients_assigned > 0 ? "opacity-50 cursor-not-allowed" : ""}
                 onClick={() => deleteCenter(center.center_id)}
               >
                 Delete
               </Button>
+
             </div>
+
           </div>
         ))}
       </CardContent>
+
+      <Dialog open={openClientsModal} onOpenChange={setOpenClientsModal}>
+  <DialogContent className="max-w-3xl">
+    <DialogHeader>
+      <DialogTitle>
+        Assigned Clients — {selectedCenter?.center_name}
+      </DialogTitle>
+    </DialogHeader>
+
+    {loadingClients ? (
+      <div className="py-10 text-center text-sm text-muted-foreground">
+        Loading assigned clients...
+      </div>
+    ) : assignedClients.length === 0 ? (
+      <div className="py-10 text-center text-sm text-muted-foreground">
+        No clients assigned to this service center.
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {assignedClients.map((c) => (
+          <div
+            key={c.client_id}
+            className="border rounded p-3 flex justify-between items-center"
+          >
+            <div>
+              <div className="font-semibold">{c.client_name}</div>
+              {/* <div className="text-xs text-muted-foreground">
+                Code: {c.code}
+              </div>
+              <div className="text-xs">
+                Status: {c.status || c.client_status || "—"}
+              </div> */}
+            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                window.location.href = `/admin/clients/${c.client_id}`
+              }
+            >
+              View Client
+            </Button>
+          </div>
+        ))}
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
+
     </Card>
   );
 }

@@ -1,3 +1,4 @@
+//app/client/documents/page.tsx
 "use client"
 
 import useSWR from "swr"
@@ -15,7 +16,13 @@ export default function ClientDocuments() {
   /* Only fetch documents for the current client, ensure proper visibility */
   const clientId = role === "CLIENT" ? currentClientId || "cli-1" : undefined
 
-  const { data } = useSWR(["client-docs", clientId], () => fetchDocuments({ clientId }), { revalidateOnFocus: false })
+  // const { data } = useSWR(["client-docs", clientId], () => fetchDocuments({ clientId }), { revalidateOnFocus: false })
+  const { data } = useSWR(
+  ["client-docs", clientId],
+  () => fetchDocuments({ clientId: clientId ?? "" }),
+  { revalidateOnFocus: false }
+);
+
 
   const cols: Column<any>[] = [
     { key: "name", header: "Name" },
@@ -40,7 +47,24 @@ export default function ClientDocuments() {
           <Upload className="mr-2 size-4" /> Upload Document
         </Button>
       </div>
-      <DataTable columns={cols} rows={data || []} />
+      {/* -------------------------------
+      CUSTOM EMPTY STATE LOGIC
+      ------------------------------- */}
+      {(!data || data.length === 0) ? (
+        <div className="w-full border rounded-md p-10 text-center grid gap-3">
+          <p className="text-muted-foreground text-sm">No documents uploaded yet.</p>
+
+          <Button
+            size="sm"
+            onClick={() => useUIStore.getState().openDrawer("uploadDoc", { clientId })}
+          >
+            <Upload className="mr-2 size-4" />
+            Add Document
+          </Button>
+        </div>
+      ) : (
+        <DataTable columns={cols} rows={data} />
+      )}
     </div>
   )
 }

@@ -36,7 +36,7 @@ export default function AdminDocumentsPage() {
   const { page, setPage, pageSize, q, setQ } = useServerTableState();
 
   const { data: docs } = useSWR(["docs", page, pageSize], () =>
-    fetchDocuments()
+    fetchDocuments({ clientId: "" })
   );
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })

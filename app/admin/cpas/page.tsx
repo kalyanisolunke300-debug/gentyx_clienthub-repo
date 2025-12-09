@@ -28,6 +28,39 @@ export default function CPAsPage() {
 
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+const [openClientsModal, setOpenClientsModal] = useState(false);
+const [selectedCPA, setSelectedCPA] = useState<any | null>(null);
+const [assignedClients, setAssignedClients] = useState<any[]>([]);
+const [loadingClients, setLoadingClients] = useState(false);
+
+async function openAssignedClients(cpa: any) {
+  setSelectedCPA(cpa);
+  setOpenClientsModal(true);
+  setLoadingClients(true);
+
+  try {
+    const res = await fetch(
+      `/api/clients/get-by-cpa?cpaId=${cpa.cpa_id}`
+    );
+
+    const json = await res.json();
+
+    if (!json.success) {
+      throw new Error(json.error);
+    }
+
+    setAssignedClients(json.data || []);
+  } catch (err) {
+    console.error(err);
+    toast({
+      title: "Error",
+      description: "Failed to load assigned clients",
+      variant: "destructive",
+    });
+  } finally {
+    setLoadingClients(false);
+  }
+}
 
   // ==========================
   // LOAD CPA LIST FROM SQL
@@ -220,17 +253,32 @@ export default function CPAsPage() {
           >
             <div>
               <div className="font-medium">{c.cpa_name}</div>
-              <div className="text-xs text-muted-foreground">
+
+              {/* <div className="text-xs text-muted-foreground">
                 Code: {c.cpa_code} • ID: {c.cpa_id}
+              </div> */}
+              <div className="text-xs">
+                <span className="font-semibold">Email:</span>{" "}
+                {c.email || "—"}
               </div>
 
-              <div className="text-xs text-muted-foreground">
-                Clients Assigned: {c.client_count}
+              <div className="text-xs">
+                <span className="font-semibold">Clients Assigned:</span>{" "}
+                {c.client_count}
               </div>
+
 
             </div>
-
             <div className="flex gap-2">
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openAssignedClients(c)}
+              >
+                Open
+              </Button>
+
               <Button
                 size="sm"
                 variant="outline"
@@ -239,19 +287,70 @@ export default function CPAsPage() {
                 Edit
               </Button>
 
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={c.client_count > 0}
-              onClick={() => handleDelete(c.cpa_id)}
-            >
-              Delete
-            </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={c.client_count > 0}
+                onClick={() => handleDelete(c.cpa_id)}
+              >
+                Delete
+              </Button>
 
             </div>
+
           </div>
         ))}
       </CardContent>
+
+        <Dialog open={openClientsModal} onOpenChange={setOpenClientsModal}>
+    <DialogContent className="max-w-3xl">
+      <DialogHeader>
+        <DialogTitle>
+          Assigned Clients — {selectedCPA?.cpa_name}
+        </DialogTitle>
+      </DialogHeader>
+
+      {loadingClients ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">
+          Loading assigned clients...
+        </div>
+      ) : assignedClients.length === 0 ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">
+          No clients assigned to this CPA.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {assignedClients.map((c) => (
+            <div
+              key={c.client_id}
+              className="border rounded p-3 flex justify-between items-center"
+            >
+              <div>
+                <div className="font-semibold">{c.client_name}</div>
+                {/* <div className="text-xs text-muted-foreground">
+                  Code: {c.code}
+                </div>
+                <div className="text-xs">
+                  Status: {c.status || c.client_status || "—"}
+                </div> */}
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  window.location.href = `/admin/clients/${c.client_id}`
+                }
+              >
+                View Client
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </DialogContent>
+  </Dialog>
+
     </Card>
   );
 }

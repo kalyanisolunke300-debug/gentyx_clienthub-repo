@@ -17,6 +17,9 @@ export async function GET(req: Request) {
 
     const pool = await getDbPool();
 
+    // -----------------------------
+    // 1️⃣ Fetch Stages
+    // -----------------------------
     const stages = await pool
       .request()
       .input("clientId", sql.Int, Number(clientId))
@@ -27,29 +30,33 @@ export async function GET(req: Request) {
         ORDER BY order_number
       `);
 
-      const subtasks = await pool
-        .request()
-        .input("clientId", sql.Int, Number(clientId))
-        .query(`
-          SELECT 
-            s.client_stage_id,
-            t.subtask_id,
-            t.subtask_title,
-            t.status,
-            t.order_number
-          FROM client_stages s
-          LEFT JOIN client_stage_subtasks t
-            ON s.client_stage_id = t.client_stage_id
-          WHERE s.client_id = @clientId
-          ORDER BY s.order_number, t.order_number
-        `);
-
+    // -----------------------------
+    // 2️⃣ Fetch Subtasks WITH due_date (FIXED)
+    // -----------------------------
+    const subtasks = await pool
+      .request()
+      .input("clientId", sql.Int, Number(clientId))
+      .query(`
+        SELECT 
+          s.client_stage_id,
+          t.subtask_id,
+          t.subtask_title,
+          t.status,
+          t.order_number,
+          t.due_date   -- ⭐ ADDED THIS FIELD
+        FROM client_stages s
+        LEFT JOIN client_stage_subtasks t
+          ON s.client_stage_id = t.client_stage_id
+        WHERE s.client_id = @clientId
+        ORDER BY s.order_number, t.order_number
+      `);
 
     return NextResponse.json({
       success: true,
       data: stages.recordset,
       subtasks: subtasks.recordset,
     });
+
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message },

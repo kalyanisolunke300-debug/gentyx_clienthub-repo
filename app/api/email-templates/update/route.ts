@@ -9,7 +9,7 @@ export async function PUT(req: Request) {
     const pool = await getDbPool();
 
     await pool.request()
-    .input("id", Number(id))     // 🔥 FIX
+    .input("id", Number(id))     
     .input("name", name)
     .input("subject", subject)
     .input("body", body)

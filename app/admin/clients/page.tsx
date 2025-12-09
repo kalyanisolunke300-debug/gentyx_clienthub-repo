@@ -21,17 +21,18 @@ import type { ClientProfile } from "@/types";
 
 export default function AdminClientsList() {
   const { page, setPage, pageSize, q, setQ } = useServerTableState();
-  const [clientPageSize, setClientPageSize] = useState(10);
+  const [clientPageSize, setClientPageSize] = useState(5);
 
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
 
   // ---------- FETCH CLIENTS ----------
   const { data } = useSWR(
-    ["clients", page, pageSize, q],
-    () => fetchClients({ page, pageSize, q }),
+    ["clients", page, clientPageSize, q],
+    () => fetchClients({ page, pageSize: clientPageSize, q }),
     { keepPreviousData: true }
   );
+
 
   const clientRows: ClientProfile[] = data?.data || [];
   // ---- Client Pagination Calculations ----
@@ -52,22 +53,26 @@ export default function AdminClientsList() {
     // 🔥 SHOW CPA NAME INSTEAD OF ID
     { key: "cpa_name", header: "CPA" },
 
-    { key: "stage_name", header: "Stage" },
+    { key: "stage_name", header: "Current Stage" },
 
     {
       key: "progress",
       header: "Progress",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <ProgressRing value={row.progress ?? 0} />
-          <span className="text-xs">{row.progress ?? 0}%</span>
+        <ProgressRing
+          value={row.progress ?? 0}
+          completedStages={row.completed_stages}
+          totalStages={row.total_stages}
+        />
+
         </div>
       ),
     },
 
     {
       key: "status",
-      header: "Status",
+      header: "Current Status",
       render: (row) => <StatusPill status={row.status || "Not Started"} />,
     },
   ];
@@ -109,7 +114,7 @@ export default function AdminClientsList() {
               Open
             </Button>
 
-            <Button
+            {/* <Button
               size="sm"
               variant="outline"
               onClick={() =>
@@ -121,7 +126,7 @@ export default function AdminClientsList() {
               }
             >
               Assign
-            </Button>
+            </Button> */}
           </div>
         )}
       />
@@ -138,6 +143,7 @@ export default function AdminClientsList() {
             value={clientPageSize}
             onChange={(e) => setClientPageSize(Number(e.target.value))}
           >
+            <option value={5}>5</option>
             <option value={10}>10</option>
             <option value={25}>25</option>
             <option value={50}>50</option>

@@ -1,3 +1,4 @@
+// components/shell/right-drawer.tsx
 "use client"
 
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
@@ -19,11 +20,19 @@ export function RightDrawer() {
     <Drawer open={rightDrawerOpen} direction="right" onOpenChange={(o) => !o && closeDrawer()}>
       <DrawerContent className="fixed right-0 top-0 h-screen w-full max-w-md border-l bg-background">
         <DrawerHeader className="flex items-center justify-between">
-          <DrawerTitle>
+          {/* <DrawerTitle>
             {drawerView === "assignTask" && "Assign Task"}
             {drawerView === "setStage" && "Set Stage"}
             {drawerView === "uploadDoc" && "Upload Document"}
-          </DrawerTitle>
+          </DrawerTitle> */}
+          <DrawerTitle>
+          {drawerView === "assignTask" &&
+            (drawerContext?.taskId ? "Update Task" : "Assign Task")}
+
+          {drawerView === "setStage" && "Set Stage"}
+          {drawerView === "uploadDoc" && "Upload Document"}
+        </DrawerTitle>
+
           <DrawerClose asChild>
             <Button variant="ghost">Close</Button>
           </DrawerClose>

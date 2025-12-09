@@ -105,11 +105,20 @@ export async function fetchTasks(params?: { clientId?: string }) {
 //   if (!res.ok) throw new Error("Failed to fetch documents");
 //   return res.json();
 // }
-export async function fetchDocuments() {
-  const res = await fetch("/api/documents/list");
+// export async function fetchDocuments() {
+//   const res = await fetch("/api/documents/list");
+//   if (!res.ok) return [];
+//   return res.json();
+// }
+export async function fetchDocuments({ clientId }: { clientId: string }) {
+  const url = `/api/documents/list?clientId=${clientId}`;
+
+  const res = await fetch(url);
   if (!res.ok) return [];
+
   return res.json();
 }
+
 
 /* -------------------------------------------------------------
     FETCH MESSAGES (calls: /api/messages/get )

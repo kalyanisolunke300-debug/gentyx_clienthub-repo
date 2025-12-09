@@ -36,6 +36,9 @@ import { fetchClients, fetchAllTasks, fetchDocuments } from "@/lib/api";
 import { useUIStore } from "@/store/ui-store";
 import type { ClientProfile, Task, DocumentFile } from "@/types";
 import { useState } from "react";
+import { ClientTaskModal } from "@/components/widgets/client-task-modal";
+
+
 
 
 // Shape returned by fetchClients() for this page
@@ -55,6 +58,15 @@ type TaskRowWithClientName = Task & { client_name: string };
 export default function AdminDashboard() {
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
+
+  // ✅ SEARCH STATES (MUST BE INSIDE COMPONENT)
+  const [clientSearch, setClientSearch] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [openClientTasks, setOpenClientTasks] = useState(false);
+  const [selectedClientTasks, setSelectedClientTasks] = useState<any[]>([]);
+  const [selectedClientName, setSelectedClientName] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+
 
   // ---------- DATA FETCHING ----------
 
@@ -80,7 +92,7 @@ export default function AdminDashboard() {
   // Documents
   const { data: docs } = useSWR<DocumentFile[]>(
     ["docs"],
-    () => fetchDocuments()
+    () => fetchDocuments({ clientId: "" })
   );
 
   const clientRows: ClientProfile[] = clients?.data ?? [];
@@ -98,28 +110,51 @@ export default function AdminDashboard() {
   // const taskPageSize = 10;
 
   // NEW – page size dropdown state
-  const [clientPageSize, setClientPageSize] = useState(10);
-  const [taskPageSize, setTaskPageSize] = useState(10);
+  const [clientPageSize, setClientPageSize] = useState(5);
+  const [taskPageSize, setTaskPageSize] = useState(5);
 
   // Paginated results - Client Table
-  const paginatedClients = clientRows.slice(
+  // ✅ FILTERED CLIENTS (SEARCH)
+  const filteredClients = clientRows.filter((c) =>
+    c.client_name?.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
+  // ✅ PAGINATED CLIENTS (AFTER SEARCH)
+  const paginatedClients = filteredClients.slice(
     (clientPage - 1) * clientPageSize,
     clientPage * clientPageSize
   );
 
-  const clientTotalPages = Math.ceil(clientRows.length / clientPageSize);
-  const clientStart = (clientPage - 1) * clientPageSize + 1;
-  const clientEnd = Math.min(clientPage * clientPageSize, clientRows.length);
+  const clientTotalPages = Math.ceil(filteredClients.length / clientPageSize);
+  const clientStart = filteredClients.length
+    ? (clientPage - 1) * clientPageSize + 1
+    : 0;
+  const clientEnd = Math.min(clientPage * clientPageSize, filteredClients.length);
+
 
   // Paginated results - tasks Table
-  const paginatedTasks = taskRows.slice(
+  // ✅ FILTERED TASKS (SEARCH BY TASK TITLE OR CLIENT)
+  const filteredTasks = taskRows.filter((t: any) => {
+    const titleMatch = t.title?.toLowerCase().includes(taskSearch.toLowerCase());
+    const clientMatch =
+      t.clientName?.toLowerCase().includes(taskSearch.toLowerCase()) ||
+      t.client_name?.toLowerCase().includes(taskSearch.toLowerCase());
+
+    return titleMatch || clientMatch;
+  });
+
+  // ✅ PAGINATED TASKS (AFTER SEARCH)
+  const paginatedTasks = filteredTasks.slice(
     (taskPage - 1) * taskPageSize,
     taskPage * taskPageSize
   );
 
-  const taskTotalPages = Math.ceil(taskRows.length / taskPageSize);
-  const taskStart = (taskPage - 1) * taskPageSize + 1;
-  const taskEnd = Math.min(taskPage * taskPageSize, taskRows.length);
+  const taskTotalPages = Math.ceil(filteredTasks.length / taskPageSize);
+  const taskStart = filteredTasks.length
+    ? (taskPage - 1) * taskPageSize + 1
+    : 0;
+  const taskEnd = Math.min(taskPage * taskPageSize, filteredTasks.length);
+
 
   // ---------- KPI VALUES ----------
 
@@ -134,7 +169,19 @@ export default function AdminDashboard() {
     (t) => t.status === "In Review" || t.status === "Pending"
   ).length;
 
-  const overdueTasks = 0; // No overdue logic yet – safe placeholder
+  // const overdueTasks = 0; // No overdue logic yet – safe placeholder
+  // ---------- OVERDUE TASKS ----------
+  const now = new Date();
+
+  const overdueTasks = taskRows.filter((t) => {
+    if (!t.dueDate) return false;
+
+    const due = new Date(t.dueDate);
+
+    // Overdue = past due date AND not approved
+    return due < now && t.status !== "Approved";
+  }).length;
+
 
   const docsAwaitingReview = docRows.filter(
     (d) => d.status === "Uploaded"
@@ -173,7 +220,7 @@ export default function AdminDashboard() {
       icon: Clock,
       color: "text-red-500",
       helper: "Tasks past their due date",
-      onClick: () => router.push("/admin/tasks?status=overdue"),
+      onClick: () => router.push("/admin/tasks?filter=overdue"),
     },
     {
       label: "Docs Awaiting Review",
@@ -232,15 +279,17 @@ export default function AdminDashboard() {
     {
       key: "progress",
       header: "Progress",
-      render: (r) => (
+      render: (row) => (
         <div className="flex items-center gap-2">
-          <ProgressRing value={r.progress ?? 0} />
-          <span className="text-xs">
-            {typeof r.progress === "number" ? r.progress : 0}%
-          </span>
+          <ProgressRing
+            value={row.progress ?? 0}
+            completedStages={row.completed_stages}
+            totalStages={row.total_stages}
+          />
         </div>
       ),
     },
+
     {
       key: "status",
       header: "Status",
@@ -300,29 +349,29 @@ export default function AdminDashboard() {
   //   },
   // ];
 
-  const taskCols: Column<Task>[] = [
-    {
-      key: "clientName",
-      header: "Client",
-      render: (r) => r.clientName || `#${r.clientId}`,
-    },
-    { key: "title", header: "Title" },
-    { key: "assigneeRole", header: "Assigned User" },
-    {
-      key: "dueDate",
-      header: "Due",
-      render: (r) =>
-        r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "-",
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (r) => <StatusPill status={r.status} />,
-    },
-  ];
-
+const taskCols: Column<TaskRowWithClientName>[] = [
+  {
+    key: "client_name",
+    header: "Client",
+  },
+  { key: "title", header: "Title" },
+  { key: "assigneeRole", header: "Assigned User" },
+  {
+    key: "dueDate",
+    header: "Due",
+    render: (r) =>
+      r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "-",
+  },
+  {
+    key: "status",
+    header: "Status",
+    render: (r) => <StatusPill status={r.status} />,
+  },
+];
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
+
       {/* ---------- HEADER ---------- */}
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
 
@@ -400,12 +449,27 @@ export default function AdminDashboard() {
 
       {/* ---------- CLIENTS TABLE ---------- */}
       <Card>
-        <CardHeader className="flex items-center justify-between">
+      <CardHeader className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <CardTitle>Clients Overview</CardTitle>
-          <Button onClick={() => openDrawer("assignTask", {})}>
-            Assign Task
-          </Button>
-        </CardHeader>
+
+          <input
+            type="text"
+            placeholder="Search client..."
+            className="border rounded px-3 py-1 text-sm w-64"
+            value={clientSearch}
+            onChange={(e) => {
+              setClientSearch(e.target.value);
+              setClientPage(1);
+            }}
+          />
+        </div>
+
+        {/* <Button onClick={() => openDrawer("assignTask", {})}>
+          Assign Task
+        </Button> */}
+      </CardHeader>
+
         <CardContent>
           <DataTable
             columns={clientCols}
@@ -415,11 +479,9 @@ export default function AdminDashboard() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    openDrawer("assignTask", { clientId: row.client_id })
-                  }
+                  onClick={() => router.push(`/admin/clients/${row.client_id}`)}
                 >
-                  Assign
+                  Open
                 </Button>
               </div>
             )}
@@ -476,25 +538,51 @@ export default function AdminDashboard() {
 
       {/* ---------- OUTSTANDING TASKS TABLE ---------- */}
       <Card>
-        <CardHeader>
-          <CardTitle>Outstanding Tasks</CardTitle>
-        </CardHeader>
+      <CardHeader className="flex items-center gap-3">
+        <CardTitle>Outstanding Tasks</CardTitle>
+
+        <input
+          type="text"
+          placeholder="Search task or client..."
+          className="border rounded px-3 py-1 text-sm w-64"
+          value={taskSearch}
+          onChange={(e) => {
+            setTaskSearch(e.target.value);
+            setTaskPage(1);
+          }}
+        />
+      </CardHeader>
+
+
         <CardContent>
           <DataTable
             columns={taskCols}
-            rows={paginatedTasks}
+            rows={tasksWithClientNames.slice(
+              (taskPage - 1) * taskPageSize,
+              taskPage * taskPageSize
+            )}
+
             onRowAction={(row: any) => (
               <Button
                 size="sm"
-                onClick={() =>
-                  openDrawer("uploadDoc", {
-                    clientId: row.client_id ?? row.clientId,
-                  })
-                }
+                variant="outline"
+                onClick={() => {
+                  const tasksForClient = tasksWithClientNames.filter(
+                    (t: any) =>
+                      Number(t.client_id ?? t.clientId) ===
+                      Number(row.client_id ?? row.clientId)
+                  );
+
+                  setSelectedClientTasks(tasksForClient);
+                  setSelectedClientName(row.client_name);
+                  setSelectedClientId(row.client_id ?? row.clientId);
+                  setOpenClientTasks(true);
+                }}
               >
-                Upload Doc
+                All Tasks
               </Button>
             )}
+
           />
 
           {/* Pagination Buttons */}
@@ -545,7 +633,16 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
+      </div>
 
-    </div>
+      <ClientTaskModal
+        open={openClientTasks}
+        onClose={() => setOpenClientTasks(false)}
+        clientName={selectedClientName}
+        clientId={selectedClientId}
+        tasks={selectedClientTasks}
+      />
+    </>
   );
 }
+

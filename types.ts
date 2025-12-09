@@ -1,28 +1,59 @@
 // types.ts
 export type UserRole = "ADMIN" | "CLIENT" | "SERVICE_CENTER" | "CPA";
 
+// export type ClientProfile = {
+//   client_id: number;
+//   client_name: string;
+//   code?: string;
+//   client_status: string;
+//   sla_number?: string;
+
+//   primary_contact_name?: string;
+//   primary_contact_email?: string;
+//   primary_contact_phone?: string;
+
+//   created_at: string;
+//   updated_at?: string;
+
+//   service_center_id?: number;
+//   cpa_id?: number;
+
+//   stage_id?: number;
+//   stage_name?: string;   // <-- comes from JOIN
+//   progress: number;      // <-- numeric progress
+//   status: string;        // <-- task status or client status
+
+//   total_stages?: number;
+//   completed_stages?: number;
+// };
 export type ClientProfile = {
   client_id: number;
   client_name: string;
   code?: string;
-  client_status: string;
+  client_status?: string;
   sla_number?: string;
-
-  primary_contact_name?: string;
-  primary_contact_email?: string;
-  primary_contact_phone?: string;
-
-  created_at: string;
+  primary_contact_name: string;
+  primary_contact_email: string;
+  primary_contact_phone: string;
+  created_at?: string;
   updated_at?: string;
 
-  service_center_id?: number;
-  cpa_id?: number;
+  service_center_id?: number | null;
+  cpa_id?: number | null;
 
+  // ✅ ADD THESE TWO LINES (THIS FIXES THE RED ERROR)
+  service_center_name?: string | null;
+  cpa_name?: string | null;
+
+  // Optional extras already returned by your API
   stage_id?: number;
-  stage_name?: string;   // <-- comes from JOIN
-  progress: number;      // <-- numeric progress
-  status: string;        // <-- task status or client status
+  stage_name?: string;
+  status?: string;
+  total_stages?: number;
+  completed_stages?: number;
+  progress?: number;
 };
+
 
 /* ------------------------- */
 export type DocumentFile = {

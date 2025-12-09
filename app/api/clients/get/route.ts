@@ -32,7 +32,6 @@ export async function GET(req: Request) {
           c.client_name,
           c.code,
           c.client_status,
-          status = c.client_status,
           c.sla_number,
           c.primary_contact_name,
           c.primary_contact_email,
@@ -48,57 +47,103 @@ export async function GET(req: Request) {
           c.code LIKE '%' + @Q + '%' OR
           c.primary_contact_name LIKE '%' + @Q + '%'
       ),
-
-      /* ============================================
-         STEP 2 — FIND CURRENT STAGE FOR EACH CLIENT
-      ==============================================*/
       ClientWithStage AS (
-        SELECT
-          cb.*,
+      SELECT
+        cb.*,
 
-          stage_id = (
-            SELECT TOP 1 s.stage_id
-            FROM dbo.onboarding_stages s
-            WHERE s.client_id = cb.client_id
-            ORDER BY 
-              CASE WHEN s.status = 'Completed' THEN 1 ELSE 0 END,
-              s.order_number
+        stage_name = COALESCE(
+          -- ✅ 1. In Progress Stage
+          (
+            SELECT TOP 1 cs.stage_name
+            FROM dbo.client_stages cs
+            WHERE cs.client_id = cb.client_id
+              AND cs.status = 'In Progress'
+            ORDER BY cs.order_number
           ),
 
-          stage_name = (
-            SELECT TOP 1 s.stage_name
-            FROM dbo.onboarding_stages s
-            WHERE s.client_id = cb.client_id
-            ORDER BY 
-              CASE WHEN s.status = 'Completed' THEN 1 ELSE 0 END,
-              s.order_number
+          -- ✅ 2. Last Completed Stage
+          (
+            SELECT TOP 1 cs.stage_name
+            FROM dbo.client_stages cs
+            WHERE cs.client_id = cb.client_id
+              AND cs.status = 'Completed'
+            ORDER BY cs.order_number DESC
+          ),
+
+          -- ✅ 3. First Not Started Required Stage
+          (
+            SELECT TOP 1 cs.stage_name
+            FROM dbo.client_stages cs
+            WHERE cs.client_id = cb.client_id
+              AND cs.status = 'Not Started'
+              AND cs.is_required = 1
+            ORDER BY cs.order_number
           )
-        FROM ClientBase cb
-      ),
+        ),
+
+        -- ✅ ✅ ✅ FINAL CLIENT STATUS LOGIC (THIS FIXES YOUR STATUS COLUMN)
+        status =
+          CASE
+            -- ✅ ✅ 1. NO STAGES AT ALL → MUST BE NOT STARTED
+            WHEN NOT EXISTS (
+              SELECT 1 FROM dbo.client_stages cs
+              WHERE cs.client_id = cb.client_id
+            ) THEN 'Not Started'
+
+            -- ✅ ✅ 2. ALL STAGES COMPLETED
+            WHEN NOT EXISTS (
+              SELECT 1 FROM dbo.client_stages cs
+              WHERE cs.client_id = cb.client_id
+                AND cs.status <> 'Completed'
+            ) THEN 'Completed'
+
+            -- ✅ ✅ 3. ALL STAGES NOT STARTED
+            WHEN NOT EXISTS (
+              SELECT 1 FROM dbo.client_stages cs
+              WHERE cs.client_id = cb.client_id
+                AND cs.status <> 'Not Started'
+            ) THEN 'Not Started'
+
+            -- ✅ ✅ 4. MIXED (Completed + In Progress + Not Started)
+            ELSE 'In Progress'
+          END
+
+
+      FROM ClientBase cb
+    ),
 
       /* ============================================
-         STEP 3 — TASK PROGRESS (total + completed)
+        STEP 3 — STAGE PROGRESS (STAGE + SUBTASK LOGIC)
       ==============================================*/
-      ClientTaskProgress AS (
+      ClientStageProgress AS (
         SELECT
           cws.*,
 
-          total_tasks = (
+          total_stages = (
             SELECT COUNT(*)
-            FROM dbo.onboarding_tasks t
-            WHERE t.client_id = cws.client_id
+            FROM dbo.client_stages cs
+            WHERE cs.client_id = cws.client_id
           ),
 
-          completed_tasks = (
+          completed_stages = (
             SELECT COUNT(*)
-            FROM dbo.onboarding_tasks t
-            WHERE t.client_id = cws.client_id
-              AND t.status = 'Completed'
+            FROM dbo.client_stages cs
+            WHERE cs.client_id = cws.client_id
+              AND (
+                cs.status = 'Completed'
+                OR NOT EXISTS (
+                  SELECT 1
+                  FROM dbo.client_stage_subtasks st
+                  WHERE st.client_stage_id = cs.client_stage_id
+                    AND st.status <> 'Completed'
+                )
+              )
           )
+
         FROM ClientWithStage cws
       )
 
-      /* ============================================
+            /* ============================================
          FINAL SELECT — RECORDSET[0]
       ==============================================*/
       SELECT
@@ -122,18 +167,20 @@ export async function GET(req: Request) {
         cp.cpa_name AS cpa_name,
         cp.email AS cpa_email,
 
-        ctp.stage_id,
         ctp.stage_name,
 
-        ctp.total_tasks,
-        ctp.completed_tasks,
+
+        ctp.total_stages,
+        ctp.completed_stages,
 
         progress =
-          CASE WHEN ctp.total_tasks = 0 THEN 0
-               ELSE (ctp.completed_tasks * 100.0) / ctp.total_tasks
+          CASE 
+            WHEN ctp.total_stages = 0 THEN 0
+            ELSE (ctp.completed_stages * 100.0) / ctp.total_stages
           END
 
-      FROM ClientTaskProgress ctp
+
+      FROM ClientStageProgress ctp
       LEFT JOIN dbo.service_centers sc
         ON sc.service_center_id  = ctp.service_center_id
       LEFT JOIN dbo.cpa_centers cp

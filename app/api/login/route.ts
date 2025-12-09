@@ -47,20 +47,28 @@ export async function POST(req: NextRequest) {
     // Cookie: Token (use user.id for now)
     response.cookies.set("clienthub_token", user.id.toString(), {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: false,
+      sameSite: "lax",
       path: "/",
     });
 
-    // Cookie: Role
     response.cookies.set("clienthub_role", user.role, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: false,
+      sameSite: "lax",
       path: "/",
     });
 
+    response.cookies.set("clienthub_issuedAt", Date.now().toString(), {
+      httpOnly: true,
+      secure: false,
+      sameSite: "lax",
+      path: "/",
+    });
+
+
     return response;
+
   } catch (error) {
     console.error("Login API error:", error);
     return NextResponse.json(
