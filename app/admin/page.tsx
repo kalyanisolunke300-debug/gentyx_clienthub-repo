@@ -222,14 +222,14 @@ export default function AdminDashboard() {
       helper: "Tasks past their due date",
       onClick: () => router.push("/admin/tasks?filter=overdue"),
     },
-    {
-      label: "Docs Awaiting Review",
-      value: docsAwaitingReview,
-      icon: FileText,
-      color: "text-purple-500",
-      helper: "Documents uploaded by clients",
-      onClick: () => router.push("/admin/documents"),
-    },
+    // {
+    //   label: "Docs Awaiting Review",
+    //   value: docsAwaitingReview,
+    //   icon: FileText,
+    //   color: "text-purple-500",
+    //   helper: "Documents uploaded by clients",
+    //   onClick: () => router.push("/admin/documents"),
+    // },
   ];
 
   // ---------- CHART DATA (Onboarding Stages) ----------
@@ -376,7 +376,9 @@ const taskCols: Column<TaskRowWithClientName>[] = [
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
 
       {/* ---------- KPI CARDS ---------- */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+      {/* <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5"> */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+
         {kpis.map((k) => (
           <Card
             key={k.label}

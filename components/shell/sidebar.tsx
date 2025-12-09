@@ -1,3 +1,4 @@
+// shell/sidebar.tsx
 "use client";
 
 import Link from "next/link";
@@ -38,7 +39,7 @@ export function Sidebar() {
     { href: "/admin/cpas", label: "CPAs", icon: Landmark },
     { href: "/admin/reports", label: "Reports", icon: BarChart2 },
     { href: "/admin/email-templates", label: "Email Templates", icon: Mail },
-    { href: "/admin/documents", label: "Documents", icon: FileText },
+    // { href: "/admin/documents", label: "Documents", icon: FileText },
   ];
 
   const clientLinks = [
