@@ -84,7 +84,8 @@ export default function LoginPage() {
       {/* TOP LOGO */}
       <div className="logo-wrapper">
         <img
-          src="/images/sage_healthy_rcm_logo.png"
+          src="/images/gentyxfinallogo.png"
+          //src="/images/sage_healthy_rcm_logo.png"   # sage logo replaced
           alt="mySAGE Logo"
           className="mysage-logo"
         />

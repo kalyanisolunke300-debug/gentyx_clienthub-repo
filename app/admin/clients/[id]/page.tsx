@@ -104,6 +104,10 @@ export default function ClientProfilePage() {
 
   const [selectedServiceCenter, setSelectedServiceCenter] = useState<number | null>(null);
   const [selectedCPA, setSelectedCPA] = useState<number | null>(null);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+
  
   useEffect(() => {
     fetchServiceCenters().then((res) => {
@@ -141,19 +145,31 @@ const paginatedTasks = taskRows.slice(
 );
 
 
-  const { data: docsResponse } = useSWR(["docs", id], () =>
-  fetchClientDocuments(id)
-  );
+// const { data: docsResponse } = useSWR(
+//   ["docs", id, selectedFolder],
+//   () =>
+//     selectedFolder
+//       ? fetch(`/api/documents/get?clientId=${id}&folder=${selectedFolder}`).then(r => r.json())
+//       : fetch(`/api/documents/get?clientId=${id}&mode=folders`).then(r => r.json())
+// );
 
-const docs =
-  docsResponse?.data?.map((doc: any) => ({
-    id: doc.id,          // ✅ add id so delete API gets documentId
-    name: doc.name,
-    type: doc.type,
-    size: doc.size,
-    path: doc.path,
-    url: doc.url,
-  })) || [];
+const { data: docsResponse } = useSWR(
+  ["docs", id, selectedFolder],
+  () =>
+    selectedFolder
+      ? fetch(`/api/documents/get-by-client?id=${id}&folder=${selectedFolder}`).then(r => r.json())
+      : fetch(`/api/documents/get-by-client?id=${id}`).then(r => r.json())
+);
+
+
+// const docs = selectedFolder
+//   ? docsResponse?.files || []
+//   : docsResponse?.folders || [];
+// API always returns { success, data: [...] }
+// selectedFolder = show files, no selectedFolder = show folders
+
+const docs = docsResponse?.data || [];
+
 
 
   const { data: msgsResponse } = useSWR(["msgs", id], () =>
@@ -358,65 +374,96 @@ const taskCols: Column<ClientTask>[] = [
   //     render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
   //   },
   // ];
-  async function handleDeleteDocument(doc: any) {
-  if (!confirm(`Delete document "${doc.name}"?`)) return;
+//   async function handleDeleteDocument(doc: any) {
+//   if (!confirm(`Delete document "${doc.name}"?`)) return;
 
-  const res = await fetch("/api/documents/delete", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      clientId: id,
-      fileName: doc.name,
-      fileType: doc.type,       // IMG, PDF, XLSX...
-      // documentId: doc.id,       // DB ID
-    }),
-  });
+//   const res = await fetch("/api/documents/delete", {
+//     method: "POST",
+//     headers: { "Content-Type": "application/json" },
+//     body: JSON.stringify({
+//       clientId: id,
+//       fileName: doc.name,
+//       fileType: doc.type,       // IMG, PDF, XLSX...
+//       // documentId: doc.id,       // DB ID
+//     }),
+//   });
 
-  if (!res.ok) {
-    alert("Failed to delete");
-    return;
-  }
+//   if (!res.ok) {
+//     alert("Failed to delete");
+//     return;
+//   }
 
-  mutate(["docs", id]); // Refresh table
-}
+//   mutate(["docs", id]); // Refresh table
+// }
+
 
 const docCols: Column<any>[] = [
-  { key: "name", header: "Name" },
-  { key: "type", header: "Type" },
+  {
+    key: "name",
+    header: "Name",
+  },
+  {
+    key: "type",
+    header: "Type",
+  },
   {
     key: "size",
     header: "Size",
-    render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
   },
-
-  // ⭐ ACTIONS COLUMN (centered + last)
   {
     key: "actions",
     header: "Actions",
-    className: "text-center", // 🟦 ensures header is centered
-    render: (row) => (
-      <div className="flex items-center justify-center gap-3 w-full">
-        {/* Preview */}
+    render: (row: any) => (
+      <div className="flex gap-2">
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           onClick={() => window.open(row.url, "_blank")}
         >
           Preview
         </Button>
 
-        {/* Delete */}
         <Button
           size="sm"
           variant="destructive"
           onClick={() => handleDeleteDocument(row)}
         >
-          <Trash2 className="h-4 w-4" />
+          <Trash2 className="w-4 h-4 text-white" />
         </Button>
       </div>
     ),
   },
 ];
+
+async function handleDeleteDocument(doc: any) {
+  if (!confirm(`Delete document "${doc.name}"?`)) return;
+
+  console.log("🔥 Deleting document:", doc);
+
+  // The backend expects: fullPath = "client-2/folder/file.png"
+  const res = await fetch("/api/documents/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      clientId: id,
+      fullPath: doc.fullPath, // ✅ VERY IMPORTANT
+    }),
+  });
+
+  const json = await res.json();
+  console.log("DELETE RESPONSE:", json);
+
+  if (!json.success) {
+    alert("Failed to delete document.");
+    return;
+  }
+
+  mutate(["docs", id, null]); // refresh root
+  mutate(["docs", id, selectedFolder]); // refresh folder
+
+  alert("Document deleted successfully!");
+}
+
 
 
 
@@ -962,40 +1009,248 @@ const docCols: Column<any>[] = [
   <div className="border rounded-md p-6 grid gap-4">
 
     {/* Always show Upload Document button */}
-    <div className="flex justify-end">
-      {/* <Button
-        onClick={() =>
-          useUIStore.getState().openDrawer("uploadDoc", { clientId: id })
-        }
-      >
-        Upload Document
-      </Button> */}
-      <Button
-        onClick={() =>
-          useUIStore.getState().openDrawer("uploadDoc", { 
-            clientId: id,
-            clientName: client?.client_name
-          })
-        }
-      >
-        Upload Document
-      </Button>
+<div className="flex justify-end gap-2">
+
+  {/* ✅ CREATE FOLDER BUTTON */}
+  <Button
+    variant="outline"
+    onClick={() => setShowCreateFolder(true)}
+  >
+    ➕ Create Folder
+  </Button>
+
+  {/* ✅ UPLOAD DOCUMENT BUTTON */}
+<Button
+  onClick={() =>
+    useUIStore.getState().openDrawer("uploadDoc", { 
+      clientId: id,
+      clientName: client?.client_name,
+      folderName: selectedFolder, // ✅ THIS WAS MISSING
+    })
+  }
+  // disabled={!selectedFolder} // ✅ prevents upload without folder
+>
+  Upload Document
+</Button>
+
+
+</div>
+
+{showCreateFolder && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg w-[350px] space-y-4">
+
+      <h2 className="text-lg font-semibold">Create Folder</h2>
+
+      <Input
+        placeholder="Enter folder name"
+        value={newFolderName}
+        onChange={(e) => setNewFolderName(e.target.value)}
+      />
+
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowCreateFolder(false);
+            setNewFolderName("");
+          }}
+        >
+          Cancel
+        </Button>
+
+        <Button
+          onClick={async () => {
+            if (!newFolderName.trim()) return;
+
+            const res = await fetch("/api/documents/create-folder", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: id,
+                folderName: newFolderName,
+                parentFolder: selectedFolder,
+              }),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+              toast({ title: "Folder created successfully" });
+              mutate(["docs", id, null]); // ✅ forces folder view refresh
+              setShowCreateFolder(false);
+              setNewFolderName("");
+            } else {
+              toast({ title: "Folder creation failed", variant: "destructive" });
+            }
+          }}
+        >
+          Create
+        </Button>
+      </div>
 
     </div>
+  </div>
+)}
 
-    {/* If no documents → Show empty state */}
+
+{/* ✅ ROOT VIEW: FOLDERS + ROOT FILES, ELSE FOLDER CONTENTS */}
+{!selectedFolder ? (
+  <>
     {docs.length === 0 ? (
       <div className="w-full text-center py-10 text-gray-500 text-sm">
         No documents available for this client.
       </div>
     ) : (
-      /* If documents exist → Show table */
-    <DataTable
-      columns={docCols}
-      rows={docs}
-    />
+      <>
+        {/* ---------- ROOT FOLDERS GRID ---------- */}
+        {/* {docs.filter((i: any) => i.type === "folder").length > 0 && (
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {docs
+              .filter((i: any) => i.type === "folder")
+              .map((folder: any) => (
+                <div
+                  key={folder.name}
+                  onClick={() => setSelectedFolder(folder.name)} // root → go into that folder
+                  className="cursor-pointer border rounded p-4 text-center hover:bg-muted transition"
+                >
+                  📁 {folder.name}
+                </div>
+              ))}
+          </div>
+        )} */}
+<div className="grid grid-cols-4 gap-4 mb-6">
+  {docs
+    .filter((i: any) => i.type === "folder")
+    .map((folder: any) => (
+      <div
+        key={folder.name}
+        className="relative border rounded p-4 hover:bg-muted transition cursor-pointer group"
+        onClick={() => setSelectedFolder(folder.name)}
+      >
+        📁 {folder.name}
 
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!confirm(`Delete folder "${folder.name}"?`)) return;
+
+            fetch("/api/documents/delete-folder", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: id,
+                folderPath: folder.name,
+              }),
+            }).then(() => mutate(["docs", id, null]));
+          }}
+          className="absolute top-2 right-2 bg-red-600 p-2 rounded-md hover:bg-red-700 transition"
+        >
+          <Trash2 className="w-4 h-4 text-white" />
+        </button>
+      </div>
+    ))}
+</div>
+
+
+
+        {/* ---------- ROOT FILES TABLE ---------- */}
+        {docs.filter((i: any) => i.type === "file").length > 0 && (
+          <DataTable
+            columns={docCols}
+            rows={docs.filter((i: any) => i.type === "file")}
+          />
         )}
+      </>
+    )}
+  </>
+) : (
+  <>
+    {/* ✅ BACK TO ALL DOCUMENTS BUTTON */}
+    <Button
+      variant="outline"
+      className="mb-4"
+      onClick={() => setSelectedFolder(null)}
+    >
+      ← See All Documents
+    </Button>
+
+    {/* ✅ SHOW SUBFOLDERS INSIDE CURRENT FOLDER */}
+    {/* {docs.filter((i: any) => i.type === "folder").length > 0 && (
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        {docs
+          .filter((i: any) => i.type === "folder")
+          .map((folder: any) => (
+            <div
+              key={folder.name}
+              onClick={() =>
+                setSelectedFolder(
+                  selectedFolder ? `${selectedFolder}/${folder.name}` : folder.name
+                )
+              }
+              className="cursor-pointer border rounded p-4 text-center hover:bg-muted transition"
+            >
+              📁 {folder.name}
+            </div>
+          ))}
+      </div>
+    )} */}
+
+<div className="grid grid-cols-4 gap-4 mb-6">
+  {docs
+    .filter((i: any) => i.type === "folder")
+    .map((folder: any) => {
+      const fullPath = selectedFolder
+        ? `${selectedFolder}/${folder.name}`
+        : folder.name;
+
+      return (
+        <div
+          key={folder.name}
+          className="relative border rounded p-4 hover:bg-muted transition cursor-pointer group"
+          onClick={() => setSelectedFolder(fullPath)}
+        >
+          📁 {folder.name}
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!confirm(`Delete folder "${folder.name}"?`)) return;
+
+              fetch("/api/documents/delete-folder", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  clientId: id,
+                  folderPath: fullPath,
+                }),
+              }).then(() => mutate(["docs", id, selectedFolder]));
+            }}
+            className="absolute top-2 right-2 bg-red-600 p-2 rounded-md hover:bg-red-700 transition"
+          >
+            <Trash2 className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      );
+    })}
+</div>
+
+
+    {/* ✅ FILE TABLE INSIDE SELECTED FOLDER */}
+    {docs.filter((i: any) => i.type === "file").length === 0 ? (
+      <div className="text-center py-10 text-gray-500 text-sm">
+        No files in this folder.
+      </div>
+    ) : (
+      <DataTable
+        columns={docCols}
+        rows={docs.filter((i: any) => i.type === "file")}
+      />
+    )}
+  </>
+)}
+
+
       </div>
     </TabsContent>
 

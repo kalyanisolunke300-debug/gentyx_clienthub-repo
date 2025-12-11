@@ -1,3 +1,4 @@
+//app/client/messages/page.tsx
 "use client"
 
 import useSWR from "swr"
@@ -7,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
+import { useEffect } from "react"
+
 
 export default function ClientMessages() {
   const { data } = useSWR(["msgs"], () => fetchMessages())
@@ -15,9 +18,14 @@ export default function ClientMessages() {
   const { toast } = useToast()
 
   // Sync data to local state
-  if (data && messages.length === 0) {
-    setMessages(data)
+// Sync data to local state
+// Sync SWR data into local state once when data arrives
+useEffect(() => {
+  if (data?.messages && messages.length === 0) {
+    setMessages(data.messages)
   }
+}, [data])
+
 
   function handleSendMessage() {
     if (!messageInput.trim()) {

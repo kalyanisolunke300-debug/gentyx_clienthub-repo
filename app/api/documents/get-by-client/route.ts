@@ -1,69 +1,69 @@
-// app/api/documents/get-by-client/route.ts
+// /app/api/documents/get-by-client/route.ts
 import { NextResponse } from "next/server";
-import {
-  BlobServiceClient,
-  StorageSharedKeyCredential,
-  BlobSASPermissions,
-  generateBlobSASQueryParameters
-} from "@azure/storage-blob";
+import { BlobServiceClient } from "@azure/storage-blob";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const clientId = url.searchParams.get("id");
+    const folder = url.searchParams.get("folder"); // optional
 
     if (!clientId) {
-      return NextResponse.json(
-        { success: false, error: "Client ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "Missing clientId" });
     }
 
-    const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
-    const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
-
-    const sharedKeyCredential = new StorageSharedKeyCredential(account, key);
-    const blobServiceClient = new BlobServiceClient(
-      `https://${account}.blob.core.windows.net`,
-      sharedKeyCredential
+    const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
+    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
+    const containerClient = blobServiceClient.getContainerClient(
+      process.env.AZURE_STORAGE_CONTAINER_NAME!
     );
-    const containerClient = blobServiceClient.getContainerClient(containerName);
 
-    const docs: any[] = [];
+    // ROOT OR SUBFOLDER PREFIX
+    const prefix = folder
+      ? `client-${clientId}/${folder}/`
+      : `client-${clientId}/`;
 
-    for await (const blob of containerClient.listBlobsFlat({ prefix: `client-${clientId}/` })) {
-      const fileName = blob.name.split("/").pop()!;
-      const type = fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "IMG";
+    const items: any[] = [];
 
-      // Generate SAS URL
-      const sasToken = generateBlobSASQueryParameters(
-        {
-          containerName,
-          blobName: blob.name,
-          permissions: BlobSASPermissions.parse("r"),
-          expiresOn: new Date(Date.now() + 10 * 60 * 1000), // 10m
-        },
-        sharedKeyCredential
-      ).toString();
+    // HIERARCHY LISTING → RETURNS FOLDERS + FILES
+    for await (const blob of containerClient.listBlobsByHierarchy("/", { prefix })) {
+      
+      // -------------- FOLDER --------------
+      if (blob.kind === "prefix") {
+        const folderName = blob.name
+          .replace(prefix, "")
+          .replace("/", "");
 
-      const sasUrl = `https://${account}.blob.core.windows.net/${containerName}/${blob.name}?${sasToken}`;
+        if (folderName.length > 0) {
+          items.push({
+            type: "folder",
+            name: folderName,
+          });
+        }
+        
+        continue;
+      }
 
-      docs.push({
+      // -------------- FILE --------------
+      const fileName = blob.name.replace(prefix, "");
+
+      if (!fileName || fileName === ".keep") continue;
+
+      items.push({
+        type: "file",
         name: fileName,
-        path: blob.name,
-        size: blob.properties.contentLength,
-        type,
-        url: sasUrl,
+        url: containerClient.getBlobClient(blob.name).url,
+        size: blob.properties.contentLength ?? 0,
+        fullPath: blob.name, // ✅ REQUIRED FOR DELETE API
       });
+
     }
 
-    return NextResponse.json({ success: true, data: docs });
+    return NextResponse.json({ success: true, data: items });
   } catch (err: any) {
-    console.error(err);
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: 500 }
-    );
+    console.error("LIST ERROR:", err);
+    return NextResponse.json({ success: false, error: err.message });
   }
 }

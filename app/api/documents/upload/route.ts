@@ -1,4 +1,4 @@
-// app/api/documents/upload/route.ts
+// /app/api/documents/upload/route.ts
 import { NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
 
@@ -9,34 +9,50 @@ export async function POST(req: Request) {
     const formData = await req.formData();
 
     const clientId = formData.get("clientId") as string;
-    // const fileType = formData.get("fileType") as string;
-    const fileType = (formData.get("fileType") as string)?.toUpperCase();
-
+    const folderName = (formData.get("folderName") as string)?.trim() || null;
     const file = formData.get("file") as File;
 
-    if (!clientId || !fileType || !file) {
+    if (!clientId || !file) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields" },
+        { success: false, error: "Client and file are required" },
         { status: 400 }
       );
     }
 
-    // Convert to buffer
+    // ✅ SAFETY: Never allow manual .keep upload
+    if (file.name === ".keep") {
+      return NextResponse.json(
+        { success: false, error: "Invalid file name" },
+        { status: 400 }
+      );
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = file.name;
 
-    // Build blob path
-    const blobPath = `client-${clientId}/${fileType}/${fileName}`;
+    // ✅ ✅ FINAL UPLOAD PATH LOGIC (ROOT + FOLDER SAFE)
+    const blobPath = folderName
+      ? `client-${clientId}/${folderName}/${fileName}`
+      : `client-${clientId}/${fileName}`;
 
     const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
-    const containerClient = blobServiceClient.getContainerClient("clienthub");
+    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
 
+    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
+    const containerClient = blobServiceClient.getContainerClient(containerName);
     await containerClient.createIfNotExists();
 
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
-    // Upload file
+    // ✅ PREVENT OVERWRITE
+    const exists = await blockBlobClient.exists();
+    if (exists) {
+      return NextResponse.json(
+        { success: false, error: "File already exists" },
+        { status: 409 }
+      );
+    }
+
     await blockBlobClient.uploadData(buffer, {
       blobHTTPHeaders: { blobContentType: file.type },
     });

@@ -4,10 +4,21 @@ import {
   BlobServiceClient,
   StorageSharedKeyCredential,
 } from "@azure/storage-blob";
-import { getDbPool } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const clientId = searchParams.get("clientId");
+    const mode = searchParams.get("mode");        // "folders"
+    const folder = searchParams.get("folder");    // e.g. "IMG"
+
+    if (!clientId) {
+      return NextResponse.json(
+        { success: false, error: "clientId is required" },
+        { status: 400 }
+      );
+    }
+
     const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
     const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
     const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
@@ -21,50 +32,70 @@ export async function GET() {
     const containerClient =
       blobServiceClient.getContainerClient(containerName);
 
-    const pool = await getDbPool();
+    const prefix = `client-${clientId}/`;
 
-    const docs: any[] = [];
+    // ---------------------------------------------------------
+    // MODE 1 → Return only folders
+    // ---------------------------------------------------------
+    if (mode === "folders") {
+      const folderSet = new Set<string>();
 
-    // Loop through all blobs
-    for await (const blob of containerClient.listBlobsFlat()) {
-      const path = blob.name; // e.g. "client-14/IMG/image.png"
+      for await (const blob of containerClient.listBlobsByHierarchy("/", {
+        prefix,
+      })) {
+        if (blob.kind === "prefix") {
+          const name = blob.name.replace(prefix, "").replace("/", "");
 
-      // Extract clientId using folder name
-      const match = path.match(/client-(\d+)\//);
-      const clientId = match ? Number(match[1]) : null;
-
-      let client_name = "Unknown";
-
-      // If we got a valid clientId, fetch client_name
-      if (clientId) {
-        const result = await pool
-          .request()
-          .input("clientId", clientId)
-          .query(
-            `SELECT client_name FROM clients WHERE client_id = @clientId`
-          );
-
-        if (result.recordset.length > 0) {
-          client_name = result.recordset[0].client_name;
+          if (name !== ".keep" && name.length > 0) {
+            folderSet.add(name);
+          }
         }
       }
 
-      // Determine file type
-      const fileName = blob.name.split("/").pop()!;
-      const type = fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "IMG";
-
-      // Push into final array
-      docs.push({
-        clientId,
-        client_name,
-        path,
-        name: fileName,
-        type,
-        status: "Uploaded",
+      return NextResponse.json({
+        success: true,
+        folders: Array.from(folderSet),
       });
     }
 
-    return NextResponse.json(docs);
+    // ---------------------------------------------------------
+    // MODE 2 → Return files inside a specific folder
+    // ---------------------------------------------------------
+    if (folder) {
+      const filePrefix = `${prefix}${folder}/`;
+
+      const files: any[] = [];
+
+      for await (const blob of containerClient.listBlobsFlat({
+        prefix: filePrefix,
+      })) {
+        const fileName = blob.name.replace(filePrefix, "");
+
+        if (fileName === ".keep" || fileName.endsWith("/")) continue;
+
+        files.push({
+          name: fileName,
+          url: `${containerClient.url}/${blob.name}`,
+          size: blob.properties.contentLength,
+          type: blob.name.split(".").pop(),
+          path: blob.name,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        files,
+      });
+    }
+
+    // Invalid usage
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Missing mode=folders or folder parameter.",
+      },
+      { status: 400 }
+    );
   } catch (err: any) {
     console.error(err);
     return NextResponse.json(

@@ -27,6 +27,8 @@ const Schema = z.object({
 });
 
 export function UploadDocForm({ context }: { context?: Record<string, any> }) {
+  const folderName = context?.folderName || null;
+
   const { toast } = useToast();
   const closeDrawer = useUIStore((s) => s.closeDrawer);
 
@@ -117,6 +119,9 @@ function handleFileSelect(file: File) {
     formData.append("file", selectedFile);
     formData.append("clientId", values.clientId);
     formData.append("fileType", values.type);
+    if (folderName) {
+      formData.append("folderName", folderName);  // ✅ Now works
+    }
 
     try {
       const res = await fetch("/api/documents/upload", {
