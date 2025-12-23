@@ -63,7 +63,7 @@ export function TableToolbar({
   ctaLabel?: string
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2">
+    <div className="flex items-center gap-2">
       <Input
         value={q}
         onChange={(e) => setQ?.(e.target.value)}

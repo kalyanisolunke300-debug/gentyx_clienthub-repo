@@ -1,3 +1,4 @@
+
 // store/ui-store.ts
 "use client";
 
@@ -94,6 +95,7 @@ export const useUIStore = create<UIState>()(
       // Only store role (avoid saving dev tools/settings)
       partialize: (state) => ({
         role: state.role,
+        currentClientId: state.currentClientId,
       }),
 
       // Hydration callback → fixes flicker

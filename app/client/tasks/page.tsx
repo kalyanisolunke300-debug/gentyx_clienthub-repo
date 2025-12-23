@@ -1,30 +1,52 @@
-"use client"
+// app/client/tasks/page.tsx
 
-import useSWR from "swr"
-import { fetchTasks } from "@/lib/api"
-import { DataTable, type Column } from "@/components/data-table"
-import { StatusPill } from "@/components/widgets/status-pill"
-import { Button } from "@/components/ui/button"
-import { useUIStore } from "@/store/ui-store"
-import { useToast } from "@/hooks/use-toast"
-import { useState } from "react"
+"use client";
+
+import useSWR from "swr";
+import { fetchClientTasksByClientId } from "@/lib/api";
+import { DataTable, type Column } from "@/components/data-table";
+import { StatusPill } from "@/components/widgets/status-pill";
+import { Button } from "@/components/ui/button";
+import { useUIStore } from "@/store/ui-store";
+import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
 
 export default function ClientTasks() {
-  const role = useUIStore((s) => s.role)
-  const currentClientId = useUIStore((s) => s.currentClientId)
-  const { toast } = useToast()
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set())
+  const role = useUIStore((s) => s.role);
+  const currentClientId = useUIStore((s) => s.currentClientId);
+  const setCurrentClientId = useUIStore((s) => s.setCurrentClientId);
+  const { toast } = useToast();
 
-  const clientId = role === "CLIENT" ? currentClientId || "cli-1" : undefined
+  const [clientId, setClientId] = useState<string | null>(null);
 
-  const { data } = useSWR(["client-tasks", clientId], () => fetchTasks({ assigneeRole: "CLIENT", clientId }), {
-    revalidateOnFocus: false,
-  })
-
-  function handleCompleteTask(taskId: string) {
-    setCompletedTasks((prev) => new Set([...prev, taskId]))
-    toast({ title: "Success", description: "Task marked as complete." })
+  // Helper function to get cookie value
+  function getCookie(name: string): string | null {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? match[2] : null;
   }
+
+  // ✅ Load clientId from Zustand OR cookies as fallback
+  useEffect(() => {
+    // First try Zustand
+    if (currentClientId) {
+      setClientId(currentClientId);
+      return;
+    }
+
+    // Fallback: Read from cookie
+    const cookieClientId = getCookie("clienthub_clientId");
+    if (cookieClientId) {
+      setClientId(cookieClientId);
+      setCurrentClientId(cookieClientId);
+    }
+  }, [role, currentClientId, setCurrentClientId]);
+
+  const { data, isLoading } = useSWR(
+    clientId ? `/api/tasks/client/${clientId}` : null,
+    () => fetchClientTasksByClientId(clientId!),
+    { revalidateOnFocus: false }
+  );
 
   const cols: Column<any>[] = [
     { key: "title", header: "Title" },
@@ -32,13 +54,14 @@ export default function ClientTasks() {
     {
       key: "status",
       header: "Status",
-      render: (r) => <StatusPill status={completedTasks.has(r.id) ? "Approved" : r.status} />,
+      render: (r) => <StatusPill status={r.status} />,
     },
-  ]
+  ];
 
   return (
     <div className="grid gap-3">
       <h1 className="text-xl font-semibold">My Tasks</h1>
+
       <DataTable
         columns={cols}
         rows={data?.data || []}
@@ -46,13 +69,14 @@ export default function ClientTasks() {
           <Button
             size="sm"
             variant="outline"
-            disabled={completedTasks.has(r.id)}
-            onClick={() => handleCompleteTask(r.id)}
+            onClick={() =>
+              toast({ title: "Success", description: "Task marked as complete." })
+            }
           >
-            {completedTasks.has(r.id) ? "Completed" : "Complete"}
+            Complete
           </Button>
         )}
       />
     </div>
-  )
+  );
 }

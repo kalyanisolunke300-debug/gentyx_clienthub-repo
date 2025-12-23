@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     const result = await pool.request()
       .input("clientId", sql.Int, clientId)
       .query(`
-        SELECT 
+        SELECT
           task_id,
           task_title,
           assigned_to_role,

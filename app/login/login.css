@@ -4,7 +4,8 @@
   box-sizing: border-box;
 }
 
-body, html {
+body,
+html {
   margin: 0;
   padding: 0;
   font-family: 'Inter', 'Inter Fallback', sans-serif;
@@ -30,14 +31,15 @@ body, html {
   max-width: 260px;
   height: auto;
   margin-top: -10px;
-  margin-bottom: -5px; /* Reduced gap */
+  margin-bottom: -5px;
+  /* Reduced gap */
 }
 
 /* POWERED BY text */
 .powered-by-text {
   font-size: 12px;
   font-weight: 600;
-  color: #8bc53d;
+  color: #000000;
   align-self: flex-end;
   margin-top: 4px;
   margin-right: -110px;
@@ -55,8 +57,9 @@ body, html {
 
 /* Green login box */
 .login-box {
-  background-color:   #05164d;
-  /* background-color: #8bc53d; */  /* Changed to brand sage green */
+  background-color: #470D1B;
+  /* background-color: #8bc53d; */
+  /* Changed to brand sage green */
   width: 100%;
   max-width: 420px;
   margin-top: 35px;
@@ -105,7 +108,8 @@ body, html {
   max-width: 420px;
   display: flex;
   flex-direction: column;
-  align-items: center;       /* ✅ center logo */
+  align-items: center;
+  /* ✅ center logo */
   position: relative;
 }
 
@@ -181,7 +185,8 @@ body, html {
   cursor: pointer;
   padding: 4px;
   line-height: 0;
-  color: #999; /* subtle like placeholder */
+  color: #999;
+  /* subtle like placeholder */
 }
 
 .password-visibility-btn:hover {
@@ -194,7 +199,7 @@ body, html {
   border-radius: 6px;
 }
 
-  
+
 
 
 /* .login-container {
@@ -278,7 +283,7 @@ body, html {
     margin: 0 auto;
   } */
 
-  /*Here are the issues That I got from first prompt result :
+/*Here are the issues That I got from first prompt result :
 we will need a new prompt to solve this bugs :
 1. You can see in image that the whole website dashboard page got moved too much to left see all the texts and all : words like Employee Dashboard and see the Help butthon this should be at the more right that it is now so basically dashboard page needs some proper adjustment to look this proper and okay 
 see the profile button and all should go to right side :

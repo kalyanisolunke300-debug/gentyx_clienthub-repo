@@ -30,14 +30,23 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 
+// type TaskRow = {
+//   id: number;
+//   clientId: number;
+//   title: string;
+//   assigneeRole: string;
+//   status: string;
+//   dueDate: string;
+// };
 type TaskRow = {
   id: number;
   clientId: number;
   title: string;
-  assigneeRole: string;
+  assignedRole: string;   // ✅ correct field
   status: string;
-  dueDate: string;
+  dueDate: string | null;
 };
+
 
 export default function AdminTasksPage() {
   const router = useRouter();
@@ -45,7 +54,11 @@ export default function AdminTasksPage() {
   const [selectedClientTasks, setSelectedClientTasks] = useState<any[]>([]);
   const [selectedClientName, setSelectedClientName] = useState("");
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
-
+  const [filterTaskType, setFilterTaskType] = useState<"ALL" | "ONBOARDING" | "ASSIGNED">("ALL");
+  const [filterAssignedRole, setFilterAssignedRole] = useState<"ALL" | "CLIENT" | "SERVICE_CENTER" | "CPA">("ALL");
+  const [filterDue, setFilterDue] = useState<"ALL" | "WITH_DUE" | "OVERDUE" | "CUSTOM">("ALL");
+  const [dueFrom, setDueFrom] = useState<string | null>(null);
+  const [dueTo, setDueTo] = useState<string | null>(null);
 
   const { toast } = useToast();
   const { page, setPage, pageSize, setPageSize, q, setQ } = useServerTableState();
@@ -70,153 +83,208 @@ export default function AdminTasksPage() {
   const allTasks: TaskRow[] = tasksData?.data || [];
 
   const cols: Column<TaskRow>[] = [
-  {
-    key: "clientId",
-    header: "Client Name",
-    render: (row) => getClientName(row.clientId),
-  },
-  { key: "title", header: "Task" },
-  {
-    key: "assigneeRole",
-    header: "Assigned User",
-    render: (row) => row.assigneeRole || "Unknown",
-  },
+    {
+      key: "clientId",
+      header: "Client Name",
+      render: (row) => getClientName(row.clientId),
+    },
+    { key: "title", header: "Task" },
+    {
+      key: "assignedRole",
+      header: "Assigned User",
+      render: (row) => row.assignedRole || "CLIENT",
+    },
 
-  // ✅ NEW DUE DATE COLUMN (INSERTED HERE)
-  {
-    key: "dueDate",
-    header: "Due",
-    render: (row) =>
-      row.dueDate
-        ? new Date(row.dueDate).toLocaleDateString()
-        : "-",
-  },
+    // ✅ NEW DUE DATE COLUMN (INSERTED HERE)
+    {
+      key: "dueDate",
+      header: "Due",
+      render: (row) =>
+        row.dueDate
+          ? new Date(row.dueDate).toLocaleDateString()
+          : "-",
+    },
 
-{
-  key: "status",
-  header: "Status",
-  render: (row) => (
-    <Select
-      value={row.status || "Not Started"}
-      onValueChange={async (value) => {
-        await fetch("/api/tasks/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            taskId: row.id,
-            status: value,
-          }),
-        });
-
-        mutate(["tasks"]); // ✅ refresh table
-      }}
-    >
-      <SelectTrigger
-        className={`h-8 px-3 rounded-full text-xs font-medium border-0 ${STATUS_COLORS[row.status || "Not Started"]}`}
-      >
-        <SelectValue />
-      </SelectTrigger>
-
-      <SelectContent>
-        {STATUS_OPTIONS.map((s) => (
-          <SelectItem key={s} value={s}>
-            {s}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  ),
-},
-
-
-  // ✅ ACTIONS COLUMN (LAST + CENTERED)
-  {
-    key: "actions",
-    header: "Actions",
-    className: "text-center",
-    render: (row) => (
-      <div className="flex items-center justify-center gap-2 w-full">
-        {/* ✅ EDIT */}
-       {/* ✅ VIEW CLIENT TASKS */}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            const tasksForClient = allTasks.filter(
-              (t) => Number(t.clientId) === Number(row.clientId)
-            );
-
-            setSelectedClientTasks(tasksForClient);
-            setSelectedClientName(getClientName(row.clientId));
-            setSelectedClientId(row.clientId); // ✅ REQUIRED FOR VIEW CLIENT BUTTON
-            setOpenClientTasks(true);
-          }}
-
-        >
-          All Tasks
-        </Button>
-
-        {/* ✅ EDIT */}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() =>
-            openDrawer("assignTask", {
-              taskId: row.id,
-            })
-          }
-        >
-          Edit
-        </Button>
-
-        {/* ✅ DELETE */}
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={async () => {
-            if (!confirm("Delete this task?")) return;
-
-            const res = await fetch("/api/tasks/delete", {
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <Select
+          value={row.status || "Not Started"}
+          onValueChange={async (value) => {
+            await fetch("/api/tasks/update", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                task_id: row.id,
+                taskId: row.id,
+                status: value,
               }),
             });
 
-            if (res.ok) {
-              toast({ title: "Task deleted" });
-              mutate(["tasks"]);
-            } else {
-              toast({
-                title: "Failed to delete task",
-                variant: "destructive",
-              });
-            }
+            mutate(["tasks"]); // ✅ refresh table
           }}
         >
-          Delete
-        </Button>
+          <SelectTrigger
+            className={`h-8 px-3 rounded-full text-xs font-medium border-0 ${STATUS_COLORS[row.status || "Not Started"]}`}
+          >
+            <SelectValue />
+          </SelectTrigger>
 
-      </div>
-    ),
-  },
-];
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ),
+    },
 
 
-  
+    // ✅ ACTIONS COLUMN (LAST + CENTERED)
+    {
+      key: "actions",
+      header: "Actions",
+      className: "text-center",
+      render: (row) => (
+        <div className="flex items-center justify-center gap-2 w-full">
+          {/* ✅ EDIT */}
+          {/* ✅ VIEW CLIENT TASKS */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const tasksForClient = allTasks.filter(
+                (t) => Number(t.clientId) === Number(row.clientId)
+              );
+
+              setSelectedClientTasks(tasksForClient);
+              setSelectedClientName(getClientName(row.clientId));
+              setSelectedClientId(row.clientId); // ✅ REQUIRED FOR VIEW CLIENT BUTTON
+              setOpenClientTasks(true);
+            }}
+
+          >
+            All Tasks
+          </Button>
+
+          {/* ✅ EDIT */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              openDrawer("assignTask", {
+                taskId: row.id,
+              })
+            }
+          >
+            Edit
+          </Button>
+
+          {/* ✅ DELETE */}
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={async () => {
+              if (!confirm("Delete this task?")) return;
+
+              const res = await fetch("/api/tasks/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  task_id: row.id,
+                }),
+              });
+
+              if (res.ok) {
+                toast({ title: "Task deleted" });
+                mutate(["tasks"]);
+              } else {
+                toast({
+                  title: "Failed to delete task",
+                  variant: "destructive",
+                });
+              }
+            }}
+          >
+            Delete
+          </Button>
+
+        </div>
+      ),
+    },
+  ];
+
+
+
   // ✅ APPLY SEARCH FILTER
-  const filteredTasks = allTasks.filter((task) => {
-    if (!q) return true;
+  const filteredTasks = allTasks.filter((task: any) => {
+    // SEARCH (already includes client name)
+    if (q) {
+      const search = q.toLowerCase();
+      const match =
+        task.title?.toLowerCase().includes(search) ||
+        task.status?.toLowerCase().includes(search) ||
+        getClientName(task.clientId)?.toLowerCase().includes(search);
 
-    const search = q.toLowerCase();
+      if (!match) return false;
+    }
 
-    return (
-      task.title?.toLowerCase().includes(search) ||
-      task.status?.toLowerCase().includes(search) ||
-      getClientName(task.clientId)?.toLowerCase().includes(search)
-    );
+    // TASK TYPE
+    if (filterTaskType !== "ALL" && task.taskType !== filterTaskType) {
+      return false;
+    }
+
+    // ASSIGNED USER
+    if (
+      filterAssignedRole !== "ALL" &&
+      task.assignedRole !== filterAssignedRole
+    ) {
+      return false;
+    }
+
+    // DUE DATE
+    if (filterDue === "WITH_DUE" && !task.dueDate) {
+      return false;
+    }
+
+    if (filterDue === "OVERDUE") {
+      if (!task.dueDate) return false;
+      if (new Date(task.dueDate) >= new Date()) return false;
+    }
+
+    if (filterDue === "CUSTOM") {
+      if (!task.dueDate) return false;
+
+      const taskDue = new Date(task.dueDate);
+
+      const fromDate = dueFrom ? new Date(dueFrom) : null;
+      const toDate = dueTo ? new Date(dueTo) : null;
+
+      // ✅ make TO date inclusive
+      if (toDate) {
+        toDate.setHours(23, 59, 59, 999);
+      }
+
+      if (fromDate && taskDue < fromDate) return false;
+      if (toDate && taskDue > toDate) return false;
+    }
+
+    return true;
   });
+
+  // const filteredTasks = allTasks.filter((task) => {
+  //   if (!q) return true;
+
+  //   const search = q.toLowerCase();
+
+  //   return (
+  //     task.title?.toLowerCase().includes(search) ||
+  //     task.status?.toLowerCase().includes(search) ||
+  //     getClientName(task.clientId)?.toLowerCase().includes(search)
+  //   );
+  // });
 
   // ✅ PAGINATION AFTER FILTER
   const total = filteredTasks.length;
@@ -242,14 +310,116 @@ export default function AdminTasksPage() {
       </div>
 
       {/* SEARCH */}
-      <TableToolbar q={q} setQ={setQ} />
+      {/* <TableToolbar q={q} setQ={setQ} /> */}
+      {/* SEARCH + FILTERS */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* SEARCH */}
+        <TableToolbar q={q} setQ={setQ} />
+
+        {/* TASK TYPE */}
+        <Select
+          value={filterTaskType}
+          onValueChange={(v) => {
+            setFilterTaskType(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Task Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Types</SelectItem>
+            <SelectItem value="ONBOARDING">Onboarding</SelectItem>
+            <SelectItem value="ASSIGNED">Assigned</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* ASSIGNED USER */}
+        <Select
+          value={filterAssignedRole}
+          onValueChange={(v) => {
+            setFilterAssignedRole(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Assigned User" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Users</SelectItem>
+            <SelectItem value="CLIENT">Client</SelectItem>
+            <SelectItem value="SERVICE_CENTER">Service Center</SelectItem>
+            <SelectItem value="CPA">CPA</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* DUE DATE FILTER */}
+        <Select
+          value={filterDue}
+          onValueChange={(v) => {
+            setFilterDue(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Due Date" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Due Dates</SelectItem>
+            <SelectItem value="WITH_DUE">With Due Date</SelectItem>
+            <SelectItem value="OVERDUE">Overdue</SelectItem>
+            <SelectItem value="CUSTOM">Custom Range</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* CUSTOM DATE RANGE */}
+        {filterDue === "CUSTOM" && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm"
+              value={dueFrom ?? ""}
+              onChange={(e) => {
+                setDueFrom(e.target.value || null);
+                setPage(1);
+              }}
+            />
+            <span className="text-sm text-muted-foreground">to</span>
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm"
+              value={dueTo ?? ""}
+              onChange={(e) => {
+                setDueTo(e.target.value || null);
+                setPage(1);
+              }}
+            />
+          </div>
+        )}
+
+        {/* CLEAR */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setFilterTaskType("ALL");
+            setFilterAssignedRole("ALL");
+            setFilterDue("ALL");
+            setDueFrom(null);
+            setDueTo(null);
+            setQ("");
+            setPage(1);
+          }}
+        >
+          Clear
+        </Button>
+      </div>
 
       {/* TABLE */}
       <DataTable
         columns={cols}
         rows={rows}
       />
-
 
       {/* MATERIAL STYLE PAGINATION BAR */}
       <div className="flex items-center justify-between text-sm text-muted-foreground py-3 px-1 border-t">
@@ -290,15 +460,13 @@ export default function AdminTasksPage() {
         total={total}
         setPage={setPage}
       />
-    <ClientTaskModal
-      open={openClientTasks}
-      onClose={() => setOpenClientTasks(false)}
-      clientName={selectedClientName}
-      clientId={selectedClientId}   // ✅ PASS CLIENT ID
-      tasks={selectedClientTasks}
-    />
-
-
+      <ClientTaskModal
+        open={openClientTasks}
+        onClose={() => setOpenClientTasks(false)}
+        clientName={selectedClientName}
+        clientId={selectedClientId}   // ✅ PASS CLIENT ID
+        tasks={selectedClientTasks}
+      />
     </div>
   );
 }
