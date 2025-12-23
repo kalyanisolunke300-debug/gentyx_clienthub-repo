@@ -2,7 +2,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import useSWR from "swr";
 import { ChevronDown } from "lucide-react"
 import { mutate } from "swr"
@@ -47,7 +47,7 @@ import { DataTable, type Column } from "@/components/data-table";
 
 import { useUIStore } from "@/store/ui-store";
 import { useToast } from "@/hooks/use-toast";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile } from "lucide-react";
@@ -202,8 +202,24 @@ export default function ClientProfilePage() {
   const [messageText, setMessageText] = useState("");
   const [messages, setMessages] = useState<ClientMessage[]>([]);
   const [openStage, setOpenStage] = useState<number | null>(null);
-  const [replyingTo, setReplyingTo] = useState<ClientMessage | null>(null); // ✅ NEW STATE
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // ✅ EMOJI PICKER STATE
+  const [replyingTo, setReplyingTo] = useState<ClientMessage | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // Attachment states
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Maximum file size is 10MB", variant: "destructive" });
+        return;
+      }
+      setAttachmentFile(file);
+    }
+  };
 
   // Common emojis for quick selection
   const commonEmojis = [
@@ -256,29 +272,63 @@ export default function ClientProfilePage() {
 
 
   const handleSendMessage = async () => {
-    if (!messageText.trim()) return;
+    if (!messageText.trim() && !attachmentFile) return;
 
-    await fetch("/api/messages/add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: id,
-        sender_role: "ADMIN",
-        receiver_role: "CLIENT",
-        body: messageText,
-        parent_message_id: replyingTo?.id,
-        attachment_url: null, // TODO: Add file upload logic
-        attachment_name: null
-      }),
-    });
+    setIsUploading(true);
 
-    setMessageText("");
-    setReplyingTo(null); // ✅ Clear reply state
-    toast({ title: "Message sent" });
+    try {
+      let attachmentUrl = null;
+      let attachmentName = null;
 
-    mutate(["msgs", id]); // refresh messages
+      // Upload attachment if exists
+      if (attachmentFile) {
+        const formData = new FormData();
+        formData.append("clientId", id);
+        formData.append("file", attachmentFile);
 
+        const uploadRes = await fetch("/api/messages/upload-attachment", {
+          method: "POST",
+          body: formData,
+        });
 
+        const uploadJson = await uploadRes.json();
+
+        if (!uploadJson.success) {
+          toast({ title: "Failed to upload attachment", variant: "destructive" });
+          setIsUploading(false);
+          return;
+        }
+
+        attachmentUrl = uploadJson.attachmentUrl;
+        attachmentName = uploadJson.attachmentName;
+      }
+
+      await fetch("/api/messages/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: id,
+          sender_role: "ADMIN",
+          receiver_role: "CLIENT",
+          body: messageText || (attachmentFile ? `Sent an attachment: ${attachmentFile.name}` : ""),
+          parent_message_id: replyingTo?.id,
+          attachment_url: attachmentUrl,
+          attachment_name: attachmentName,
+        }),
+      });
+
+      setMessageText("");
+      setAttachmentFile(null);
+      setReplyingTo(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast({ title: "Message sent" });
+
+      mutate(["msgs", id]);
+    } catch (error) {
+      toast({ title: "Failed to send message", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
   };
   const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"] as const;
 
@@ -695,7 +745,25 @@ export default function ClientProfilePage() {
 
           {/* STAGE TIMELINE */}
           <Card>
-            <CardHeader><CardTitle>Stage Timeline</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                Stage Timeline
+              </CardTitle>
+            </CardHeader>
             <CardContent className="text-sm">
               {stages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center">
@@ -714,44 +782,41 @@ export default function ClientProfilePage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 py-2">
                   {stages
                     .sort((a: any, b: any) => a.order_number - b.order_number)
                     .map((stage: any, index: number) => {
 
-                      // ✅ NEW RULE:
-                      // GREEN if:
-                      // 1) Stage status is Completed
-                      // 2) OR all subtasks under this stage are Completed
-
+                      // Check if stage is completed
                       const stageWithSubtasks = subtasksByStage.find(
                         (s: any) => s.client_stage_id === stage.client_stage_id
                       );
 
                       const allSubtasksCompleted =
                         stageWithSubtasks?.subtasks?.length > 0 &&
-                        stageWithSubtasks.subtasks.every(
+                        stageWithSubtasks?.subtasks?.every(
                           (st: any) => st.status === "Completed"
                         );
 
                       const isCompleted =
                         stage.status === "Completed" || allSubtasksCompleted;
+                      const isInProgress = stage.status === "In Progress";
 
                       return (
                         <span key={stage.client_stage_id} className="flex items-center">
                           <span
-                            className={`px-2 py-1 rounded-md border text-xs ${isCompleted
-                              ? "bg-green-100 border-green-300 text-green-800"
-                              : stage.status === "In Progress"
-                                ? "bg-blue-100 border-blue-300 text-blue-800"
-                                : "bg-red-100 border-red-300 text-red-800"
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
+                                ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
+                                : isInProgress
+                                  ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
+                                  : "bg-gray-100 border border-gray-300 text-gray-600"
                               }`}
                           >
                             {stage.stage_name}
                           </span>
 
                           {index < stages.length - 1 && (
-                            <span className="mx-2 text-muted-foreground">→</span>
+                            <span className="mx-3 text-muted-foreground font-bold">→</span>
                           )}
                         </span>
                       );
@@ -761,6 +826,7 @@ export default function ClientProfilePage() {
               )}
             </CardContent>
           </Card>
+
 
           {/* ✅ ASSIGN SERVICE CENTER & CPA */}
           <Card>
@@ -1399,6 +1465,42 @@ export default function ClientProfilePage() {
 
                               {m.body}
 
+                              {/* Attachment Display */}
+                              {m.attachmentUrl && m.attachmentName && (() => {
+                                const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(m.attachmentName);
+
+                                if (isImage) {
+                                  return (
+                                    <a
+                                      href={m.attachmentUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block mt-2"
+                                    >
+                                      <img
+                                        src={m.attachmentUrl}
+                                        alt={m.attachmentName}
+                                        className="max-w-[250px] max-h-[300px] rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                      />
+                                    </a>
+                                  );
+                                }
+
+                                return (
+                                  <a
+                                    href={m.attachmentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center gap-2 mt-2 p-2 rounded-lg ${isMe ? "bg-violet-500/50 hover:bg-violet-500/70" : "bg-white hover:bg-slate-50"} transition-colors`}
+                                  >
+                                    <FileText className={`size-4 ${isMe ? "text-violet-100" : "text-slate-500"}`} />
+                                    <span className={`text-xs underline ${isMe ? "text-violet-100" : "text-slate-600"}`}>
+                                      {m.attachmentName}
+                                    </span>
+                                  </a>
+                                );
+                              })()}
+
                               {/* Timestamp */}
                               <div className={`text-[10px] mt-1 opacity-70 ${isMe ? "text-violet-100 text-right" : "text-slate-400"}`}>
                                 {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1439,15 +1541,45 @@ export default function ClientProfilePage() {
                   </div>
                 )}
 
+                {/* Attachment Preview */}
+                {attachmentFile && (
+                  <div className="flex items-center justify-between bg-amber-50 border border-amber-200 p-2 mb-2 rounded-lg text-sm">
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-4 text-amber-600" />
+                      <span className="text-amber-800 truncate max-w-xs">{attachmentFile.name}</span>
+                      <span className="text-amber-600 text-xs">({(attachmentFile.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAttachmentFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="p-1 hover:bg-amber-100 rounded-full"
+                    >
+                      <X className="size-4 text-amber-600" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-end gap-2 bg-slate-100 p-2 rounded-xl border border-transparent focus-within:border-blue-300 focus-within:bg-white transition-all">
+
+                  {/* Hidden File Input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt"
+                  />
 
                   {/* Attachment Button */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-full shrink-0"
+                    className={`h-9 w-9 text-slate-500 hover:text-violet-600 hover:bg-violet-50 rounded-full shrink-0 ${attachmentFile ? "text-amber-600 bg-amber-50" : ""}`}
                     title="Attach file"
-                    onClick={() => toast({ title: "Attachment feature coming soon" })}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
                   >
                     <Paperclip className="size-5" />
                   </Button>
@@ -1504,18 +1636,18 @@ export default function ClientProfilePage() {
                         e.preventDefault();
                         handleSendMessage();
                       }
-                      // Shift+Enter will naturally create a new line in textarea
                     }}
                     rows={1}
+                    disabled={isUploading}
                   />
 
                   <Button
                     onClick={handleSendMessage}
                     size="icon"
-                    className={`h-9 w-9 rounded-full shrink-0 transition-all ${messageText.trim() ? "bg-violet-500 hover:bg-violet-600" : "bg-slate-300 hover:bg-slate-400"}`}
-                    disabled={!messageText.trim()}
+                    className={`h-9 w-9 rounded-full shrink-0 transition-all ${(messageText.trim() || attachmentFile) ? "bg-violet-500 hover:bg-violet-600" : "bg-slate-300 hover:bg-slate-400"}`}
+                    disabled={(!messageText.trim() && !attachmentFile) || isUploading}
                   >
-                    <Send className="size-4" />
+                    {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   </Button>
                 </div>
                 <div className="text-[10px] text-slate-400 text-center mt-2">

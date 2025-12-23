@@ -578,6 +578,63 @@ export default function StagesPage() {
           </CardContent>
         </Card>
 
+        {/* STAGE TIMELINE VISUALIZATION - After client selector */}
+        {selectedClientId && !showTemplateSelector && stages.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                Stage Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center gap-2 py-2">
+                {stages
+                  .sort((a, b) => a.order - b.order)
+                  .map((stage, index) => {
+                    const tasks = subTasks[String(stage.id)] || [];
+                    const allSubtasksCompleted =
+                      tasks.length > 0 &&
+                      tasks.every((t) => (t.status || "").toLowerCase() === "completed");
+                    const isCompleted = stage.status === "Completed" || allSubtasksCompleted;
+                    const isInProgress = stage.status === "In Progress";
+
+                    return (
+                      <span key={stage.id} className="flex items-center">
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
+                              ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
+                              : isInProgress
+                                ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
+                                : "bg-gray-100 border border-gray-300 text-gray-600"
+                            }`}
+                        >
+                          {stage.name}
+                        </span>
+                        {index < stages.length - 1 && (
+                          <span className="mx-3 text-muted-foreground font-bold">→</span>
+                        )}
+                      </span>
+                    );
+                  })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* CONTENT WHEN CLIENT SELECTED */}
         {selectedClientId && (
           <div className="space-y-6">

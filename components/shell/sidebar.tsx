@@ -45,10 +45,13 @@ export function Sidebar() {
   const clientLinks = [
     { href: "/client", label: "Home", icon: LayoutGrid },
     { href: "/client/tasks", label: "My Tasks", icon: ListChecks },
+    { href: "/client/stages", label: "Onboarding Stages", icon: Library },
     { href: "/client/documents", label: "Documents", icon: FileText },
     { href: "/client/messages", label: "Messages", icon: Mail },
     { href: "/client/reports", label: "Reports", icon: BarChart2 },
     { href: "/client/profile", label: "Profile", icon: Users },
+    { href: "/client/settings", label: "Settings", icon: Settings },
+    { href: "/help", label: "FAQ", icon: HelpCircle },
   ];
 
   const scLinks = [
@@ -64,7 +67,8 @@ export function Sidebar() {
     { href: "/inbox", label: "Work Queue", icon: ListChecks },
   ];
 
-  const commonLinks = [
+  // Admin and other roles use common links, clients have settings built-in
+  const commonLinks = role === "CLIENT" ? [] : [
     { href: "/settings", label: "Settings", icon: Settings },
     { href: "/help", label: "FAQ", icon: HelpCircle },
   ];

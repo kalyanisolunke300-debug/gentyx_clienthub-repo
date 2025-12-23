@@ -1,36 +1,110 @@
 // app/client/page.tsx
-"use client"
+"use client";
 
-import useSWR from "swr"
-import { fetchClientTasksByClientId, fetchDocuments } from "@/lib/api"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { StatusPill } from "@/components/widgets/status-pill"
-import { useUIStore } from "@/store/ui-store"
-import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import useSWR from "swr";
+import { fetchClientTasksByClientId, fetchDocuments, fetchMessages } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/widgets/status-pill";
+import { ProgressRing } from "@/components/widgets/progress-ring";
+import { useUIStore } from "@/store/ui-store";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  Clock,
+  FileText,
+  MessageSquare,
+  ListChecks,
+  ArrowRight,
+  Folder,
+  Upload,
+  User,
+} from "lucide-react";
+
+// Types
+type StageItem = {
+  client_stage_id: number;
+  stage_name: string;
+  order_number: number;
+  status: string;
+};
 
 function formatDueDate(value: any) {
-  if (!value) return "—"
-  const d = new Date(value)
-  if (isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" })
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function formatRelativeTime(value: any) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString();
 }
 
 export default function ClientHome() {
-  const role = useUIStore((s) => s.role)
-  const currentClientId = useUIStore((s) => s.currentClientId)
-  const router = useRouter()
+  const role = useUIStore((s) => s.role);
+  const currentClientId = useUIStore((s) => s.currentClientId);
+  const router = useRouter();
 
-  const [clientId, setClientId] = useState<string | null>(null)
+  const [clientId, setClientId] = useState<string | null>(null);
 
-  // ✅ wait for client context from login → cookies → zustand
+  // Wait for client context from login
   useEffect(() => {
     if (role === "CLIENT" && currentClientId) {
-      setClientId(currentClientId)
+      setClientId(currentClientId);
     }
-  }, [role, currentClientId])
+  }, [role, currentClientId]);
 
+  // Fetch client data
+  const { data: client } = useSWR(
+    clientId ? ["client-home-data", clientId] : null,
+    async () => {
+      const res = await fetch(`/api/clients/${clientId}/get`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data;
+    }
+  );
+
+  // Fetch stages for timeline
+  const { data: stageData } = useSWR(
+    clientId ? ["client-home-stages", clientId] : null,
+    async () => {
+      const res = await fetch(`/api/stages/client/get?clientId=${clientId}`);
+      if (!res.ok) return { data: [], subtasks: [] };
+      return res.json();
+    }
+  );
+
+  const stages: StageItem[] = stageData?.data || [];
+  const subtasksFlat = stageData?.subtasks || [];
+
+  // Map subtasks to stages
+  const subtasksByStage = stages.map((stage) => ({
+    ...stage,
+    subtasks: subtasksFlat.filter(
+      (s: any) => s.client_stage_id === stage.client_stage_id
+    ),
+  }));
+
+  // Tasks
   const {
     data: tasks,
     isLoading: tasksLoading,
@@ -39,91 +113,442 @@ export default function ClientHome() {
     clientId ? ["client-tasks", clientId] : null,
     () => fetchClientTasksByClientId(clientId!),
     { revalidateOnFocus: false }
-  )
+  );
 
+  // Documents - use client-scoped API
   const {
-    data: docs,
+    data: docsResponse,
     isLoading: docsLoading,
     error: docsError,
   } = useSWR(
-    clientId ? ["client-docs", clientId] : null,
-    () => fetchDocuments({ clientId: clientId! }),
+    clientId ? ["client-home-docs", clientId] : null,
+    async () => {
+      const res = await fetch(`/api/documents/get-by-client?id=${clientId}`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
     { revalidateOnFocus: false }
-  )
+  );
+  const docs = (docsResponse?.data || []).filter(
+    (d: any) => d.type === 'file' && !d.name?.endsWith('.keep') && d.name !== '.keep'
+  );
+
+  // Messages - extract data array from response
+  const { data: messagesData } = useSWR(
+    clientId ? ["client-home-messages", clientId] : null,
+    async () => {
+      const res = await fetchMessages({ clientId: clientId! });
+      return res?.data || [];
+    },
+    { revalidateOnFocus: false }
+  );
+  const messages = messagesData || [];
+
+  // Calculate progress
+  const completedStagesCount = useMemo(() => {
+    return subtasksByStage.filter((stage) => {
+      const allSubtasksCompleted =
+        stage.subtasks?.length > 0 &&
+        stage.subtasks.every((st: any) => st.status === "Completed");
+      return stage.status === "Completed" || allSubtasksCompleted;
+    }).length;
+  }, [subtasksByStage]);
+
+  const progress =
+    stages.length > 0
+      ? Math.round((completedStagesCount / stages.length) * 100)
+      : 0;
 
   const topTasks = useMemo(() => {
-    const list = (tasks?.data || []) as any[]
-    // optional: sort by due date (soonest first) if dueDate exists
+    const list = (tasks?.data || []) as any[];
     return list
       .slice()
       .sort((a, b) => {
-        const ad = a?.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY
-        const bd = b?.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY
-        return ad - bd
+        const ad = a?.dueDate
+          ? new Date(a.dueDate).getTime()
+          : Number.POSITIVE_INFINITY;
+        const bd = b?.dueDate
+          ? new Date(b.dueDate).getTime()
+          : Number.POSITIVE_INFINITY;
+        return ad - bd;
       })
-      .slice(0, 5)
-  }, [tasks])
+      .slice(0, 5);
+  }, [tasks]);
 
   const topDocs = useMemo(() => {
-    return ((docs || []) as any[]).slice(0, 5)
-  }, [docs])
+    return docs.slice(0, 5);
+  }, [docs]);
+
+  const recentMessages = useMemo(() => {
+    if (!Array.isArray(messages)) return [];
+    return messages
+      .filter((m: any) => m.senderRole === "ADMIN" || m.sender_role === "ADMIN")
+      .slice(0, 3);
+  }, [messages]);
+
+  // Stats calculations
+  const pendingTasksCount = useMemo(() => {
+    const list = (tasks?.data || []) as any[];
+    return list.filter(
+      (t) => t.status !== "Completed" && t.status !== "completed"
+    ).length;
+  }, [tasks]);
+
+  const completedTasksCount = useMemo(() => {
+    const list = (tasks?.data || []) as any[];
+    return list.filter(
+      (t) => t.status === "Completed" || t.status === "completed"
+    ).length;
+  }, [tasks]);
+
+  const totalDocsCount = useMemo(() => {
+    return docs.length;
+  }, [docs]);
+
+  // Only count recent messages from admin (last 24 hours as "unread")
+  const unreadMessagesCount = useMemo(() => {
+    if (!Array.isArray(messages)) return 0;
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    return messages.filter((m: any) => {
+      const isFromAdmin = m.senderRole === "ADMIN" || m.sender_role === "ADMIN";
+      const msgDate = new Date(m.createdAt || m.created_at);
+      return isFromAdmin && msgDate > oneDayAgo;
+    }).length;
+  }, [messages]);
+
+  if (!clientId) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-muted-foreground">Loading...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid gap-4">
+    <div className="space-y-6">
+      {/* WELCOME HEADER */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl p-6 border">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Welcome back{client?.client_name ? `, ${client.client_name}` : ""}!
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Here's an overview of your onboarding progress and recent activity.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <ProgressRing
+            value={progress}
+            completedStages={completedStagesCount}
+            totalStages={stages.length}
+          />
+          <Button onClick={() => router.push("/client/profile")}>
+            <User className="mr-2 h-4 w-4" />
+            View Profile
+          </Button>
+        </div>
+      </div>
+
+      {/* ONBOARDING PROGRESS - STAGE TIMELINE */}
       <Card>
-        <CardHeader>
-          <CardTitle>Your Onboarding Progress</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-primary"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              Your Onboarding Progress
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/client/stages")}
+              className="text-primary hover:text-primary"
+            >
+              View Details <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Current stage and progress shown on your client profile.
+        <CardContent>
+          {stages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="bg-muted/50 rounded-full p-4 mb-4">
+                <Clock className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground mb-2">
+                Your onboarding stages haven't been set up yet.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Your admin will configure your onboarding journey soon.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Overall Progress</span>
+                  <span className="font-semibold text-primary">{progress}%</span>
+                </div>
+                <div className="h-3 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{completedStagesCount} of {stages.length} stages completed</span>
+                  <span>{stages.length - completedStagesCount} remaining</span>
+                </div>
+              </div>
+
+              {/* Stage Timeline */}
+              <div className="flex flex-wrap items-center gap-2 py-3 px-2 bg-muted/30 rounded-lg">
+                {stages
+                  .sort((a, b) => a.order_number - b.order_number)
+                  .map((stage, index) => {
+                    const stageWithSubtasks = subtasksByStage.find(
+                      (s) => s.client_stage_id === stage.client_stage_id
+                    );
+
+                    const allSubtasksCompleted =
+                      stageWithSubtasks?.subtasks?.length > 0 &&
+                      stageWithSubtasks?.subtasks?.every(
+                        (st: any) => st.status === "Completed"
+                      );
+
+                    const isCompleted =
+                      stage.status === "Completed" || allSubtasksCompleted;
+                    const isInProgress = stage.status === "In Progress";
+
+                    return (
+                      <span key={stage.client_stage_id} className="flex items-center">
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
+                            ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
+                            : isInProgress
+                              ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
+                              : "bg-gray-100 border border-gray-300 text-gray-600"
+                            }`}
+                        >
+                          {isCompleted && (
+                            <CheckCircle2 className="inline-block mr-1 h-3 w-3" />
+                          )}
+                          {stage.stage_name}
+                        </span>
+                        {index < stages.length - 1 && (
+                          <span className="mx-3 text-muted-foreground font-bold">
+                            →
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* QUICK STATS CARDS */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push("/client/tasks")}
+        >
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Pending Tasks
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-1">
+                  {pendingTasksCount}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <Clock className="h-6 w-6 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push("/client/tasks")}
+        >
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Completed Tasks
+                </p>
+                <p className="text-3xl font-bold text-green-600 mt-1">
+                  {completedTasksCount}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push("/client/documents")}
+        >
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Documents
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-1">
+                  {totalDocsCount}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <Folder className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push("/client/messages")}
+        >
+          <CardContent className="pt-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Messages
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-1">
+                  {unreadMessagesCount}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <MessageSquare className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* RECENT MESSAGES & TASKS */}
       <div className="grid gap-4 md:grid-cols-2">
+        {/* RECENT MESSAGES / INBOX */}
         <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle>Inbox</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              Recent Messages
+            </CardTitle>
             <Button
               variant="outline"
               size="sm"
               onClick={() => router.push("/client/messages")}
             >
-              Ask a Question
+              View All
             </Button>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Newest tasks and messages appear here.
+          <CardContent className="space-y-3">
+            {recentMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="bg-muted/50 rounded-full p-3 mb-2">
+                  <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">No messages yet.</p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => router.push("/client/messages")}
+                  className="mt-1"
+                >
+                  Send a message to your admin
+                </Button>
+              </div>
+            ) : (
+              recentMessages.map((msg: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-lg bg-muted/50 border hover:bg-muted/70 transition-colors cursor-pointer"
+                  onClick={() => router.push("/client/messages")}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium line-clamp-2">{msg.body}</p>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatRelativeTime(msg.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    From: Admin
+                  </p>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
+        {/* MY TASKS */}
         <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle>My Tasks</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ListChecks className="h-5 w-5 text-primary" />
+              My Tasks
+            </CardTitle>
             <Button size="sm" onClick={() => router.push("/client/tasks")}>
               View All
             </Button>
           </CardHeader>
-
-          <CardContent className="grid gap-2">
+          <CardContent className="space-y-2">
             {!clientId || tasksLoading ? (
-              <div className="text-sm text-muted-foreground">Loading tasks…</div>
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <span className="ml-2 text-sm text-muted-foreground">
+                  Loading tasks…
+                </span>
+              </div>
             ) : tasksError ? (
-              <div className="text-sm text-red-600">Failed to load tasks.</div>
+              <div className="text-sm text-red-600 py-4 text-center">
+                Failed to load tasks.
+              </div>
             ) : topTasks.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No tasks assigned yet.</div>
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="bg-muted/50 rounded-full p-3 mb-2">
+                  <ListChecks className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  No tasks assigned yet.
+                </p>
+              </div>
             ) : (
               topTasks.map((t: any) => (
                 <div
                   key={t.id}
-                  className="flex items-center justify-between rounded-md border p-2"
+                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
                 >
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-sm">{t.title}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
                       Due: {formatDueDate(t.dueDate)}
                     </div>
                   </div>
-
                   <StatusPill status={t.status} />
                 </div>
               ))
@@ -132,39 +557,82 @@ export default function ClientHome() {
         </Card>
       </div>
 
+      {/* MY DOCUMENTS */}
       <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle>My Documents</CardTitle>
-          <Button
-            variant="secondary"
-            onClick={() => router.push("/client/documents")}
-          >
-            Upload Document
-          </Button>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="h-5 w-5 text-primary" />
+            My Documents
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/client/documents")}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/client/documents")}
+            >
+              View All <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
-
-        <CardContent className="grid gap-2">
+        <CardContent>
           {!clientId || docsLoading ? (
-            <div className="text-sm text-muted-foreground">Loading documents…</div>
+            <div className="flex items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <span className="ml-2 text-sm text-muted-foreground">
+                Loading documents…
+              </span>
+            </div>
           ) : docsError ? (
-            <div className="text-sm text-red-600">Failed to load documents.</div>
+            <div className="text-sm text-red-600 py-4 text-center">
+              Failed to load documents.
+            </div>
           ) : topDocs.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No documents uploaded yet.</div>
-          ) : (
-            topDocs.map((d: any) => (
-              <div
-                key={d.id}
-                className="flex items-center justify-between rounded-md border p-2"
-              >
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{d.name}</div>
-                </div>
-                <StatusPill status={d.status || "Uploaded"} />
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="bg-muted/50 rounded-full p-4 mb-3">
+                <FileText className="h-6 w-6 text-muted-foreground" />
               </div>
-            ))
+              <p className="text-sm text-muted-foreground mb-2">
+                No documents uploaded yet.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/client/documents")}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Your First Document
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {topDocs.map((d: any, idx: number) => (
+                <div
+                  key={`doc-${idx}-${d.name}`}
+                  className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-sm">{d.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {d.size ? `${(d.size / 1024).toFixed(1)} KB` : "Document"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
