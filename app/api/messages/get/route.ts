@@ -25,6 +25,9 @@ export async function GET(req: Request) {
             sender_role,
             receiver_role,
             body,
+            parent_message_id,
+            attachment_url,
+            attachment_name,
             created_at
           FROM dbo.onboarding_messages
           WHERE client_id = @clientId
@@ -37,6 +40,9 @@ export async function GET(req: Request) {
             sender_role,
             receiver_role,
             body,
+            parent_message_id,
+            attachment_url,
+            attachment_name,
             created_at
           FROM dbo.onboarding_messages
           ORDER BY created_at ASC

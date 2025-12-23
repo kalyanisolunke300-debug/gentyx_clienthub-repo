@@ -1,31 +1,7 @@
 // types.ts
 export type UserRole = "ADMIN" | "CLIENT" | "SERVICE_CENTER" | "CPA";
 
-// export type ClientProfile = {
-//   client_id: number;
-//   client_name: string;
-//   code?: string;
-//   client_status: string;
-//   sla_number?: string;
 
-//   primary_contact_name?: string;
-//   primary_contact_email?: string;
-//   primary_contact_phone?: string;
-
-//   created_at: string;
-//   updated_at?: string;
-
-//   service_center_id?: number;
-//   cpa_id?: number;
-
-//   stage_id?: number;
-//   stage_name?: string;   // <-- comes from JOIN
-//   progress: number;      // <-- numeric progress
-//   status: string;        // <-- task status or client status
-
-//   total_stages?: number;
-//   completed_stages?: number;
-// };
 export type ClientProfile = {
   client_id: number;
   client_name: string;
@@ -67,39 +43,26 @@ export type DocumentFile = {
   notes?: string;
 };
 
-// export type Task = {
-//   id: string;
-//   title: string;
-//   description?: string;
-//   client_id: string;
-//   stage?: string;
-//   assigneeRole: UserRole;
-//   createdByRole: UserRole;
-//   status: "Pending" | "In Review" | "Approved" | "Rejected";
-//   dueDate?: string;
-//   createdAt: string;
-//   updatedAt?: string;
-//   attachments?: DocumentFile[];
-// };
- 
+
+
 export type Task = {
   id: string;
   title: string;
   description?: string;
- 
+
   clientId: string;
   clientName?: string;   // ✅ ADDED THIS
- 
+
   stage?: string;
   assigneeRole: UserRole;
   createdByRole: UserRole;
- 
-  status: "Pending" | "In Review" | "Approved" | "Rejected";
+
+  status: "Pending" | "In Review" | "In Progress" | "Approved" | "Rejected" | "Completed";
   dueDate?: string;
- 
+
   createdAt: string;
   updatedAt?: string;
- 
+
   attachments?: DocumentFile[];
 };
 

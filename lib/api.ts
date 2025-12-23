@@ -388,3 +388,41 @@ export async function deleteEmailTemplate(id: number | string) {
   return res.json();
 }
  
+
+//  Default Stage Templates and Stages API Calls
+
+export async function fetchDefaultStageTemplates() {
+  const res = await fetch("/api/default-stage-templates/list", { cache: "no-store" });
+  return res.json();
+}
+
+export async function createDefaultStageTemplate(payload: {
+  template_name: string;
+  description?: string;
+}) {
+  const res = await fetch("/api/default-stage-templates/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+export async function fetchDefaultStagesByTemplate(templateId: number) {
+  const res = await fetch(`/api/default-stages/list?templateId=${templateId}`, {
+    cache: "no-store",
+  });
+  return res.json();
+}
+
+export async function saveDefaultStages(payload: {
+  templateId: number;
+  stages: any[];
+}) {
+  const res = await fetch("/api/default-stages/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}

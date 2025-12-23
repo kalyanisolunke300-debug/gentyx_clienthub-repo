@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       .request()
       .input("clientId", sql.Int, Number(clientId))
       .query(`
-        SELECT client_stage_id, stage_name, order_number, is_required, status
+        SELECT client_stage_id, stage_name, order_number, is_required, status, start_date, completed_at
         FROM client_stages
         WHERE client_id = @clientId
         ORDER BY order_number

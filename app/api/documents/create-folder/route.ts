@@ -1,6 +1,7 @@
 // /app/api/documents/create-folder/route.ts
 import { NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
     const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
     const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
     const containerClient = blobServiceClient.getContainerClient(
-    process.env.AZURE_STORAGE_CONTAINER_NAME!
+      process.env.AZURE_STORAGE_CONTAINER_NAME!
     );
     await containerClient.createIfNotExists();
 
@@ -27,15 +28,15 @@ export async function POST(req: Request) {
 
     // ✅ HARD DUPLICATE PROTECTION (SAFE FOR ALL CASES)
     const existing = containerClient.listBlobsByHierarchy("/", {
-    prefix: finalFolderPath,
+      prefix: finalFolderPath,
     });
 
     for await (const _ of existing) {
-    return NextResponse.json(
+      return NextResponse.json(
         { success: false, error: "Folder already exists" },
         { status: 409 }
-    );
-}
+      );
+    }
 
 
     // ✅ REAL FOLDER CREATION
@@ -44,6 +45,14 @@ export async function POST(req: Request) {
     );
 
     await blockBlobClient.upload("", 0);
+
+    // Audit log
+    logAudit({
+      clientId: Number(clientId),
+      action: AuditActions.FOLDER_CREATED,
+      actorRole: "ADMIN",
+      details: folderName,
+    });
 
     return NextResponse.json({
       success: true,

@@ -131,11 +131,18 @@ export async function GET(req: Request) {
             WHERE cs.client_id = cws.client_id
               AND (
                 cs.status = 'Completed'
-                OR NOT EXISTS (
-                  SELECT 1
-                  FROM dbo.client_stage_subtasks st
-                  WHERE st.client_stage_id = cs.client_stage_id
-                    AND st.status <> 'Completed'
+                OR (
+                  -- Stage has subtasks AND all subtasks are completed
+                  EXISTS (
+                    SELECT 1 FROM dbo.client_stage_subtasks st
+                    WHERE st.client_stage_id = cs.client_stage_id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.client_stage_subtasks st
+                    WHERE st.client_stage_id = cs.client_stage_id
+                      AND st.status <> 'Completed'
+                  )
                 )
               )
           )

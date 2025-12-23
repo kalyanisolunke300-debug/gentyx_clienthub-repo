@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -50,6 +51,32 @@ export async function POST(req: Request) {
           updated_at = GETDATE()
         WHERE client_id = @client_id
       `);
+
+    // Audit logs
+    logAudit({
+      clientId,
+      action: AuditActions.CLIENT_UPDATED,
+      actorRole: "ADMIN",
+      details: client_name,
+    });
+
+    // Log service center assignment if changed
+    if (service_center_id) {
+      logAudit({
+        clientId,
+        action: AuditActions.SERVICE_CENTER_ASSIGNED,
+        actorRole: "ADMIN",
+      });
+    }
+
+    // Log CPA assignment if changed
+    if (cpa_id) {
+      logAudit({
+        clientId,
+        action: AuditActions.CPA_ASSIGNED,
+        actorRole: "ADMIN",
+      });
+    }
 
     return NextResponse.json({ success: true });
 

@@ -26,6 +26,7 @@
 // app/api/documents/delete/route.ts
 import { NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -61,6 +62,15 @@ export async function POST(req: Request) {
         { status: 404 }
       );
     }
+
+    // Audit log
+    const fileName = fullPath.split('/').pop() || fullPath;
+    logAudit({
+      clientId: Number(clientId),
+      action: AuditActions.DOCUMENT_DELETED,
+      actorRole: "ADMIN",
+      details: fileName,
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

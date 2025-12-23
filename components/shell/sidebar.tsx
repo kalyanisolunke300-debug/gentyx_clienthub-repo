@@ -34,7 +34,7 @@ export function Sidebar() {
     { href: "/admin", label: "Dashboard", icon: LayoutGrid },
     { href: "/admin/clients", label: "Clients", icon: Users },
     { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
-    { href: "/admin/stages", label: "Stages", icon: Library },
+    { href: "/admin/stages", label: "Onboarding Stages", icon: Library },
     { href: "/admin/service-centers", label: "Service Centers", icon: Building2 },
     { href: "/admin/cpas", label: "CPAs", icon: Landmark },
     { href: "/admin/reports", label: "Reports", icon: BarChart2 },

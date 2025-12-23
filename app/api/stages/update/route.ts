@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -36,6 +37,14 @@ export async function POST(req: Request) {
         WHERE client_id = @clientId
         AND stage_name = @stageName
       `);
+
+    // Audit log
+    logAudit({
+      clientId,
+      action: AuditActions.STAGE_STARTED,
+      actorRole: "ADMIN",
+      details: stageName,
+    });
 
     return NextResponse.json({ success: true });
 

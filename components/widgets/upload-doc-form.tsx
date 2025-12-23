@@ -49,35 +49,35 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
   /* ------------------------------
         FILE SELECTION HANDLERS
   ------------------------------*/
-function handleFileSelect(file: File) {
-  setSelectedFile(file);
+  function handleFileSelect(file: File) {
+    setSelectedFile(file);
 
-  // Allowed union for the "type" field
-  type FileType = "PDF" | "XLSX" | "DOCX" | "IMG" | "OTHER";
+    // Allowed union for the "type" field
+    type FileType = "PDF" | "XLSX" | "DOCX" | "IMG" | "OTHER";
 
-  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
 
-  const typeMap: Record<string, FileType> = {
-    pdf: "PDF",
-    xlsx: "XLSX",
-    xls: "XLSX",
-    docx: "DOCX",
-    doc: "DOCX",
-    jpg: "IMG",
-    jpeg: "IMG",
-    png: "IMG",
-    gif: "IMG",
-    bmp: "IMG",
-    webp: "IMG",
-    svg: "IMG",
-  };
+    const typeMap: Record<string, FileType> = {
+      pdf: "PDF",
+      xlsx: "XLSX",
+      xls: "XLSX",
+      docx: "DOCX",
+      doc: "DOCX",
+      jpg: "IMG",
+      jpeg: "IMG",
+      png: "IMG",
+      gif: "IMG",
+      bmp: "IMG",
+      webp: "IMG",
+      svg: "IMG",
+    };
 
-  // TS now knows this is FileType, not just "string"
-  const detected: FileType = typeMap[ext] || "OTHER";
+    // TS now knows this is FileType, not just "string"
+    const detected: FileType = typeMap[ext] || "OTHER";
 
-  form.setValue("name", file.name);
-  form.setValue("type", detected);
-}
+    form.setValue("name", file.name);
+    form.setValue("type", detected);
+  }
 
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -160,7 +160,7 @@ function handleFileSelect(file: File) {
                 UI
   --------------------------------*/
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">      
+    <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
       {/* Client ID */}
       {/* <div className="grid gap-2">
         <Label htmlFor="clientId">Client ID</Label>
@@ -180,9 +180,8 @@ function handleFileSelect(file: File) {
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-            dragActive ? "border-primary bg-primary/5" : "border-border"
-          }`}
+          className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"
+            }`}
         >
           <input
             type="file"
@@ -216,25 +215,7 @@ function handleFileSelect(file: File) {
         </div>
       )}
 
-      {/* File Type */}
-      <div className="grid gap-2">
-        <Label htmlFor="type">Type</Label>
-        <Select
-          value={form.watch("type")}
-          onValueChange={(v) => form.setValue("type", v as any)}
-        >
-          <SelectTrigger id="type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="PDF">PDF</SelectItem>
-            <SelectItem value="XLSX">XLSX</SelectItem>
-            <SelectItem value="DOCX">DOCX</SelectItem>
-            <SelectItem value="IMG">IMG</SelectItem>
-            <SelectItem value="OTHER">OTHER</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+
 
       {/* Upload Progress */}
       {uploading && (

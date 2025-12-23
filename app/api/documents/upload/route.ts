@@ -1,6 +1,7 @@
 // /app/api/documents/upload/route.ts
 import { NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,14 @@ export async function POST(req: Request) {
 
     await blockBlobClient.uploadData(buffer, {
       blobHTTPHeaders: { blobContentType: file.type },
+    });
+
+    // Audit log
+    logAudit({
+      clientId: Number(clientId),
+      action: AuditActions.DOCUMENT_UPLOADED,
+      actorRole: "ADMIN",
+      details: fileName,
     });
 
     return NextResponse.json({

@@ -23,7 +23,7 @@
 //     // fallback values
 //     const stageId = Number(rawStageId ?? 1);
 
-    
+
 //     const clientId = rawClientId != null ? Number(rawClientId) : undefined;
 //     const taskTitle = rawTaskTitle || title;
 //     const role = assignedToRole || assigneeRole || "CLIENT";
@@ -222,6 +222,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -349,6 +350,14 @@ export async function POST(req: Request) {
           GETDATE()
         )
       `);
+
+    // Audit log
+    logAudit({
+      clientId,
+      action: AuditActions.TASK_CREATED,
+      actorRole: "ADMIN",
+      details: finalTitle,
+    });
 
     return NextResponse.json({
       success: true,

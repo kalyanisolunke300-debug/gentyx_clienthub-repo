@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 import { calculateClientProgress } from "@/lib/progress";
+import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -54,6 +55,14 @@ export async function POST(req: Request) {
     // 3️⃣ Recalculate client progress
     // -----------------------------------------------------
     await calculateClientProgress(clientId);
+
+    // Audit log
+    logAudit({
+      clientId,
+      action: AuditActions.TASK_DELETED,
+      actorRole: "ADMIN",
+      details: `Task #${task_id}`,
+    });
 
     return NextResponse.json({ success: true });
 
