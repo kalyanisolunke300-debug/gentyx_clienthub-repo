@@ -26,9 +26,16 @@ export async function POST(req: Request) {
       `);
 
     // Send email notification (async, non-blocking)
-    sendEmailNotification(pool, client_id, sender_role, body).catch((err) => {
-      console.error("Email notification failed:", err);
-    });
+    console.log("📧 Attempting to send email notification...");
+    console.log("📧 Client ID:", client_id, "Sender Role:", sender_role);
+
+    sendEmailNotification(pool, client_id, sender_role, body)
+      .then((result) => {
+        console.log("📧 Email notification result:", result);
+      })
+      .catch((err) => {
+        console.error("❌ Email notification failed:", err);
+      });
 
     // Audit log
     logAudit({
@@ -55,8 +62,12 @@ async function sendEmailNotification(
   messageBody: string
 ) {
   try {
+    console.log("📧 sendEmailNotification called - senderRole:", senderRole);
+
     if (senderRole === "ADMIN") {
       // Admin sent message → notify client
+      console.log("📧 Admin sent message, looking up client...");
+
       const clientResult = await pool.request()
         .input("client_id", sql.Int, clientId)
         .query(`
@@ -66,18 +77,55 @@ async function sendEmailNotification(
         `);
 
       const client = clientResult.recordset[0];
+      console.log("📧 Client data found:", {
+        clientName: client?.client_name,
+        hasEmail: !!client?.primary_contact_email,
+        email: client?.primary_contact_email?.substring(0, 5) + "***" // Partial for privacy
+      });
+
       if (client?.primary_contact_email) {
-        await sendMessageNotification({
+        // Helper to check if a value is a valid name (not empty, not just numbers)
+        const isValidName = (name: string | null | undefined): boolean => {
+          if (!name) return false;
+          const trimmed = name.trim();
+          if (!trimmed) return false;
+          // Skip if it's just a number (like client ID)
+          if (/^\d+$/.test(trimmed)) return false;
+          return true;
+        };
+
+        // Ensure we have a proper name, never use client ID or numeric values
+        let recipientName = "Valued Client";
+        if (isValidName(client.primary_contact_name)) {
+          recipientName = client.primary_contact_name.trim();
+        } else if (isValidName(client.client_name)) {
+          recipientName = client.client_name.trim();
+        }
+
+        console.log("📧 Sending email to client:", client.primary_contact_email, "Name:", recipientName);
+        console.log("📧 Raw name values:", {
+          primary_contact_name: client.primary_contact_name,
+          client_name: client.client_name,
+          computed_name: recipientName
+        });
+
+        const result = await sendMessageNotification({
           recipientEmail: client.primary_contact_email,
-          recipientName: client.primary_contact_name || client.client_name,
+          recipientName,
           senderName: "Your Account Manager",
           messagePreview: messageBody,
           clientId,
         });
-        console.log(`Email sent to client: ${client.primary_contact_email}`);
+        console.log("📧 Email send result:", result);
+        return result;
+      } else {
+        console.warn("⚠️ No primary_contact_email found for client ID:", clientId);
+        return { success: false, reason: "No client email found" };
       }
     } else if (senderRole === "CLIENT") {
       // Client sent message → notify admin/service center
+      console.log("📧 Client sent message, looking up service center...");
+
       const result = await pool.request()
         .input("client_id", sql.Int, clientId)
         .query(`
@@ -93,19 +141,33 @@ async function sendEmailNotification(
       const data = result.recordset[0];
       const recipientEmail = data?.service_center_email;
 
+      console.log("📧 Service center data:", {
+        clientName: data?.client_name,
+        hasServiceCenterEmail: !!recipientEmail,
+        email: recipientEmail?.substring(0, 5) + "***" // Partial for privacy
+      });
+
       if (recipientEmail) {
-        await sendMessageNotification({
+        console.log("📧 Sending email to service center:", recipientEmail);
+        const emailResult = await sendMessageNotification({
           recipientEmail,
           recipientName: data.service_center_name || "Admin",
           senderName: data.client_name || "Client",
           messagePreview: messageBody,
           clientId,
         });
-        console.log(`Email sent to service center: ${recipientEmail}`);
+        console.log("📧 Email send result:", emailResult);
+        return emailResult;
+      } else {
+        console.warn("⚠️ No service center email found for client ID:", clientId);
+        return { success: false, reason: "No service center email found" };
       }
+    } else {
+      console.warn("⚠️ Unknown sender role:", senderRole);
+      return { success: false, reason: "Unknown sender role" };
     }
   } catch (err) {
-    console.error("sendEmailNotification error:", err);
+    console.error("❌ sendEmailNotification error:", err);
     throw err;
   }
 }
