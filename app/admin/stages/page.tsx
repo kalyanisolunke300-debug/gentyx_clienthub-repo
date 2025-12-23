@@ -393,10 +393,9 @@ export default function StagesPage() {
     <Card>
       <CardHeader className="flex items-center justify-between">
         <CardTitle>Onboarding Stages</CardTitle>
-        {selectedClientId && !showTemplateSelector && (
-          <div className="flex items-center gap-2">
-
-            {/* ✅ LIVE PROGRESS RING */}
+        <div className="flex items-center gap-2">
+          {/* ✅ LIVE PROGRESS RING - Only show when client has stages */}
+          {selectedClientId && !showTemplateSelector && stages.length > 0 && (
             <ProgressRing
               value={(() => {
                 if (stages.length === 0) return 0;
@@ -421,23 +420,28 @@ export default function StagesPage() {
               }
               totalStages={stages.length}
             />
+          )}
 
-            <Button
-              variant="outline"
-              onClick={() => router.push("/admin/stages/default")}
-            >
-              Manage Default Stages
-            </Button>
+          {/* ✅ MANAGE DEFAULT STAGES - Always visible */}
+          <Button
+            variant="outline"
+            onClick={() => router.push("/admin/stages/default")}
+          >
+            Manage Default Stages
+          </Button>
 
-            {/* ✅ VIEW CLIENT BUTTON */}
+          {/* ✅ VIEW CLIENT BUTTON - Only when client selected and has stages */}
+          {selectedClientId && !showTemplateSelector && (
             <Button
               variant="outline"
               onClick={() => router.push(`/admin/clients/${selectedClientId}`)}
             >
               View Client
             </Button>
+          )}
 
-            {/* ✅ ADD STAGE BUTTON */}
+          {/* ✅ ADD STAGE BUTTON - Only when client selected and not in template selector */}
+          {selectedClientId && !showTemplateSelector && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button onClick={() => handleOpenDialog()}>
@@ -487,8 +491,8 @@ export default function StagesPage() {
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
-        )}
+          )}
+        </div>
       </CardHeader>
 
 

@@ -20,32 +20,36 @@ export async function GET(req: Request) {
     const query = clientId
       ? `
           SELECT 
-            message_id,
-            client_id,
-            sender_role,
-            receiver_role,
-            body,
-            parent_message_id,
-            attachment_url,
-            attachment_name,
-            created_at
-          FROM dbo.onboarding_messages
-          WHERE client_id = @clientId
-          ORDER BY created_at ASC
+            m.message_id,
+            m.client_id,
+            c.client_name,
+            m.sender_role,
+            m.receiver_role,
+            m.body,
+            m.parent_message_id,
+            m.attachment_url,
+            m.attachment_name,
+            m.created_at
+          FROM dbo.onboarding_messages m
+          LEFT JOIN dbo.clients c ON m.client_id = c.client_id
+          WHERE m.client_id = @clientId
+          ORDER BY m.created_at ASC
         `
       : `
           SELECT 
-            message_id,
-            client_id,
-            sender_role,
-            receiver_role,
-            body,
-            parent_message_id,
-            attachment_url,
-            attachment_name,
-            created_at
-          FROM dbo.onboarding_messages
-          ORDER BY created_at ASC
+            m.message_id,
+            m.client_id,
+            c.client_name,
+            m.sender_role,
+            m.receiver_role,
+            m.body,
+            m.parent_message_id,
+            m.attachment_url,
+            m.attachment_name,
+            m.created_at
+          FROM dbo.onboarding_messages m
+          LEFT JOIN dbo.clients c ON m.client_id = c.client_id
+          ORDER BY m.created_at DESC
         `;
 
     const result = await request.query(query);
