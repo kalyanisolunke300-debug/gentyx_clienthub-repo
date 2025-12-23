@@ -66,26 +66,26 @@ export function Sidebar() {
 
   const commonLinks = [
     { href: "/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "Help", icon: HelpCircle },
+    { href: "/help", label: "FAQ", icon: HelpCircle },
   ];
 
   const roleLinks =
     role === "ADMIN" ? adminLinks :
-    role === "CLIENT" ? clientLinks :
-    role === "SERVICE_CENTER" ? scLinks :
-    cpaLinks;
+      role === "CLIENT" ? clientLinks :
+        role === "SERVICE_CENTER" ? scLinks :
+          cpaLinks;
 
   function handleLogout() {
     router.push("/login");
   }
 
   return (
-    <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r bg-sidebar p-2 h-[calc(100vh-56px)] overflow-y-auto">
-      <nav className="flex flex-col gap-1 flex-1">
+    <div className="flex flex-col h-full w-full p-2">
+      <nav className="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0">
         {[...roleLinks, ...commonLinks].map(({ href, label, icon: Icon }) => {
           const active =
-          pathname === href ||
-          (pathname.startsWith(href + "/") && pathname !== "/admin" && href !== "/admin");
+            pathname === href ||
+            (pathname.startsWith(href + "/") && pathname !== "/admin" && href !== "/admin");
           return (
             <Link
               key={href}
@@ -104,14 +104,16 @@ export function Sidebar() {
         })}
       </nav>
 
-      <Button
-        variant="ghost"
-        className="w-full justify-start"
-        onClick={handleLogout}
-      >
-        <LogOut className="mr-2 size-4" />
-        Logout
-      </Button>
-    </aside>
+      <div className="pt-2 mt-auto shrink-0">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut className="mr-2 size-4" />
+          Logout
+        </Button>
+      </div>
+    </div>
   );
 }

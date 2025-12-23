@@ -625,9 +625,7 @@ export default function ClientProfilePage() {
           </Button>
 
           <Button
-            disabled={!hasStages}
             onClick={() => {
-              if (!hasStages) return;
               openDrawer("assignTask", {
                 clientId: id,
                 stageId: client?.stage_id,
@@ -654,28 +652,7 @@ export default function ClientProfilePage() {
         </div>
       </div>
 
-      {/* No stages warning message - displayed below header */}
-      {!hasStages && (
-        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-amber-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-          <span className="text-sm text-amber-800">
-            No onboarding stages exist for this client. Please create onboarding stages to start tracking progress.
-          </span>
-        </div>
-      )}
+
 
       {/* ---------- TABS ---------- */}
       <Tabs defaultValue="overview">
@@ -721,7 +698,21 @@ export default function ClientProfilePage() {
             <CardHeader><CardTitle>Stage Timeline</CardTitle></CardHeader>
             <CardContent className="text-sm">
               {stages.length === 0 ? (
-                <div className="text-muted-foreground">No stages found for this client.</div>
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="bg-muted/50 rounded-full p-3 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">No onboarding stages have been set up yet.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/admin/stages?clientId=${id}`)}
+                  >
+                    Create Stages
+                  </Button>
+                </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   {stages
@@ -904,21 +895,35 @@ export default function ClientProfilePage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Onboarding Tasks</CardTitle>
 
-              {/* ✅ SINGLE UPDATE SUB TASKS BUTTON */}
-              <Button
-                size="sm"
-                onClick={() => router.push(`/admin/stages?clientId=${id}`)}
-              >
-                Update Onboarding Tasks
-              </Button>
+              {/* ✅ SINGLE UPDATE SUB TASKS BUTTON - Only show when there are tasks */}
+              {subtasksByStage.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => router.push(`/admin/stages?clientId=${id}`)}
+                >
+                  Update Onboarding Tasks
+                </Button>
+              )}
             </CardHeader>
 
 
             <CardContent className="space-y-4">
               {subtasksByStage.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No stage subtasks found.
-                </p>
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="bg-muted/50 rounded-full p-3 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">No onboarding tasks have been created yet.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/admin/stages?clientId=${id}`)}
+                  >
+                    Add Onboarding Tasks
+                  </Button>
+                </div>
               )}
 
               {subtasksByStage.map((stage: any) => (
@@ -1006,24 +1011,19 @@ export default function ClientProfilePage() {
             <CardHeader className="flex items-center justify-between">
               <CardTitle>Seperate Assigned Tasks</CardTitle>
 
-              <Button
-                size="sm"
-                disabled={!hasStages}
-                onClick={() => {
-                  if (!hasStages) return;
-                  openDrawer("assignTask", {
-                    clientId: id,
-                    stageId: client?.stage_id,
-                  });
-                }}
-              >
-                Assign Task
-              </Button>
-
-              {!hasStages && (
-                <div className="px-6 pb-2 text-sm text-destructive">
-                  You cannot assign tasks until an onboarding stage is created.
-                </div>
+              {/* Only show when there are tasks */}
+              {taskRows.length > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    openDrawer("assignTask", {
+                      clientId: id,
+                      stageId: client?.stage_id,
+                    });
+                  }}
+                >
+                  Assign Task
+                </Button>
               )}
 
             </CardHeader>
@@ -1031,8 +1031,25 @@ export default function ClientProfilePage() {
             <CardContent className="space-y-4">
 
               {taskRows.length === 0 ? (
-                <div className="text-center py-10 text-gray-500 text-sm">
-                  No tasks available for this client.
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="bg-muted/50 rounded-full p-3 mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">No separate tasks have been assigned to this client.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      openDrawer("assignTask", {
+                        clientId: id,
+                        stageId: client?.stage_id,
+                      });
+                    }}
+                  >
+                    Assign First Task
+                  </Button>
                 </div>
               ) : (
                 <>
