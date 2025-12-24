@@ -68,11 +68,15 @@ export function Sidebar() {
   const cpaLinks = [
     { href: "/cpa", label: "Dashboard", icon: LayoutGrid },
     { href: "/cpa/clients-list", label: "Clients", icon: Users },
+    { href: "/cpa/tasks", label: "Tasks", icon: ListChecks },
+    { href: "/cpa/messages", label: "Messages", icon: Mail },
     { href: "/inbox", label: "Work Queue", icon: ListChecks },
+    { href: "/cpa/settings", label: "Settings", icon: Settings },
+    { href: "/help", label: "FAQ", icon: HelpCircle },
   ];
 
   // Admin and other roles use common links, clients have settings built-in
-  const commonLinks = role === "CLIENT" || role === "SERVICE_CENTER" ? [] : [
+  const commonLinks = role === "CLIENT" || role === "SERVICE_CENTER" || role === "CPA" ? [] : [
     { href: "/settings", label: "Settings", icon: Settings },
     { href: "/help", label: "FAQ", icon: HelpCircle },
   ];

@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     // --- CREATE COOKIES ---
     let clientId: number | null = null;
     let serviceCenterId: number | null = null;
+    let cpaId: number | null = null;
 
     // Handle CLIENT role
     if (user.role === "CLIENT") {
@@ -96,6 +97,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Handle CPA role
+    if (user.role === "CPA") {
+      console.log("🔍 LOGIN API - Looking up CPA for email:", user.email);
+
+      const cpaResult = await pool
+        .request()
+        .input("email", sql.NVarChar, user.email)
+        .query(`
+            SELECT TOP 1 cpa_id
+            FROM dbo.cpa_centers
+            WHERE email = @email
+          `);
+
+      console.log("🔍 LOGIN API - CPA Query result:", cpaResult.recordset);
+
+      if (cpaResult.recordset.length > 0) {
+        cpaId = cpaResult.recordset[0].cpa_id;
+        console.log("🔍 LOGIN API - Found cpaId:", cpaId);
+      }
+
+      if (!cpaId) {
+        console.log("🔍 LOGIN API - No CPA found for email:", user.email);
+        return NextResponse.json(
+          { success: false, message: "CPA record not linked to this user." },
+          { status: 403 }
+        );
+      }
+    }
+
     const response = NextResponse.json({
       success: true,
       user: {
@@ -104,6 +134,7 @@ export async function POST(req: NextRequest) {
         role: user.role,
         clientId,
         serviceCenterId,
+        cpaId,
       },
     });
 
@@ -142,6 +173,16 @@ export async function POST(req: NextRequest) {
     if (serviceCenterId) {
       console.log("🔍 LOGIN API - Setting clienthub_serviceCenterId cookie to:", serviceCenterId);
       response.cookies.set("clienthub_serviceCenterId", serviceCenterId.toString(), {
+        httpOnly: false,
+        secure: false,
+        sameSite: "lax",
+        path: "/",
+      });
+    }
+
+    if (cpaId) {
+      console.log("🔍 LOGIN API - Setting clienthub_cpaId cookie to:", cpaId);
+      response.cookies.set("clienthub_cpaId", cpaId.toString(), {
         httpOnly: false,
         secure: false,
         sameSite: "lax",

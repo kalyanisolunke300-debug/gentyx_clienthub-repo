@@ -17,6 +17,7 @@ export default function LoginPage() {
   const setUIRole = useUIStore((state) => state.setRole);
   const setCurrentClientId = useUIStore((state) => state.setCurrentClientId);
   const setCurrentServiceCenterId = useUIStore((state) => state.setCurrentServiceCenterId);
+  const setCurrentCpaId = useUIStore((state) => state.setCurrentCpaId);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,15 +64,18 @@ export default function LoginPage() {
       const role = data.user.role;
       const clientId = data.user.clientId;
       const serviceCenterId = data.user.serviceCenterId;
+      const cpaId = data.user.cpaId;
 
       console.log("🔍 LOGIN - role:", role);
       console.log("🔍 LOGIN - clientId from API:", clientId);
       console.log("🔍 LOGIN - serviceCenterId from API:", serviceCenterId);
+      console.log("🔍 LOGIN - cpaId from API:", cpaId);
 
       // 🔥 RESET STORE FIRST
       setUIRole(null);
       setCurrentClientId(undefined);
       setCurrentServiceCenterId(undefined);
+      setCurrentCpaId(undefined);
 
       // 🔥 SET ROLE
       setUIRole(role);
@@ -86,6 +90,12 @@ export default function LoginPage() {
       if (role === "SERVICE_CENTER" && serviceCenterId) {
         console.log("🔍 LOGIN - Setting currentServiceCenterId to:", serviceCenterId.toString());
         setCurrentServiceCenterId(serviceCenterId.toString());
+      }
+
+      // 🔥 SET CPA ID FOR CPA ROLE
+      if (role === "CPA" && cpaId) {
+        console.log("🔍 LOGIN - Setting currentCpaId to:", cpaId.toString());
+        setCurrentCpaId(cpaId.toString());
       }
 
       const dashboardMap: Record<string, string> = {

@@ -25,6 +25,10 @@ type UIState = {
   currentServiceCenterId?: string;
   setCurrentServiceCenterId: (id?: string) => void;
 
+  // CPA CONTEXT
+  currentCpaId?: string;
+  setCurrentCpaId: (id?: string) => void;
+
   // DRAWER
   rightDrawerOpen: boolean;
   drawerView: DrawerView;
@@ -64,6 +68,10 @@ export const useUIStore = create<UIState>()(
       // SERVICE CENTER CONTEXT
       currentServiceCenterId: undefined,
       setCurrentServiceCenterId: (id) => set({ currentServiceCenterId: id }),
+
+      // CPA CONTEXT
+      currentCpaId: undefined,
+      setCurrentCpaId: (id) => set({ currentCpaId: id }),
 
       // DRAWER
       rightDrawerOpen: false,
@@ -105,6 +113,7 @@ export const useUIStore = create<UIState>()(
         role: state.role,
         currentClientId: state.currentClientId,
         currentServiceCenterId: state.currentServiceCenterId,
+        currentCpaId: state.currentCpaId,
       }),
 
       // Hydration callback → fixes flicker

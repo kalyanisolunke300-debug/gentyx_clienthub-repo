@@ -106,12 +106,13 @@ export default function InboxPage() {
   const role = useUIStore((s) => s.role)
   const currentClientId = useUIStore((s) => s.currentClientId)
   const currentServiceCenterId = useUIStore((s) => s.currentServiceCenterId)
+  const currentCpaId = useUIStore((s) => s.currentCpaId)
 
   // Determine if we should fetch based on role
   const shouldFetch = role === "ADMIN" ||
     (role === "CLIENT" && currentClientId) ||
     (role === "SERVICE_CENTER" && currentServiceCenterId) ||
-    role === "CPA";
+    (role === "CPA" && currentCpaId);
 
   // Fetch assigned client IDs for SERVICE_CENTER
   const { data: scClientsData } = useSWR(
@@ -127,9 +128,23 @@ export default function InboxPage() {
 
   const scClientIds = (scClientsData || []).map((c: any) => c.client_id)
 
+  // Fetch assigned client IDs for CPA
+  const { data: cpaClientsData } = useSWR(
+    role === "CPA" && currentCpaId
+      ? ["cpa-clients-inbox", currentCpaId]
+      : null,
+    async () => {
+      const res = await fetch(`/api/clients/get-by-cpa?cpaId=${currentCpaId}`)
+      const json = await res.json()
+      return json.data || []
+    }
+  )
+
+  const cpaClientIds = (cpaClientsData || []).map((c: any) => c.client_id)
+
   // Fetch tasks
   const { data: tasksResponse, isLoading: tasksLoading, mutate: refreshTasks } = useSWR(
-    shouldFetch ? ["inbox-tasks", role, currentClientId, currentServiceCenterId] : null,
+    shouldFetch ? ["inbox-tasks", role, currentClientId, currentServiceCenterId, currentCpaId] : null,
     async () => {
       if (role === "SERVICE_CENTER") {
         // Fetch tasks assigned to SERVICE_CENTER role
@@ -140,6 +155,18 @@ export default function InboxPage() {
         return {
           data: allTasks.filter((t: any) =>
             scClientIds.includes(t.clientId) || scClientIds.includes(t.client_id)
+          )
+        }
+      }
+      if (role === "CPA") {
+        // Fetch tasks assigned to CPA role
+        const res = await fetch(`/api/tasks/get?assignedRole=CPA`)
+        const json = await res.json()
+        // Filter to only tasks for clients assigned to this CPA
+        const allTasks = json.data || []
+        return {
+          data: allTasks.filter((t: any) =>
+            cpaClientIds.includes(t.clientId) || cpaClientIds.includes(t.client_id)
           )
         }
       }
@@ -154,7 +181,7 @@ export default function InboxPage() {
 
   // Fetch messages
   const { data: msgsResponse, isLoading: msgsLoading, mutate: refreshMsgs } = useSWR(
-    shouldFetch ? ["inbox-msgs", role, currentClientId, currentServiceCenterId] : null,
+    shouldFetch ? ["inbox-msgs", role, currentClientId, currentServiceCenterId, currentCpaId] : null,
     async () => {
       if (role === "SERVICE_CENTER") {
         // Fetch messages for clients assigned to this SC
@@ -166,6 +193,23 @@ export default function InboxPage() {
         }
         // Also fetch admin-level messages
         const adminRes = await fetch(`/api/messages/get?clientId=0&conversationBetween=SERVICE_CENTER,ADMIN`)
+        const adminJson = await adminRes.json()
+        allMessages.push(...(adminJson.data || []))
+
+        // Sort by date descending
+        allMessages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        return { data: allMessages }
+      }
+      if (role === "CPA") {
+        // Fetch messages for clients assigned to this CPA
+        const allMessages: Message[] = []
+        for (const clientId of cpaClientIds.slice(0, 10)) { // Limit to first 10 clients
+          const res = await fetch(`/api/messages/get?clientId=${clientId}&conversationBetween=CPA,CLIENT`)
+          const json = await res.json()
+          allMessages.push(...(json.data || []))
+        }
+        // Also fetch admin-level messages
+        const adminRes = await fetch(`/api/messages/get?clientId=0&conversationBetween=CPA,ADMIN`)
         const adminJson = await adminRes.json()
         allMessages.push(...(adminJson.data || []))
 
@@ -200,6 +244,12 @@ export default function InboxPage() {
       } else {
         router.push(`/service-center/messages`);
       }
+    } else if (role === "CPA") {
+      if (clientId) {
+        router.push(`/cpa/clients/${clientId}?tab=messages`);
+      } else {
+        router.push(`/cpa/messages`);
+      }
     } else {
       router.push(`/admin/clients/${clientId}?tab=messages`);
     }
@@ -212,6 +262,8 @@ export default function InboxPage() {
       router.push(`/client/tasks`);
     } else if (role === "SERVICE_CENTER") {
       router.push(`/service-center/clients/${clientId}?tab=tasks`);
+    } else if (role === "CPA") {
+      router.push(`/cpa/clients/${clientId}?tab=tasks`);
     } else {
       router.push(`/admin/clients/${clientId}?tab=tasks`);
     }
@@ -241,7 +293,7 @@ export default function InboxPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{getTitle()}</h1>
           <p className="text-muted-foreground">
-            {role === "SERVICE_CENTER"
+            {(role === "SERVICE_CENTER" || role === "CPA")
               ? "Manage tasks and messages for your assigned clients"
               : "Manage your tasks, messages, and approvals"}
           </p>
@@ -252,8 +304,8 @@ export default function InboxPage() {
         </Button>
       </div>
 
-      {/* Quick Stats for Service Center */}
-      {role === "SERVICE_CENTER" && (
+      {/* Quick Stats for Service Center and CPA */}
+      {(role === "SERVICE_CENTER" || role === "CPA") && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
             <CardContent className="p-4">
@@ -330,10 +382,15 @@ export default function InboxPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>
-                {role === "SERVICE_CENTER" ? "Tasks Assigned to You" : "Assigned Tasks"}
+                {(role === "SERVICE_CENTER" || role === "CPA") ? "Tasks Assigned to You" : "Assigned Tasks"}
               </CardTitle>
               {role === "SERVICE_CENTER" && (
                 <Button variant="outline" size="sm" onClick={() => router.push("/service-center/tasks")}>
+                  View All
+                </Button>
+              )}
+              {role === "CPA" && (
+                <Button variant="outline" size="sm" onClick={() => router.push("/cpa/tasks")}>
                   View All
                 </Button>
               )}
@@ -411,6 +468,11 @@ export default function InboxPage() {
                   Open Messages
                 </Button>
               )}
+              {role === "CPA" && (
+                <Button variant="outline" size="sm" onClick={() => router.push("/cpa/messages")}>
+                  Open Messages
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {msgsLoading ? (
@@ -444,9 +506,9 @@ export default function InboxPage() {
                     >
                       <div className="flex items-start gap-4 min-w-0 flex-1">
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-medium text-sm ${msg.sender_role === "CLIENT" ? "bg-blue-100 text-blue-700" :
-                            msg.sender_role === "ADMIN" ? "bg-violet-100 text-violet-700" :
-                              msg.sender_role === "SERVICE_CENTER" ? "bg-emerald-100 text-emerald-700" :
-                                "bg-amber-100 text-amber-700"
+                          msg.sender_role === "ADMIN" ? "bg-violet-100 text-violet-700" :
+                            msg.sender_role === "SERVICE_CENTER" ? "bg-emerald-100 text-emerald-700" :
+                              "bg-amber-100 text-amber-700"
                           }`}>
                           {msg.sender_role?.substring(0, 2) || "??"}
                         </div>
