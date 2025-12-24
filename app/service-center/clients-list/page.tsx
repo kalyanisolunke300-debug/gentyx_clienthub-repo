@@ -1,22 +1,18 @@
 "use client"
 
 import useSWR from "swr"
-import { DataTable, type Column, TableToolbar, useServerTableState, TablePagination } from "@/components/data-table"
+import { DataTable, type Column, TableToolbar, useServerTableState } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { StatusPill } from "@/components/widgets/status-pill"
 import { useRouter } from "next/navigation"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useState } from "react"
-import { Label } from "@/components/ui/label"
 import { useUIStore } from "@/store/ui-store"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Users, ArrowRight } from "lucide-react"
 
 export default function ServiceCenterClientsPage() {
   const { q, setQ } = useServerTableState()
   const router = useRouter()
   const currentServiceCenterId = useUIStore((s) => s.currentServiceCenterId)
-
-  const [stageFilter, setStageFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
 
   // Fetch only clients assigned to this Service Center
   const { data, isLoading } = useSWR(
@@ -30,29 +26,29 @@ export default function ServiceCenterClientsPage() {
 
   const clients = data || []
 
-  // Apply filters
+  // Only search filter
   const filteredClients = clients.filter((client: any) => {
-    const matchesStage = stageFilter === "all" || client.stage_name === stageFilter || client.onboardingStage === stageFilter
-    const matchesStatus = statusFilter === "all" || client.status === statusFilter || client.client_status === statusFilter
     const matchesSearch = !q ||
       client.client_name?.toLowerCase().includes(q.toLowerCase()) ||
       client.code?.toLowerCase().includes(q.toLowerCase())
-    return matchesStage && matchesStatus && matchesSearch
+    return matchesSearch
   })
 
   const cols: Column<any>[] = [
-    { key: "client_name", header: "Client Name" },
-    { key: "code", header: "Code" },
-    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status || r.client_status} /> },
     {
-      key: "actions",
-      header: "Action",
+      key: "client_name",
+      header: "Client Name",
       render: (r) => (
-        <Button size="sm" onClick={() => router.push(`/service-center/clients/${r.client_id}`)}>
-          View
-        </Button>
-      ),
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+            {r.client_name?.substring(0, 2).toUpperCase()}
+          </div>
+          <span className="font-medium">{r.client_name}</span>
+        </div>
+      )
     },
+    { key: "code", header: "Code" },
+    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status || r.client_status || "Active"} /> },
   ]
 
   if (!currentServiceCenterId) {
@@ -65,55 +61,55 @@ export default function ServiceCenterClientsPage() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Assigned Clients ({clients.length})</h1>
-      </div>
-      <div className="grid gap-2 md:grid-cols-2">
-        <div className="grid gap-2">
-          <Label htmlFor="stage">Filter by Stage</Label>
-          <Select value={stageFilter} onValueChange={setStageFilter}>
-            <SelectTrigger id="stage">
-              <SelectValue placeholder="All Stages" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Stages</SelectItem>
-              <SelectItem value="KYC">KYC</SelectItem>
-              <SelectItem value="Docs Review">Docs Review</SelectItem>
-              <SelectItem value="Accounting Setup">Accounting Setup</SelectItem>
-              <SelectItem value="Go-Live">Go-Live</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="status">Filter by Status</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger id="status">
-              <SelectValue placeholder="All Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Not Started">Not Started</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Assigned Clients</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage your {clients.length} assigned client{clients.length !== 1 ? 's' : ''}
+          </p>
         </div>
       </div>
-      <TableToolbar q={q} setQ={setQ} />
-      {isLoading ? (
-        <div className="flex items-center justify-center py-10">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-          <span className="ml-2 text-muted-foreground">Loading clients...</span>
-        </div>
-      ) : filteredClients.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground">
-          No clients assigned to this service center
-        </div>
-      ) : (
-        <DataTable columns={cols} rows={filteredClients} />
-      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">All Clients ({filteredClients.length})</CardTitle>
+            </div>
+          </div>
+          <TableToolbar q={q} setQ={setQ} />
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <span className="ml-2 text-muted-foreground">Loading clients...</span>
+            </div>
+          ) : filteredClients.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p>{q ? "No clients match your search" : "No clients assigned to this service center"}</p>
+            </div>
+          ) : (
+            <DataTable
+              columns={cols}
+              rows={filteredClients}
+              onRowAction={(r: any) => (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  onClick={() => router.push(`/service-center/clients/${r.client_id}`)}
+                >
+                  Open <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { StatusPill } from "@/components/widgets/status-pill"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
+import { useUIStore } from "@/store/ui-store"
 import {
   Search,
   ClipboardList,
@@ -19,7 +20,9 @@ import {
   Building2,
   Calendar,
   User,
-  Clock
+  Clock,
+  ArrowRight,
+  RefreshCw
 } from "lucide-react"
 
 // ─────────────────────────────────────────────────────────────
@@ -30,7 +33,9 @@ interface Task {
   id: number;
   stageId: number;
   clientId: number;
+  client_id?: number;
   clientName: string;
+  client_name?: string;
   title: string;
   assigneeRole: string;
   status: string;
@@ -95,35 +100,89 @@ function formatDueDate(dateString: string | null): string {
 // Main Inbox Page Component
 // ─────────────────────────────────────────────────────────────
 
-// app/inbox/page.tsx
-import { useUIStore } from "@/store/ui-store"
-
 export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
   const role = useUIStore((s) => s.role)
   const currentClientId = useUIStore((s) => s.currentClientId)
-  const shouldFetch = role === "ADMIN" || (role === "CLIENT" && currentClientId);
+  const currentServiceCenterId = useUIStore((s) => s.currentServiceCenterId)
 
-  const { data: tasksResponse, isLoading: tasksLoading } = useSWR(
-    shouldFetch ? ["inbox-tasks", role, currentClientId] : null,
-    () => fetchAllTasks({
-      page: 1,
-      pageSize: 100,
-      clientId: role === "CLIENT" ? currentClientId : undefined
-    })
+  // Determine if we should fetch based on role
+  const shouldFetch = role === "ADMIN" ||
+    (role === "CLIENT" && currentClientId) ||
+    (role === "SERVICE_CENTER" && currentServiceCenterId) ||
+    role === "CPA";
+
+  // Fetch assigned client IDs for SERVICE_CENTER
+  const { data: scClientsData } = useSWR(
+    role === "SERVICE_CENTER" && currentServiceCenterId
+      ? ["sc-clients-inbox", currentServiceCenterId]
+      : null,
+    async () => {
+      const res = await fetch(`/api/clients/get-by-service-center?serviceCenterId=${currentServiceCenterId}`)
+      const json = await res.json()
+      return json.data || []
+    }
   )
 
-  const { data: msgsResponse, isLoading: msgsLoading } = useSWR(
-    shouldFetch ? ["inbox-msgs", role, currentClientId] : null,
-    () => fetchMessages({
-      clientId: role === "CLIENT" ? currentClientId : undefined
-    })
+  const scClientIds = (scClientsData || []).map((c: any) => c.client_id)
+
+  // Fetch tasks
+  const { data: tasksResponse, isLoading: tasksLoading, mutate: refreshTasks } = useSWR(
+    shouldFetch ? ["inbox-tasks", role, currentClientId, currentServiceCenterId] : null,
+    async () => {
+      if (role === "SERVICE_CENTER") {
+        // Fetch tasks assigned to SERVICE_CENTER role
+        const res = await fetch(`/api/tasks/get?assignedRole=SERVICE_CENTER`)
+        const json = await res.json()
+        // Filter to only tasks for clients assigned to this SC
+        const allTasks = json.data || []
+        return {
+          data: allTasks.filter((t: any) =>
+            scClientIds.includes(t.clientId) || scClientIds.includes(t.client_id)
+          )
+        }
+      }
+      return fetchAllTasks({
+        page: 1,
+        pageSize: 100,
+        clientId: role === "CLIENT" ? currentClientId : undefined
+      })
+    },
+    { refreshInterval: 30000 } // Auto-refresh every 30 seconds
+  )
+
+  // Fetch messages
+  const { data: msgsResponse, isLoading: msgsLoading, mutate: refreshMsgs } = useSWR(
+    shouldFetch ? ["inbox-msgs", role, currentClientId, currentServiceCenterId] : null,
+    async () => {
+      if (role === "SERVICE_CENTER") {
+        // Fetch messages for clients assigned to this SC
+        const allMessages: Message[] = []
+        for (const clientId of scClientIds.slice(0, 10)) { // Limit to first 10 clients
+          const res = await fetch(`/api/messages/get?clientId=${clientId}&conversationBetween=SERVICE_CENTER,CLIENT`)
+          const json = await res.json()
+          allMessages.push(...(json.data || []))
+        }
+        // Also fetch admin-level messages
+        const adminRes = await fetch(`/api/messages/get?clientId=0&conversationBetween=SERVICE_CENTER,ADMIN`)
+        const adminJson = await adminRes.json()
+        allMessages.push(...(adminJson.data || []))
+
+        // Sort by date descending
+        allMessages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        return { data: allMessages }
+      }
+      return fetchMessages({
+        clientId: role === "CLIENT" ? currentClientId : undefined
+      })
+    },
+    { refreshInterval: 15000 } // Auto-refresh every 15 seconds
   )
 
   const tasks = ((tasksResponse?.data || []) as Task[]).filter(
     (t) => t.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
+      (t.clientName || t.client_name || "")?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const messages = ((msgsResponse?.data || []) as Message[]).filter(
@@ -131,33 +190,101 @@ export default function InboxPage() {
       m.client_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Handle Reply - navigate to client's messages tab
-  const handleReply = (clientId: number) => {
+  // Handle Reply - navigate to appropriate messages section
+  const handleReply = (clientId: number | null) => {
     if (role === "CLIENT") {
       router.push(`/client/messages`);
+    } else if (role === "SERVICE_CENTER") {
+      if (clientId) {
+        router.push(`/service-center/clients/${clientId}?tab=messages`);
+      } else {
+        router.push(`/service-center/messages`);
+      }
     } else {
       router.push(`/admin/clients/${clientId}?tab=messages`);
     }
   };
 
-  // Handle Open Task - navigate to client's tasks tab
-  const handleOpenTask = (clientId: number) => {
+  // Handle Open Task - navigate to appropriate tasks section
+  const handleOpenTask = (task: Task) => {
+    const clientId = task.clientId || task.client_id;
     if (role === "CLIENT") {
       router.push(`/client/tasks`);
+    } else if (role === "SERVICE_CENTER") {
+      router.push(`/service-center/clients/${clientId}?tab=tasks`);
     } else {
       router.push(`/admin/clients/${clientId}?tab=tasks`);
+    }
+  };
+
+  const handleRefresh = () => {
+    refreshTasks();
+    refreshMsgs();
+  };
+
+  // Get title based on role
+  const getTitle = () => {
+    switch (role) {
+      case "SERVICE_CENTER":
+        return "Work Queue";
+      case "CPA":
+        return "CPA Work Queue";
+      default:
+        return "Inbox";
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
-        <p className="text-muted-foreground">
-          Manage your tasks, messages, and approvals
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{getTitle()}</h1>
+          <p className="text-muted-foreground">
+            {role === "SERVICE_CENTER"
+              ? "Manage tasks and messages for your assigned clients"
+              : "Manage your tasks, messages, and approvals"}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
       </div>
+
+      {/* Quick Stats for Service Center */}
+      {role === "SERVICE_CENTER" && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-blue-700">{tasks.length}</div>
+              <div className="text-sm text-blue-600">Total Tasks</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-amber-700">
+                {tasks.filter(t => t.status === "Not Started" || t.status === "Pending").length}
+              </div>
+              <div className="text-sm text-amber-600">Pending</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100/50 border-purple-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-purple-700">
+                {tasks.filter(t => t.status === "In Progress").length}
+              </div>
+              <div className="text-sm text-purple-600">In Progress</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-emerald-700">{messages.length}</div>
+              <div className="text-sm text-emerald-600">Messages</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Search Bar */}
       <div className="relative max-w-md">
@@ -201,8 +328,15 @@ export default function InboxPage() {
         {/* Tasks Tab */}
         <TabsContent value="tasks">
           <Card>
-            <CardHeader>
-              <CardTitle>Assigned Tasks</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>
+                {role === "SERVICE_CENTER" ? "Tasks Assigned to You" : "Assigned Tasks"}
+              </CardTitle>
+              {role === "SERVICE_CENTER" && (
+                <Button variant="outline" size="sm" onClick={() => router.push("/service-center/tasks")}>
+                  View All
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {tasksLoading ? (
@@ -226,7 +360,7 @@ export default function InboxPage() {
                 </div>
               ) : (
                 // Task list
-                tasks.map((task) => (
+                tasks.slice(0, 20).map((task) => (
                   <div
                     key={task.id}
                     className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
@@ -240,11 +374,7 @@ export default function InboxPage() {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mt-1">
                           <span className="flex items-center gap-1">
                             <Building2 className="h-3.5 w-3.5" />
-                            {task.clientName || `Client #${task.clientId}`}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <User className="h-3.5 w-3.5" />
-                            {task.assigneeRole || "Unassigned"}
+                            {task.clientName || task.client_name || `Client #${task.clientId || task.client_id}`}
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
@@ -258,9 +388,10 @@ export default function InboxPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleOpenTask(task.clientId)}
+                        className="gap-1"
+                        onClick={() => handleOpenTask(task)}
                       >
-                        Open
+                        Open <ArrowRight className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
@@ -273,8 +404,13 @@ export default function InboxPage() {
         {/* Messages Tab */}
         <TabsContent value="messages">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Messages</CardTitle>
+              {role === "SERVICE_CENTER" && (
+                <Button variant="outline" size="sm" onClick={() => router.push("/service-center/messages")}>
+                  Open Messages
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {msgsLoading ? (
@@ -298,54 +434,46 @@ export default function InboxPage() {
                 </div>
               ) : (
                 // Message list
-                messages.map((msg) => {
+                messages.slice(0, 20).map((msg) => {
                   const dateTime = formatDateTime(msg.created_at);
+                  const isFromMe = msg.sender_role === role;
                   return (
                     <div
                       key={msg.message_id}
                       className="flex items-start justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-start gap-4 min-w-0 flex-1">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground font-medium text-sm">
-                          {msg.sender_role?.charAt(0) || "?"}
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-medium text-sm ${msg.sender_role === "CLIENT" ? "bg-blue-100 text-blue-700" :
+                            msg.sender_role === "ADMIN" ? "bg-violet-100 text-violet-700" :
+                              msg.sender_role === "SERVICE_CENTER" ? "bg-emerald-100 text-emerald-700" :
+                                "bg-amber-100 text-amber-700"
+                          }`}>
+                          {msg.sender_role?.substring(0, 2) || "??"}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            {msg.sender_role === "CLIENT" ? (
-                              <>
-                                <span className="flex items-center gap-1 font-medium">
-                                  <Building2 className="h-3.5 w-3.5" />
-                                  {msg.client_name || `Client #${msg.client_id}`}
-                                </span>
-                                <span className="text-muted-foreground">→</span>
-                                <span className="text-sm">ADMIN</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="font-medium">{msg.sender_role}</span>
-                                <span className="text-muted-foreground">→</span>
-                                <span className="flex items-center gap-1 text-sm">
-                                  <Building2 className="h-3.5 w-3.5" />
-                                  {msg.client_name || `Client #${msg.client_id}`}
-                                </span>
-                              </>
-                            )}
+                            <span className="font-medium">
+                              {isFromMe ? "You" : msg.sender_role}
+                            </span>
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {isFromMe ? msg.receiver_role : (msg.client_name || "Client")}
+                            </span>
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                             {msg.body}
                           </p>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {dateTime.date}
-                            </span>
-                            <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
-                              {dateTime.time}
+                              {dateTime.relative}
                             </span>
-                            <span className="text-muted-foreground/60">
-                              ({dateTime.relative})
-                            </span>
+                            {msg.client_name && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="h-3 w-3" />
+                                {msg.client_name}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
