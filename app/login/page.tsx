@@ -15,7 +15,8 @@ export default function LoginPage() {
 
   // Zustand role setter
   const setUIRole = useUIStore((state) => state.setRole);
-  const setCurrentClientId = useUIStore((state) => state.setCurrentClientId)
+  const setCurrentClientId = useUIStore((state) => state.setCurrentClientId);
+  const setCurrentServiceCenterId = useUIStore((state) => state.setCurrentServiceCenterId);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,13 +62,16 @@ export default function LoginPage() {
 
       const role = data.user.role;
       const clientId = data.user.clientId;
+      const serviceCenterId = data.user.serviceCenterId;
 
       console.log("🔍 LOGIN - role:", role);
       console.log("🔍 LOGIN - clientId from API:", clientId);
+      console.log("🔍 LOGIN - serviceCenterId from API:", serviceCenterId);
 
       // 🔥 RESET STORE FIRST
       setUIRole(null);
       setCurrentClientId(undefined);
+      setCurrentServiceCenterId(undefined);
 
       // 🔥 SET ROLE
       setUIRole(role);
@@ -76,6 +80,12 @@ export default function LoginPage() {
       if (role === "CLIENT" && clientId) {
         console.log("🔍 LOGIN - Setting currentClientId to:", clientId.toString());
         setCurrentClientId(clientId.toString());
+      }
+
+      // 🔥 SET SERVICE CENTER ID FOR SERVICE_CENTER ROLE
+      if (role === "SERVICE_CENTER" && serviceCenterId) {
+        console.log("🔍 LOGIN - Setting currentServiceCenterId to:", serviceCenterId.toString());
+        setCurrentServiceCenterId(serviceCenterId.toString());
       }
 
       const dashboardMap: Record<string, string> = {

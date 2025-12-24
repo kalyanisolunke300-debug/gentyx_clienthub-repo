@@ -3,11 +3,16 @@ import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const clientId = searchParams.get("clientId");
+
     const pool = await getDbPool();
 
-    const result = await pool.request().query(`
+    const request = pool.request();
+
+    let query = `
       SELECT
         t.task_id AS id,
         t.stage_id AS stageId,
@@ -21,8 +26,16 @@ export async function GET() {
       FROM dbo.onboarding_tasks t
       LEFT JOIN dbo.clients c
         ON t.client_id = c.client_id
-      ORDER BY t.created_at DESC;
-    `);
+    `;
+
+    if (clientId) {
+      query += ` WHERE t.client_id = @clientId`;
+      request.input("clientId", sql.Int, Number(clientId));
+    }
+
+    query += ` ORDER BY t.created_at DESC`;
+
+    const result = await request.query(query);
 
     return NextResponse.json({
       success: true,
@@ -40,4 +53,3 @@ export async function GET() {
     );
   }
 }
-

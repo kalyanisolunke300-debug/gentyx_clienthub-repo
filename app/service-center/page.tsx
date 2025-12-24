@@ -1,28 +1,82 @@
 "use client"
 
 import useSWR from "swr"
-import { fetchClients, fetchTasks, fetchDocuments } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { DataTable, type Column } from "@/components/data-table"
 import { StatusPill } from "@/components/widgets/status-pill"
 import { useRouter } from "next/navigation"
+import { useUIStore } from "@/store/ui-store"
+import { Settings } from "lucide-react"
 
 export default function ServiceCenterDashboard() {
-  const { data: clients } = useSWR(["sc-clients"], () => fetchClients({ page: 1, pageSize: 8 }))
-  const { data: tasks } = useSWR(["sc-tasks"], () => fetchTasks({ assigneeRole: "SERVICE_CENTER" }))
-  const { data: docs } = useSWR(["sc-docs"], () => fetchDocuments())
-
   const router = useRouter()
+  const currentServiceCenterId = useUIStore((s) => s.currentServiceCenterId)
+
+  // Fetch only clients assigned to this Service Center
+  const { data: clientsData } = useSWR(
+    currentServiceCenterId ? ["sc-clients", currentServiceCenterId] : null,
+    async () => {
+      const res = await fetch(`/api/clients/get-by-service-center?serviceCenterId=${currentServiceCenterId}`)
+      const json = await res.json()
+      return { data: json.data || [], total: json.data?.length || 0 }
+    }
+  )
+
+  // Get client IDs for fetching tasks
+  const clientIds = (clientsData?.data || []).map((c: any) => c.client_id)
+
+  // Fetch tasks for assigned clients (tasks where client_id is in our assigned list)
+  const { data: tasksData } = useSWR(
+    clientIds.length > 0 ? ["sc-tasks", clientIds.join(",")] : null,
+    async () => {
+      // Fetch all tasks and filter by assigned client IDs
+      const res = await fetch(`/api/tasks/get`)
+      const json = await res.json()
+      const allTasks = json.data || []
+      // Filter tasks to only show tasks for assigned clients
+      const filteredTasks = allTasks.filter((t: any) =>
+        clientIds.includes(t.client_id) || clientIds.includes(Number(t.clientId))
+      )
+      return { data: filteredTasks }
+    }
+  )
+
+  const clients = clientsData?.data || []
+  const tasks = tasksData?.data || []
 
   const clientCols: Column<any>[] = [
-    { key: "name", header: "Client" },
-    { key: "onboardingStage", header: "Stage" },
-    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status} /> },
+    { key: "client_name", header: "Client" },
+    { key: "code", header: "Code" },
+    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status || r.client_status} /> },
   ]
+
+  // Loading state
+  if (!currentServiceCenterId) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-muted-foreground">Loading...</span>
+      </div>
+    )
+  }
 
   return (
     <div className="grid gap-4">
+      {/* Header with Settings */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Service Center Dashboard</h1>
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => router.push("/service-center/settings")}
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card
           className="cursor-pointer hover:bg-muted transition-colors"
@@ -31,51 +85,54 @@ export default function ServiceCenterDashboard() {
           <CardHeader>
             <CardTitle className="text-sm text-muted-foreground">Assigned Clients</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">{clients?.total ?? 0}</CardContent>
+          <CardContent className="text-2xl font-semibold">{clients.length}</CardContent>
         </Card>
         <Card
           className="cursor-pointer hover:bg-muted transition-colors"
-          onClick={() => router.push("/inbox?filter=pending")}
+          onClick={() => router.push("/service-center/tasks")}
         >
           <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground">Pending Client Tasks</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">Pending Tasks</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {(tasks?.data || []).filter((t) => t.status === "Pending").length}
+            {tasks.filter((t: any) => t.status === "Pending").length}
           </CardContent>
         </Card>
         <Card
           className="cursor-pointer hover:bg-muted transition-colors"
-          onClick={() => router.push("/documents?filter=awaiting-review")}
+          onClick={() => router.push("/service-center/tasks")}
         >
           <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground">Docs Awaiting Review</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">In Progress</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-semibold">
-            {(docs || []).filter((d) => d.status === "Uploaded").length}
+            {tasks.filter((t: any) => t.status === "In Progress").length}
           </CardContent>
         </Card>
         <Card className="cursor-pointer hover:bg-muted transition-colors">
           <CardHeader>
-            <CardTitle className="text-sm text-muted-foreground">Overdue</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">Completed</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-semibold">0</CardContent>
+          <CardContent className="text-2xl font-semibold">
+            {tasks.filter((t: any) => t.status === "Completed").length}
+          </CardContent>
         </Card>
       </div>
 
+      {/* Clients Table */}
       <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle>Clients</CardTitle>
-          <Button variant="outline" onClick={() => router.push("/inbox")}>
-            Work Queue
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Assigned Clients</CardTitle>
+          <Button variant="outline" onClick={() => router.push("/service-center/clients-list")}>
+            View All
           </Button>
         </CardHeader>
         <CardContent>
           <DataTable
             columns={clientCols}
-            rows={clients?.data || []}
+            rows={clients.slice(0, 5)}
             onRowAction={(r: any) => (
-              <Button size="sm" onClick={() => router.push(`/service-center/clients/${r.id}`)}>
+              <Button size="sm" onClick={() => router.push(`/service-center/clients/${r.client_id}`)}>
                 Open
               </Button>
             )}

@@ -2,20 +2,26 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
- 
+
 export async function GET(req: Request, { params }: any) {
   try {
     const id = Number(params.id);
     const pool = await getDbPool();
- 
+
     const center = await pool.request()
       .input("id", sql.Int, id)
       .query(`
-        SELECT center_id AS id, center_name AS name, email
+        SELECT 
+          service_center_id AS id, 
+          center_name AS name, 
+          center_code AS code,
+          email,
+          created_at,
+          updated_at
         FROM dbo.service_centers
-        WHERE center_id = @id;
+        WHERE service_center_id = @id;
       `);
- 
+
     const users = await pool.request()
       .input("id", sql.Int, id)
       .query(`
@@ -27,7 +33,7 @@ export async function GET(req: Request, { params }: any) {
         FROM dbo.service_center_users
         WHERE center_id = @id;
       `);
- 
+
     return NextResponse.json({
       success: true,
       data: {
@@ -35,7 +41,7 @@ export async function GET(req: Request, { params }: any) {
         users: users.recordset
       }
     });
- 
+
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message },

@@ -39,6 +39,26 @@ export async function POST(req: Request) {
 
     const centerId = insertResult.recordset[0].service_center_id;
 
+    // 3️⃣ Create User entry for Service Center login (if email provided)
+    if (email) {
+      const existingUser = await pool
+        .request()
+        .input("email", sql.NVarChar(255), email)
+        .query(`SELECT id FROM dbo.Users WHERE email = @email`);
+
+      if (existingUser.recordset.length === 0) {
+        await pool
+          .request()
+          .input("email", sql.NVarChar(255), email)
+          .input("password", sql.NVarChar(255), "ServiceCenter@2025")
+          .input("role", sql.NVarChar(50), "SERVICE_CENTER")
+          .query(`
+            INSERT INTO dbo.Users (email, password, role)
+            VALUES (@email, @password, @role)
+          `);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       center_id: centerId,

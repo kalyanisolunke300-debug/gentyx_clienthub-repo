@@ -1,7 +1,6 @@
 "use client"
 
 import useSWR from "swr"
-import { fetchClients } from "@/lib/api"
 import { DataTable, type Column, TableToolbar, useServerTableState, TablePagination } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { StatusPill } from "@/components/widgets/status-pill"
@@ -9,35 +8,66 @@ import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState } from "react"
 import { Label } from "@/components/ui/label"
+import { useUIStore } from "@/store/ui-store"
 
 export default function ServiceCenterClientsPage() {
-  const { page, setPage, pageSize, q, setQ } = useServerTableState()
-  const { data } = useSWR(["sc-clients", page, pageSize, q], () => fetchClients({ page, pageSize, q }), {
-    keepPreviousData: true,
-  })
+  const { q, setQ } = useServerTableState()
   const router = useRouter()
+  const currentServiceCenterId = useUIStore((s) => s.currentServiceCenterId)
+
   const [stageFilter, setStageFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
 
+  // Fetch only clients assigned to this Service Center
+  const { data, isLoading } = useSWR(
+    currentServiceCenterId ? ["sc-clients-list", currentServiceCenterId] : null,
+    async () => {
+      const res = await fetch(`/api/clients/get-by-service-center?serviceCenterId=${currentServiceCenterId}`)
+      const json = await res.json()
+      return json.data || []
+    }
+  )
+
+  const clients = data || []
+
+  // Apply filters
+  const filteredClients = clients.filter((client: any) => {
+    const matchesStage = stageFilter === "all" || client.stage_name === stageFilter || client.onboardingStage === stageFilter
+    const matchesStatus = statusFilter === "all" || client.status === statusFilter || client.client_status === statusFilter
+    const matchesSearch = !q ||
+      client.client_name?.toLowerCase().includes(q.toLowerCase()) ||
+      client.code?.toLowerCase().includes(q.toLowerCase())
+    return matchesStage && matchesStatus && matchesSearch
+  })
+
   const cols: Column<any>[] = [
-    { key: "name", header: "Client Name" },
-    { key: "onboardingStage", header: "Stage" },
-    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status} /> },
+    { key: "client_name", header: "Client Name" },
+    { key: "code", header: "Code" },
+    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status || r.client_status} /> },
     {
       key: "actions",
       header: "Action",
       render: (r) => (
-        <Button size="sm" onClick={() => router.push(`/service-center/clients/${r.id}`)}>
+        <Button size="sm" onClick={() => router.push(`/service-center/clients/${r.client_id}`)}>
           View
         </Button>
       ),
     },
   ]
 
+  if (!currentServiceCenterId) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-muted-foreground">Loading...</span>
+      </div>
+    )
+  }
+
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Assigned Clients</h1>
+        <h1 className="text-xl font-semibold">Assigned Clients ({clients.length})</h1>
       </div>
       <div className="grid gap-2 md:grid-cols-2">
         <div className="grid gap-2">
@@ -63,6 +93,7 @@ export default function ServiceCenterClientsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Active">Active</SelectItem>
               <SelectItem value="Not Started">Not Started</SelectItem>
               <SelectItem value="In Progress">In Progress</SelectItem>
               <SelectItem value="Completed">Completed</SelectItem>
@@ -71,13 +102,18 @@ export default function ServiceCenterClientsPage() {
         </div>
       </div>
       <TableToolbar q={q} setQ={setQ} />
-      <DataTable columns={cols} rows={data?.data || []} />
-      <TablePagination
-        page={data?.page || 1}
-        pageSize={data?.pageSize || 10}
-        total={data?.total || 0}
-        setPage={setPage}
-      />
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <span className="ml-2 text-muted-foreground">Loading clients...</span>
+        </div>
+      ) : filteredClients.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">
+          No clients assigned to this service center
+        </div>
+      ) : (
+        <DataTable columns={cols} rows={filteredClients} />
+      )}
     </div>
   )
 }

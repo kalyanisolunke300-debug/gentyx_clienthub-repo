@@ -59,6 +59,8 @@ export function Sidebar() {
     { href: "/service-center/clients-list", label: "Clients", icon: Users },
     { href: "/service-center/tasks", label: "Tasks", icon: ListChecks },
     { href: "/inbox", label: "Work Queue", icon: ListChecks },
+    { href: "/service-center/settings", label: "Settings", icon: Settings },
+    { href: "/help", label: "FAQ", icon: HelpCircle },
   ];
 
   const cpaLinks = [
@@ -68,7 +70,7 @@ export function Sidebar() {
   ];
 
   // Admin and other roles use common links, clients have settings built-in
-  const commonLinks = role === "CLIENT" ? [] : [
+  const commonLinks = role === "CLIENT" || role === "SERVICE_CENTER" ? [] : [
     { href: "/settings", label: "Settings", icon: Settings },
     { href: "/help", label: "FAQ", icon: HelpCircle },
   ];
@@ -83,13 +85,35 @@ export function Sidebar() {
     router.push("/login");
   }
 
+  // Function to determine if a link is active
+  function isLinkActive(href: string): boolean {
+    // Exact match
+    if (pathname === href) return true;
+
+    // For dashboard links (exact role root), only match exactly
+    const dashboardPaths = ["/admin", "/client", "/service-center", "/cpa"];
+    if (dashboardPaths.includes(href)) {
+      return pathname === href;
+    }
+
+    // For "Clients" link, also match /clients/{id} paths
+    if (href === "/service-center/clients-list" && pathname.startsWith("/service-center/clients/")) {
+      return true;
+    }
+
+    // For other links, check if path starts with href
+    if (pathname.startsWith(href + "/")) {
+      return true;
+    }
+
+    return false;
+  }
+
   return (
     <div className="flex flex-col h-full w-full p-2">
       <nav className="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0">
         {[...roleLinks, ...commonLinks].map(({ href, label, icon: Icon }) => {
-          const active =
-            pathname === href ||
-            (pathname.startsWith(href + "/") && pathname !== "/admin" && href !== "/admin");
+          const active = isLinkActive(href);
           return (
             <Link
               key={href}
