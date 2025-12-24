@@ -335,6 +335,7 @@ export async function fetchAllTasks({
   assignedRole,
   dueFrom,
   dueTo,
+  clientId,
 }: {
   page?: number;
   pageSize?: number;
@@ -343,6 +344,7 @@ export async function fetchAllTasks({
   assignedRole?: string;
   dueFrom?: string;
   dueTo?: string;
+  clientId?: string | number;
 }) {
   const params = new URLSearchParams();
 
@@ -354,6 +356,7 @@ export async function fetchAllTasks({
   if (assignedRole) params.set("assignedRole", assignedRole);
   if (dueFrom) params.set("dueFrom", dueFrom);
   if (dueTo) params.set("dueTo", dueTo);
+  if (clientId) params.set("clientId", String(clientId));
 
   const res = await fetch(`/api/tasks/get?${params.toString()}`, {
     cache: "no-store",

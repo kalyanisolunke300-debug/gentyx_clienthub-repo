@@ -95,18 +95,30 @@ function formatDueDate(dateString: string | null): string {
 // Main Inbox Page Component
 // ─────────────────────────────────────────────────────────────
 
+// app/inbox/page.tsx
+import { useUIStore } from "@/store/ui-store"
+
 export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const router = useRouter()
+  const role = useUIStore((s) => s.role)
+  const currentClientId = useUIStore((s) => s.currentClientId)
+  const shouldFetch = role === "ADMIN" || (role === "CLIENT" && currentClientId);
 
   const { data: tasksResponse, isLoading: tasksLoading } = useSWR(
-    ["inbox-tasks"],
-    () => fetchAllTasks({ page: 1, pageSize: 100 })
+    shouldFetch ? ["inbox-tasks", role, currentClientId] : null,
+    () => fetchAllTasks({
+      page: 1,
+      pageSize: 100,
+      clientId: role === "CLIENT" ? currentClientId : undefined
+    })
   )
 
   const { data: msgsResponse, isLoading: msgsLoading } = useSWR(
-    ["inbox-msgs"],
-    () => fetchMessages()
+    shouldFetch ? ["inbox-msgs", role, currentClientId] : null,
+    () => fetchMessages({
+      clientId: role === "CLIENT" ? currentClientId : undefined
+    })
   )
 
   const tasks = ((tasksResponse?.data || []) as Task[]).filter(
@@ -121,12 +133,20 @@ export default function InboxPage() {
 
   // Handle Reply - navigate to client's messages tab
   const handleReply = (clientId: number) => {
-    router.push(`/admin/clients/${clientId}?tab=messages`);
+    if (role === "CLIENT") {
+      router.push(`/client/messages`);
+    } else {
+      router.push(`/admin/clients/${clientId}?tab=messages`);
+    }
   };
 
   // Handle Open Task - navigate to client's tasks tab
   const handleOpenTask = (clientId: number) => {
-    router.push(`/admin/clients/${clientId}?tab=tasks`);
+    if (role === "CLIENT") {
+      router.push(`/client/tasks`);
+    } else {
+      router.push(`/admin/clients/${clientId}?tab=tasks`);
+    }
   };
 
   return (
@@ -291,12 +311,25 @@ export default function InboxPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="font-medium">{msg.sender_role}</span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="flex items-center gap-1 text-sm">
-                              <Building2 className="h-3.5 w-3.5" />
-                              {msg.client_name || `Client #${msg.client_id}`}
-                            </span>
+                            {msg.sender_role === "CLIENT" ? (
+                              <>
+                                <span className="flex items-center gap-1 font-medium">
+                                  <Building2 className="h-3.5 w-3.5" />
+                                  {msg.client_name || `Client #${msg.client_id}`}
+                                </span>
+                                <span className="text-muted-foreground">→</span>
+                                <span className="text-sm">ADMIN</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-medium">{msg.sender_role}</span>
+                                <span className="text-muted-foreground">→</span>
+                                <span className="flex items-center gap-1 text-sm">
+                                  <Building2 className="h-3.5 w-3.5" />
+                                  {msg.client_name || `Client #${msg.client_id}`}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                             {msg.body}
