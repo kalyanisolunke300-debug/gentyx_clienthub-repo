@@ -86,7 +86,7 @@ export default function EditClientPage() {
       return;
     }
 
-    toast({ title: "Client updated successfully" });
+    toast({ title: "Client updated successfully", variant: "success" });
     router.push(`/admin/clients/${id}`);
   }
 

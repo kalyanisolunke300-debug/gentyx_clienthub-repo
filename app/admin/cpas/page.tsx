@@ -34,6 +34,7 @@ export default function CPAsPage() {
   });
 
   const [open, setOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const [openClientsModal, setOpenClientsModal] = useState(false);
   const [selectedCPA, setSelectedCPA] = useState<any | null>(null);
@@ -122,11 +123,14 @@ export default function CPAsPage() {
       return;
     }
 
+    setIsSaving(true);
+
     try {
       if (editingId) {
         // UPDATE
         const res = await fetch("/api/cpas/update", {
           method: "POST", // using POST as per original file
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             cpa_id: editingId,
             name: formData.name,
@@ -140,11 +144,12 @@ export default function CPAsPage() {
           return;
         }
 
-        toast({ title: "Updated", description: "CPA updated successfully" });
+        toast({ title: "Updated", description: "CPA updated successfully", variant: "success" });
       } else {
         // CREATE
         const res = await fetch("/api/cpas/add", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: formData.name,
             email: formData.email,
@@ -157,7 +162,7 @@ export default function CPAsPage() {
           return;
         }
 
-        toast({ title: "Created", description: "New CPA created successfully" });
+        toast({ title: "Created", description: "New CPA created successfully", variant: "success" });
       }
 
       // Reload list
@@ -168,6 +173,8 @@ export default function CPAsPage() {
 
     } catch (err) {
       toast({ title: "Error", description: "Something went wrong", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -269,12 +276,13 @@ export default function CPAsPage() {
                 <Button
                   variant="outline"
                   onClick={() => setOpen(false)}
+                  disabled={isSaving}
                 >
                   Cancel
                 </Button>
 
-                <Button onClick={handleSave}>
-                  {editingId ? "Update CPA" : "Create CPA"}
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? (editingId ? "Updating..." : "Creating...") : (editingId ? "Update CPA" : "Create CPA")}
                 </Button>
               </div>
             </DialogContent>

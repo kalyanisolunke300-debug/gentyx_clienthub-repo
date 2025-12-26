@@ -1,3 +1,4 @@
+// app/api/cpas/add/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
@@ -17,7 +18,54 @@ export async function POST(req: Request) {
 
     const pool = await getDbPool();
 
-    // 1️⃣ Generate Next CPA Code (CPA001, CPA002...)
+    // ✅ CHECK FOR DUPLICATE CPA NAME (CASE-INSENSITIVE)
+    const existingCpa = await pool
+      .request()
+      .input("name", sql.VarChar, name.trim())
+      .query(`
+        SELECT cpa_id, cpa_name 
+        FROM cpa_centers 
+        WHERE LOWER(cpa_name) = LOWER(@name)
+      `);
+
+    if (existingCpa.recordset.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `A CPA named "${existingCpa.recordset[0].cpa_name}" already exists`
+        },
+        { status: 409 }
+      );
+    }
+
+    // ✅ CHECK FOR DUPLICATE EMAIL ACROSS ALL ENTITIES (if email provided)
+    if (email && email.trim()) {
+      const existingEmail = await pool
+        .request()
+        .input("email", sql.VarChar, email.trim().toLowerCase())
+        .query(`
+          SELECT 'client' as entity_type, client_name as name FROM dbo.clients 
+          WHERE LOWER(primary_contact_email) = @email
+          UNION ALL
+          SELECT 'CPA' as entity_type, cpa_name as name FROM dbo.cpa_centers 
+          WHERE LOWER(email) = @email
+          UNION ALL
+          SELECT 'service center' as entity_type, center_name as name FROM dbo.service_centers 
+          WHERE LOWER(email) = @email
+        `);
+
+      if (existingEmail.recordset.length > 0) {
+        const existing = existingEmail.recordset[0];
+        return NextResponse.json(
+          {
+            success: false,
+            message: `This email is already used by ${existing.entity_type}: "${existing.name}"`
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const last = await pool.request().query(`
       SELECT TOP 1 cpa_code
       FROM cpa_centers

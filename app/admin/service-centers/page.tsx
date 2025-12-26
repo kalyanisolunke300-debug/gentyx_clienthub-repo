@@ -224,6 +224,7 @@ export default function ServiceCentersPage() {
       toast({
         title: editing ? "Updated" : "Created",
         description: `Service Center ${editing ? "updated" : "created"} successfully`,
+        variant: "success",
       });
 
       setOpen(false);

@@ -114,17 +114,28 @@ export default function NewClientPage() {
         associatedUsers,
       });
 
+      // ✅ Check for API error response
+      if (!res.success) {
+        toast({
+          title: "Error",
+          description: res.error || "Failed to create client",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Client Created",
         description: "New client added successfully",
+        variant: "success",
       });
 
       router.push(`/admin/clients/${res.clientId}`);
 
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to create client",
+        description: error?.message || "Failed to create client",
         variant: "destructive",
       });
     } finally {

@@ -17,7 +17,54 @@ export async function POST(req: Request) {
 
     const pool = await getDbPool();
 
-    // 1️⃣ Generate Next Center Code (SC001, SC002...)
+    // ✅ CHECK FOR DUPLICATE SERVICE CENTER NAME (CASE-INSENSITIVE)
+    const existingCenter = await pool
+      .request()
+      .input("name", sql.NVarChar, name.trim())
+      .query(`
+        SELECT service_center_id, center_name 
+        FROM dbo.service_centers 
+        WHERE LOWER(center_name) = LOWER(@name)
+      `);
+
+    if (existingCenter.recordset.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `A service center named "${existingCenter.recordset[0].center_name}" already exists`
+        },
+        { status: 409 }
+      );
+    }
+
+    // ✅ CHECK FOR DUPLICATE EMAIL ACROSS ALL ENTITIES (if email provided)
+    if (email && email.trim()) {
+      const existingEmail = await pool
+        .request()
+        .input("email", sql.NVarChar, email.trim().toLowerCase())
+        .query(`
+          SELECT 'client' as entity_type, client_name as name FROM dbo.clients 
+          WHERE LOWER(primary_contact_email) = @email
+          UNION ALL
+          SELECT 'CPA' as entity_type, cpa_name as name FROM dbo.cpa_centers 
+          WHERE LOWER(email) = @email
+          UNION ALL
+          SELECT 'service center' as entity_type, center_name as name FROM dbo.service_centers 
+          WHERE LOWER(email) = @email
+        `);
+
+      if (existingEmail.recordset.length > 0) {
+        const existing = existingEmail.recordset[0];
+        return NextResponse.json(
+          {
+            success: false,
+            error: `This email is already used by ${existing.entity_type}: "${existing.name}"`
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const maxResult = await pool.request().query(`
       SELECT ISNULL(MAX(service_center_id), 0) AS maxId
       FROM dbo.service_centers;

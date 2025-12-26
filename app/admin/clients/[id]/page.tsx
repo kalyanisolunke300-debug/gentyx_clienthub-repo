@@ -1284,6 +1284,7 @@ export default function ClientProfilePage() {
                           } else {
                             toast({
                               title: "Folder creation failed",
+                              description: data.error || "Unable to create folder",
                               variant: "destructive",
                             });
                           }

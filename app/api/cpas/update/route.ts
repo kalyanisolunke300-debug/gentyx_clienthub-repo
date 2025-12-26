@@ -15,11 +15,72 @@ async function handleUpdate(req: Request) {
     const body = await req.json();
     const { cpa_id, cpa_name, cpa_code, name, email } = body;
 
+    if (!cpa_id) {
+      return NextResponse.json(
+        { success: false, message: "CPA ID is required" },
+        { status: 400 }
+      );
+    }
+
     const pool = await getDbPool();
+    const actualName = cpa_name || name;
+
+    // ✅ CHECK FOR DUPLICATE CPA NAME (CASE-INSENSITIVE, EXCLUDING CURRENT)
+    if (actualName) {
+      const existingCpa = await pool
+        .request()
+        .input("name", sql.VarChar, actualName.trim())
+        .input("cpaId", sql.Int, cpa_id)
+        .query(`
+          SELECT cpa_id, cpa_name 
+          FROM cpa_centers 
+          WHERE LOWER(cpa_name) = LOWER(@name)
+          AND cpa_id != @cpaId
+        `);
+
+      if (existingCpa.recordset.length > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `A CPA named "${existingCpa.recordset[0].cpa_name}" already exists`
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    // ✅ CHECK FOR DUPLICATE EMAIL ACROSS ALL ENTITIES (EXCLUDING CURRENT CPA)
+    if (email && email.trim()) {
+      const existingEmail = await pool
+        .request()
+        .input("email", sql.VarChar, email.trim().toLowerCase())
+        .input("cpaId", sql.Int, cpa_id)
+        .query(`
+          SELECT 'client' as entity_type, client_name as name FROM dbo.clients 
+          WHERE LOWER(primary_contact_email) = @email
+          UNION ALL
+          SELECT 'CPA' as entity_type, cpa_name as name FROM dbo.cpa_centers 
+          WHERE LOWER(email) = @email AND cpa_id != @cpaId
+          UNION ALL
+          SELECT 'service center' as entity_type, center_name as name FROM dbo.service_centers 
+          WHERE LOWER(email) = @email
+        `);
+
+      if (existingEmail.recordset.length > 0) {
+        const existing = existingEmail.recordset[0];
+        return NextResponse.json(
+          {
+            success: false,
+            message: `This email is already used by ${existing.entity_type}: "${existing.name}"`
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     await pool.request()
       .input("id", sql.Int, cpa_id)
-      .input("name", sql.VarChar, cpa_name || name)
+      .input("name", sql.VarChar, actualName)
       .input("code", sql.VarChar, cpa_code)
       .input("email", sql.VarChar, email)
       .query(`
@@ -35,7 +96,7 @@ async function handleUpdate(req: Request) {
   } catch (err: any) {
     console.error("CPA update error:", err);
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, message: err.message },
       { status: 500 }
     );
   }

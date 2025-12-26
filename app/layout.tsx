@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { CommandBar } from "@/components/command-bar";
 import ConditionalShell from "@/components/conditional-shell";
 import { Analytics } from "@vercel/analytics/next";
+import { Toaster } from "@/components/ui/toaster";
 
 import SessionHandler from "./session-handler";
 
@@ -30,6 +31,7 @@ export default function RootLayout({
         <ThemeProvider>
           <ConditionalShell>{children}</ConditionalShell>
           <CommandBar />
+          <Toaster />
         </ThemeProvider>
 
         <Analytics />

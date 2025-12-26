@@ -90,38 +90,6 @@ export async function fetchClientTasksByClientId(
 
   return res.json(); // { success, data }
 }
-/* -------------------------------------------------------------
-    (OLD) CLIENT-SPECIFIC TASKS — used in Client Detail Page
-    calls: /api/tasks/get?clientId=123
---------------------------------------------------------------*/
-// export async function fetchClientTasks(params?: { clientId?: string }) {
-//   const qs = new URLSearchParams();
-//   if (params?.clientId) qs.set("clientId", params.clientId);
-
-//   const res = await fetch(`/api/tasks/get?${qs.toString()}`, {
-//     cache: "no-store",
-//   });
-
-//   if (!res.ok) throw new Error("Failed to fetch tasks for client");
-//   return res.json();
-// }
-
-
-
-// FETCH TASKS FOR SPECIFIC CLIENT (used inside client detail page)
-// export async function fetchTasks(params?: { clientId?: string }) {
-//   if (!params?.clientId) {
-//     throw new Error("clientId is required for fetchTasks()");
-//   }
-
-//   const res = await fetch(
-//     `/api/tasks/list?clientId=${params.clientId}`,
-//     { cache: "no-store" }
-//   );
-
-//   if (!res.ok) throw new Error("Failed to fetch tasks");
-//   return res.json(); // { success, data: [...] }
-// }
 
 
 export async function fetchDocuments({ clientId }: { clientId: string }) {
@@ -246,8 +214,10 @@ export async function createClient(payload: any) {
     body: JSON.stringify(payload),
   });
 
-  if (!res.ok) throw new Error("Failed to create client");
-  return res.json();
+  // Always parse and return the JSON response, even on error status
+  // This allows the caller to read the specific error message
+  const json = await res.json();
+  return json;
 }
 
 export async function fetchDefaultStages() {
@@ -294,34 +264,7 @@ export async function setStage(payload: {
 
   return res.json();
 }
-/* -------------------------------------------------------------
-    ADMIN — FETCH ALL TASKS (NO CLIENT ID REQUIRED)
-    calls: /api/tasks/list
---------------------------------------------------------------*/
-// export async function fetchAllTasks({
-//   page = 1,
-//   pageSize = 10,
-// }: {
-//   page?: number;
-//   pageSize?: number;
-// }) {
-//   const res = await fetch(
-//     `/api/tasks/list?page=${page}&pageSize=${pageSize}`,
-//     { cache: "no-store" }
-//   );
 
-//   if (!res.ok) throw new Error("Failed to fetch all tasks");
-//   return res.json(); // {success, data, page, pageSize, total}
-// }
-
-// FETCH SIMPLE TASKS FOR A CLIENT (used inside client detail page) 
-// export async function fetchClientTasksSimple(clientId: string) {
-//   const res = await fetch(`/api/tasks/client?clientId=${clientId}`, {
-//     cache: "no-store",
-//   });
-//   if (!res.ok) throw new Error("Failed to fetch simple tasks");
-//   return res.json();
-// }
 
 /* -------------------------------------------------------------
     ADMIN — FETCH ALL TASKS (UNIFIED)

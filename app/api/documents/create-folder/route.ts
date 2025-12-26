@@ -26,16 +26,33 @@ export async function POST(req: Request) {
       ? `client-${clientId}/${parentFolder}/${folderName}/`
       : `client-${clientId}/${folderName}/`;
 
-    // ✅ HARD DUPLICATE PROTECTION (SAFE FOR ALL CASES)
-    const existing = containerClient.listBlobsByHierarchy("/", {
-      prefix: finalFolderPath,
+    // ✅ CASE-INSENSITIVE DUPLICATE PROTECTION
+    // List all folders at the parent level and check for case-insensitive matches
+    const parentPath = parentFolder
+      ? `client-${clientId}/${parentFolder}/`
+      : `client-${clientId}/`;
+
+    const existingFolders = containerClient.listBlobsByHierarchy("/", {
+      prefix: parentPath,
     });
 
-    for await (const _ of existing) {
-      return NextResponse.json(
-        { success: false, error: "Folder already exists" },
-        { status: 409 }
-      );
+    const normalizedNewName = folderName.toLowerCase().trim();
+
+    for await (const item of existingFolders) {
+      // Check if this is a folder (virtual directory)
+      if (item.kind === "prefix") {
+        // Extract folder name from the prefix (remove parent path and trailing slash)
+        const existingName = item.name
+          .replace(parentPath, "")
+          .replace(/\/$/, "");
+
+        if (existingName.toLowerCase() === normalizedNewName) {
+          return NextResponse.json(
+            { success: false, error: `A folder named "${existingName}" already exists (case-insensitive match)` },
+            { status: 409 }
+          );
+        }
+      }
     }
 
 
