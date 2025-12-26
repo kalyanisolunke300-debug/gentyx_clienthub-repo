@@ -106,9 +106,11 @@ export async function GET(
 
     ctp.service_center_id,
     sc.center_name AS service_center_name,
+    sc.email AS service_center_email,
 
     ctp.cpa_id,
     cp.cpa_name AS cpa_name,
+    cp.email AS cpa_email,
 
     ctp.stage_id,
     ctp.stage_name,

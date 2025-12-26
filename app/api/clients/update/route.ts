@@ -81,6 +81,12 @@ export async function POST(req: Request) {
       }
     }
 
+    // 📧 GET OLD EMAIL BEFORE UPDATE (for syncing Users table)
+    const oldEmailResult = await pool.request()
+      .input("clientId", sql.Int, Number(clientId))
+      .query(`SELECT primary_contact_email FROM dbo.clients WHERE client_id = @clientId`);
+    const oldEmail = oldEmailResult.recordset[0]?.primary_contact_email;
+
     await pool
       .request()
       .input("client_id", sql.Int, Number(clientId))
@@ -104,6 +110,20 @@ export async function POST(req: Request) {
           updated_at = GETDATE()
         WHERE client_id = @client_id
       `);
+
+    // 📧 SYNC EMAIL TO USERS TABLE (for login credentials)
+    if (primary_contact_email && primary_contact_email.trim() && oldEmail &&
+      primary_contact_email.toLowerCase() !== oldEmail.toLowerCase()) {
+      await pool.request()
+        .input("oldEmail", sql.NVarChar(255), oldEmail)
+        .input("newEmail", sql.NVarChar(255), primary_contact_email)
+        .query(`
+          UPDATE dbo.Users 
+          SET email = @newEmail 
+          WHERE email = @oldEmail AND role = 'CLIENT'
+        `);
+      console.log(`✅ Client login email updated from ${oldEmail} to ${primary_contact_email}`);
+    }
 
     // Audit logs
     logAudit({

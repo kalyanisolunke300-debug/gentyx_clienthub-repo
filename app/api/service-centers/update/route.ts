@@ -70,6 +70,12 @@ export async function PUT(req: Request) {
       }
     }
 
+    // 📧 GET OLD EMAIL BEFORE UPDATE (for syncing Users table)
+    const oldEmailResult = await pool.request()
+      .input("centerId", sql.Int, center_id)
+      .query(`SELECT email FROM dbo.service_centers WHERE service_center_id = @centerId`);
+    const oldEmail = oldEmailResult.recordset[0]?.email;
+
     const result = await pool.request()
       .input("id", sql.Int, center_id)
       .input("name", sql.NVarChar, center_name)
@@ -84,6 +90,19 @@ export async function PUT(req: Request) {
           updated_at = GETDATE()
         WHERE service_center_id = @id;
       `);
+
+    // 📧 SYNC EMAIL TO USERS TABLE (for login credentials)
+    if (email && email.trim() && oldEmail && email.toLowerCase() !== oldEmail.toLowerCase()) {
+      await pool.request()
+        .input("oldEmail", sql.NVarChar(255), oldEmail)
+        .input("newEmail", sql.NVarChar(255), email)
+        .query(`
+          UPDATE dbo.Users 
+          SET email = @newEmail 
+          WHERE email = @oldEmail AND role = 'SERVICE_CENTER'
+        `);
+      console.log(`✅ Service Center login email updated from ${oldEmail} to ${email}`);
+    }
 
     return NextResponse.json({
       success: true,

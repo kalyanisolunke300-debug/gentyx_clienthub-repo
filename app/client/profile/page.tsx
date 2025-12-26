@@ -314,13 +314,19 @@ export default function ClientProfile() {
                 <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
                   <Building2 className="h-6 w-6 text-blue-600" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Service Center
                   </p>
                   <p className="text-lg font-semibold">
                     {client?.service_center_name || "Not Assigned"}
                   </p>
+                  {client?.service_center_email && (
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                      <Mail className="h-3.5 w-3.5" />
+                      {client.service_center_email}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -328,13 +334,19 @@ export default function ClientProfile() {
                 <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
                   <UserCircle className="h-6 w-6 text-purple-600" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     CPA
                   </p>
                   <p className="text-lg font-semibold">
                     {client?.cpa_name || "Not Assigned"}
                   </p>
+                  {client?.cpa_email && (
+                    <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                      <Mail className="h-3.5 w-3.5" />
+                      {client.cpa_email}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

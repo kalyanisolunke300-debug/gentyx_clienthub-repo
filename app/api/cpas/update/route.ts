@@ -78,6 +78,13 @@ async function handleUpdate(req: Request) {
       }
     }
 
+    // 📧 GET OLD EMAIL BEFORE UPDATE (for syncing Users table)
+    const oldEmailResult = await pool.request()
+      .input("cpaId", sql.Int, cpa_id)
+      .query(`SELECT email FROM cpa_centers WHERE cpa_id = @cpaId`);
+    const oldEmail = oldEmailResult.recordset[0]?.email;
+
+    // Update cpa_centers table
     await pool.request()
       .input("id", sql.Int, cpa_id)
       .input("name", sql.VarChar, actualName)
@@ -91,6 +98,19 @@ async function handleUpdate(req: Request) {
             updated_at = GETDATE()
         WHERE cpa_id = @id
       `);
+
+    // 📧 SYNC EMAIL TO USERS TABLE (for login credentials)
+    if (email && email.trim() && oldEmail && email.toLowerCase() !== oldEmail.toLowerCase()) {
+      await pool.request()
+        .input("oldEmail", sql.NVarChar(255), oldEmail)
+        .input("newEmail", sql.NVarChar(255), email)
+        .query(`
+          UPDATE dbo.Users 
+          SET email = @newEmail 
+          WHERE email = @oldEmail AND role = 'CPA'
+        `);
+      console.log(`✅ CPA login email updated from ${oldEmail} to ${email}`);
+    }
 
     return NextResponse.json({ success: true, message: "CPA updated successfully" });
   } catch (err: any) {
