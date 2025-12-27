@@ -20,6 +20,14 @@ export default function ClientMessages() {
     }
   }, [role, currentClientId]);
 
+  // Mark messages as read when this page loads
+  useEffect(() => {
+    if (clientId && typeof window !== "undefined") {
+      const now = new Date();
+      localStorage.setItem(`clienthub_messages_read_${clientId}`, now.toISOString());
+    }
+  }, [clientId]);
+
   // Fetch client data to get service center info
   const { data: client } = useSWR(
     clientId ? ["client", clientId] : null,

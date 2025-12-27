@@ -217,9 +217,15 @@ export default function InboxPage() {
         allMessages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         return { data: allMessages }
       }
-      return fetchMessages({
+      // For CLIENT and ADMIN, fetch messages and return them
+      const response = await fetchMessages({
         clientId: role === "CLIENT" ? currentClientId : undefined
       })
+      // Sort messages by date descending (newest first)
+      const sortedData = [...(response?.data || [])].sort((a: any, b: any) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      return { data: sortedData }
     },
     { refreshInterval: 15000 } // Auto-refresh every 15 seconds
   )

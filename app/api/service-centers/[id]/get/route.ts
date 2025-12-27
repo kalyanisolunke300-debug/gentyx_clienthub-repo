@@ -5,11 +5,12 @@ import sql from "mssql";
 
 export async function GET(req: Request, { params }: any) {
   try {
-    const id = Number(params.id);
+    const { id } = await params;
+    const numericId = Number(id);
     const pool = await getDbPool();
 
     const center = await pool.request()
-      .input("id", sql.Int, id)
+      .input("id", sql.Int, numericId)
       .query(`
         SELECT 
           service_center_id AS id, 
@@ -22,24 +23,9 @@ export async function GET(req: Request, { params }: any) {
         WHERE service_center_id = @id;
       `);
 
-    const users = await pool.request()
-      .input("id", sql.Int, id)
-      .query(`
-        SELECT
-          id,
-          user_name AS name,
-          user_email AS email,
-          user_role AS role
-        FROM dbo.service_center_users
-        WHERE center_id = @id;
-      `);
-
     return NextResponse.json({
       success: true,
-      data: {
-        ...center.recordset[0],
-        users: users.recordset
-      }
+      data: center.recordset[0]
     });
 
   } catch (err: any) {

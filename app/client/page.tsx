@@ -181,8 +181,13 @@ export default function ClientHome() {
 
   const recentMessages = useMemo(() => {
     if (!Array.isArray(messages)) return [];
-    return messages
-      .filter((m: any) => m.senderRole === "ADMIN" || m.sender_role === "ADMIN")
+    // Sort by time (newest first) and take top 3
+    return [...messages]
+      .sort((a: any, b: any) => {
+        const aTime = new Date(a.createdAt || a.created_at).getTime();
+        const bTime = new Date(b.createdAt || b.created_at).getTime();
+        return bTime - aTime; // Descending - newest first
+      })
       .slice(0, 3);
   }, [messages]);
 
@@ -205,17 +210,47 @@ export default function ClientHome() {
     return docs.length;
   }, [docs]);
 
-  // Only count recent messages from admin (last 24 hours as "unread")
+  // Track last time user read messages using localStorage
+  const [lastReadTime, setLastReadTime] = useState<Date | null>(null);
+
+  // Load last read time from localStorage on mount
+  useEffect(() => {
+    if (clientId && typeof window !== "undefined") {
+      const stored = localStorage.getItem(`clienthub_messages_read_${clientId}`);
+      if (stored) {
+        setLastReadTime(new Date(stored));
+      }
+    }
+  }, [clientId]);
+
+  // Mark messages as read when user navigates to messages
+  const markMessagesAsRead = () => {
+    if (clientId && typeof window !== "undefined") {
+      const now = new Date();
+      localStorage.setItem(`clienthub_messages_read_${clientId}`, now.toISOString());
+      setLastReadTime(now);
+    }
+  };
+
+  // Count unread messages (messages received after last read time)
   const unreadMessagesCount = useMemo(() => {
     if (!Array.isArray(messages)) return 0;
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    // If never read, count messages from last 24 hours
+    const cutoffTime = lastReadTime || (() => {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      return oneDayAgo;
+    })();
+
     return messages.filter((m: any) => {
-      const isFromAdmin = m.senderRole === "ADMIN" || m.sender_role === "ADMIN";
+      // Only count messages FROM others (not from CLIENT)
+      const senderRole = m.senderRole || m.sender_role;
+      const isFromOthers = senderRole !== "CLIENT";
       const msgDate = new Date(m.createdAt || m.created_at);
-      return isFromAdmin && msgDate > oneDayAgo;
+      return isFromOthers && msgDate > cutoffTime;
     }).length;
-  }, [messages]);
+  }, [messages, lastReadTime]);
 
   if (!clientId) {
     return (
@@ -430,13 +465,16 @@ export default function ClientHome() {
 
         <Card
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => router.push("/client/messages")}
+          onClick={() => {
+            markMessagesAsRead();
+            router.push("/client/messages");
+          }}
         >
           <CardContent className="pt-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Messages
+                  Unread Messages
                 </p>
                 <p className="text-3xl font-bold text-foreground mt-1">
                   {unreadMessagesCount}
@@ -462,7 +500,10 @@ export default function ClientHome() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/client/messages")}
+              onClick={() => {
+                markMessagesAsRead();
+                router.push("/client/messages");
+              }}
             >
               View All
             </Button>
@@ -477,30 +518,49 @@ export default function ClientHome() {
                 <Button
                   variant="link"
                   size="sm"
-                  onClick={() => router.push("/client/messages")}
+                  onClick={() => {
+                    markMessagesAsRead();
+                    router.push("/client/messages");
+                  }}
                   className="mt-1"
                 >
                   Send a message to your admin
                 </Button>
               </div>
             ) : (
-              recentMessages.map((msg: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="p-3 rounded-lg bg-muted/50 border hover:bg-muted/70 transition-colors cursor-pointer"
-                  onClick={() => router.push("/client/messages")}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium line-clamp-2">{msg.body}</p>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatRelativeTime(msg.createdAt)}
-                    </span>
+              recentMessages.map((msg: any, idx: number) => {
+                const senderRole = msg.senderRole || msg.sender_role;
+                const isFromClient = senderRole === "CLIENT";
+                const senderLabel = isFromClient
+                  ? "You"
+                  : senderRole === "ADMIN"
+                    ? "Admin"
+                    : senderRole === "SERVICE_CENTER"
+                      ? "Service Center"
+                      : senderRole === "CPA"
+                        ? "CPA"
+                        : senderRole;
+                return (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-muted/50 border hover:bg-muted/70 transition-colors cursor-pointer"
+                    onClick={() => {
+                      markMessagesAsRead();
+                      router.push("/client/messages");
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium line-clamp-2">{msg.body}</p>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatRelativeTime(msg.createdAt || msg.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {isFromClient ? "Sent by: " : "From: "}{senderLabel}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    From: Admin
-                  </p>
-                </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </Card>

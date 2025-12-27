@@ -163,6 +163,9 @@ export default function ClientTasks() {
 
   // Update task status
   const handleStatusChange = async (taskId: number, newStatus: string) => {
+    // Optimistic update - update UI immediately
+    const previousTasks = data?.data || [];
+
     try {
       const res = await fetch("/api/tasks/update", {
         method: "POST",
@@ -173,25 +176,36 @@ export default function ClientTasks() {
         }),
       });
 
-      if (res.ok) {
+      const json = await res.json();
+
+      // Check both HTTP status and response body for success
+      if (res.ok && json.success !== false) {
         toast({
           title: "Status Updated",
           description: `Task status changed to "${newStatus}"`,
         });
+        // Refresh to get the latest data
         refreshTasks();
       } else {
+        const errorMsg = json.error || "Failed to update task status";
+        console.error("Task update failed:", errorMsg);
         toast({
           title: "Error",
-          description: "Failed to update task status",
+          description: errorMsg,
           variant: "destructive",
         });
+        // Refresh to revert optimistic update
+        refreshTasks();
       }
     } catch (error) {
+      console.error("Task update error:", error);
       toast({
         title: "Error",
-        description: "An error occurred",
+        description: "An error occurred while updating task status",
         variant: "destructive",
       });
+      // Refresh to revert optimistic update
+      refreshTasks();
     }
   };
 
@@ -207,25 +221,33 @@ export default function ClientTasks() {
         }),
       });
 
-      if (res.ok) {
+      const json = await res.json();
+
+      // Check both HTTP status and response body for success
+      if (res.ok && json.success !== false) {
         toast({
           title: "Status Updated",
           description: `Subtask status changed to "${newStatus}"`,
         });
         refreshStages();
       } else {
+        const errorMsg = json.error || "Failed to update subtask status";
+        console.error("Subtask update failed:", errorMsg);
         toast({
           title: "Error",
-          description: "Failed to update subtask status",
+          description: errorMsg,
           variant: "destructive",
         });
+        refreshStages();
       }
     } catch (error) {
+      console.error("Subtask update error:", error);
       toast({
         title: "Error",
-        description: "An error occurred",
+        description: "An error occurred while updating subtask status",
         variant: "destructive",
       });
+      refreshStages();
     }
   };
 
@@ -300,7 +322,6 @@ export default function ClientTasks() {
 
   const cols: Column<TaskRow>[] = [
     { key: "title", header: "Task" },
-    { key: "stage", header: "Stage" },
     {
       key: "dueDate",
       header: "Due Date",

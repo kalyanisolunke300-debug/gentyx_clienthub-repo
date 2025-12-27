@@ -182,16 +182,29 @@ export default function AdminDashboard() {
   // ---------- KPI VALUES ----------
 
   const totalClients = clients?.total ?? clientRows.length;
-  const activeOnboarding = clientRows.filter((c) => c.status === "In Progress").length;
-  const inProgressTasks = taskRows.filter(
-    (t) => t.status === "In Review" || t.status === "Pending" || t.status === "In Progress"
-  ).length;
 
-  const now = new Date();
+  // Active Onboarding: Clients with status "In Progress" (case-insensitive)
+  const activeOnboarding = clientRows.filter((c) => {
+    const status = (c.status || "").toLowerCase();
+    return status === "in progress" || status === "active";
+  }).length;
+
+  // Tasks In Progress: Only tasks with "In Progress" status
+  const inProgressTasks = taskRows.filter((t) => {
+    const status = (t.status || "").toLowerCase();
+    return status === "in progress";
+  }).length;
+
+  // Overdue Tasks: Tasks past due date that aren't completed/approved
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of today for accurate comparison
+
   const overdueTasks = taskRows.filter((t) => {
     if (!t.dueDate) return false;
     const due = new Date(t.dueDate);
-    return due < now && t.status !== "Approved" && t.status !== "Completed";
+    due.setHours(23, 59, 59, 999); // End of due date
+    const status = (t.status || "").toLowerCase();
+    return due < today && status !== "approved" && status !== "completed";
   }).length;
 
 
@@ -268,7 +281,7 @@ export default function AdminDashboard() {
       value: totalClients,
       icon: Users,
       color: "text-blue-500",
-      helper: "View all onboarded clients",
+      helper: "All registered clients",
       onClick: () => router.push("/admin/clients"),
     },
     {
@@ -276,7 +289,7 @@ export default function AdminDashboard() {
       value: activeOnboarding,
       icon: UserCheck,
       color: "text-emerald-500",
-      helper: "Clients currently in onboarding",
+      helper: "Clients with onboarding in progress",
       onClick: () => router.push("/admin/clients?status=active"),
     },
     {
@@ -284,7 +297,7 @@ export default function AdminDashboard() {
       value: inProgressTasks,
       icon: ListChecks,
       color: "text-amber-500",
-      helper: "Tasks currently being worked on",
+      helper: "Active tasks requiring action",
       onClick: () => router.push("/admin/tasks?status=in-progress"),
     },
     {
@@ -292,7 +305,7 @@ export default function AdminDashboard() {
       value: overdueTasks,
       icon: Clock,
       color: "text-red-500",
-      helper: "Tasks past their due date",
+      helper: "Past due date, needs attention",
       onClick: () => router.push("/admin/tasks?filter=overdue"),
     },
   ];
@@ -331,8 +344,20 @@ export default function AdminDashboard() {
     {
       key: "dueDate",
       header: "Due",
-      render: (r) =>
-        r.dueDate ? new Date(r.dueDate).toLocaleDateString() : "-",
+      render: (r) => {
+        if (!r.dueDate) return <span className="text-muted-foreground">-</span>;
+        const dueDate = new Date(r.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const status = (r.status || "").toLowerCase();
+        const isOverdue = dueDate < today && status !== "completed" && status !== "approved";
+        return (
+          <span className={isOverdue ? "text-red-600 font-medium" : ""}>
+            {dueDate.toLocaleDateString()}
+            {isOverdue && <span className="ml-1 text-xs">(Overdue)</span>}
+          </span>
+        );
+      },
     },
     {
       key: "status",

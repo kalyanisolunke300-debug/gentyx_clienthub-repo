@@ -12,8 +12,15 @@ import {
 } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
 import { useUIStore } from "@/store/ui-store";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { StatusPill } from "@/components/widgets/status-pill";
 import { ProgressRing } from "@/components/widgets/progress-ring";
@@ -22,6 +29,25 @@ import type { ClientProfile } from "@/types";
 export default function AdminClientsList() {
   const { page, setPage, pageSize, q, setQ } = useServerTableState();
   const [clientPageSize, setClientPageSize] = useState(5);
+  const searchParams = useSearchParams();
+
+  // Read status filter from URL, default to "ALL"
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  // Initialize filter from URL on mount
+  useEffect(() => {
+    const urlStatus = searchParams.get("status");
+    if (urlStatus) {
+      // Map URL param to filter value
+      if (urlStatus === "active" || urlStatus === "In Progress") {
+        setStatusFilter("In Progress");
+      } else if (urlStatus === "completed" || urlStatus === "Completed") {
+        setStatusFilter("Completed");
+      } else if (urlStatus === "not-started" || urlStatus === "Not Started") {
+        setStatusFilter("Not Started");
+      }
+    }
+  }, [searchParams]);
 
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
@@ -33,15 +59,30 @@ export default function AdminClientsList() {
     { keepPreviousData: true }
   );
 
+  const allClientRows: ClientProfile[] = data?.data || [];
 
-  const clientRows: ClientProfile[] = data?.data || [];
+  // Apply status filter
+  const clientRows = statusFilter === "ALL"
+    ? allClientRows
+    : allClientRows.filter((c) => {
+      const clientStatus = (c.status || "").toLowerCase();
+      const filterValue = statusFilter.toLowerCase();
+      return clientStatus === filterValue;
+    });
+
   // ---- Client Pagination Calculations ----
-  const clientTotalItems = data?.total || clientRows.length;
+  const clientTotalItems = clientRows.length;
 
   const clientTotalPages = Math.ceil(clientTotalItems / clientPageSize);
 
-  const clientStart = (page - 1) * clientPageSize + 1;
+  const clientStart = clientTotalItems > 0 ? (page - 1) * clientPageSize + 1 : 0;
   const clientEnd = Math.min(page * clientPageSize, clientTotalItems);
+
+  // Paginate filtered rows
+  const paginatedRows = clientRows.slice(
+    (page - 1) * clientPageSize,
+    page * clientPageSize
+  );
 
   // ---------- TABLE COLUMNS ----------
   const cols: Column<ClientProfile>[] = [
@@ -60,11 +101,11 @@ export default function AdminClientsList() {
       header: "Progress",
       render: (row) => (
         <div className="flex items-center gap-2">
-        <ProgressRing
-          value={row.progress ?? 0}
-          completedStages={row.completed_stages}
-          totalStages={row.total_stages}
-        />
+          <ProgressRing
+            value={row.progress ?? 0}
+            completedStages={row.completed_stages}
+            totalStages={row.total_stages}
+          />
 
         </div>
       ),
@@ -97,13 +138,47 @@ export default function AdminClientsList() {
         </div>
       </div>
 
-      {/* ---------- SEARCH BAR ---------- */}
-      <TableToolbar q={q} setQ={setQ} />
+      {/* ---------- SEARCH & FILTERS ---------- */}
+      <div className="flex flex-wrap items-center gap-3">
+        <TableToolbar q={q} setQ={setQ} />
+
+        {/* Status Filter */}
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Status</SelectItem>
+            <SelectItem value="Not Started">Not Started</SelectItem>
+            <SelectItem value="In Progress">In Progress</SelectItem>
+            <SelectItem value="Completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {statusFilter !== "ALL" && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setStatusFilter("ALL");
+              setPage(1);
+            }}
+          >
+            Clear Filter
+          </Button>
+        )}
+      </div>
 
       {/* ---------- CLIENTS TABLE ---------- */}
       <DataTable
         columns={cols}
-        rows={clientRows}
+        rows={paginatedRows}
         onRowAction={(row: ClientProfile) => (
           <div className="flex gap-2">
             <Button

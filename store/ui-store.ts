@@ -17,6 +17,11 @@ type UIState = {
   _hasHydrated: boolean;
   setHasHydrated: () => void;
 
+  // SIDEBAR COLLAPSE STATE
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+
   // CLIENT CONTEXT
   currentClientId?: string;
   setCurrentClientId: (id?: string) => void;
@@ -60,6 +65,11 @@ export const useUIStore = create<UIState>()(
       // HYDRATION CONTROL
       _hasHydrated: false,
       setHasHydrated: () => set({ _hasHydrated: true }),
+
+      // SIDEBAR COLLAPSE
+      sidebarCollapsed: false,
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
 
       // CLIENT CONTEXT
       currentClientId: undefined,
@@ -108,12 +118,13 @@ export const useUIStore = create<UIState>()(
     {
       name: "clienthub-ui",
 
-      // Only store role (avoid saving dev tools/settings)
+      // Only store role and sidebar state (avoid saving dev tools/settings)
       partialize: (state) => ({
         role: state.role,
         currentClientId: state.currentClientId,
         currentServiceCenterId: state.currentServiceCenterId,
         currentCpaId: state.currentCpaId,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
 
       // Hydration callback → fixes flicker

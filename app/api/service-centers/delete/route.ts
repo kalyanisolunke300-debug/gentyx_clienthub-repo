@@ -17,15 +17,7 @@ export async function DELETE(req: Request) {
 
     const pool = await getDbPool();
 
-    // 1️⃣ Delete users belonging to this service center
-    await pool.request()
-      .input("id", sql.Int, id)
-      .query(`
-        DELETE FROM dbo.service_center_users
-        WHERE center_id = @id;
-      `);
-
-    // 2️⃣ Now delete the service center
+    // Delete the service center
     await pool.request()
       .input("id", sql.Int, id)
       .query(`

@@ -16,9 +16,10 @@ import { StatusPill } from "@/components/widgets/status-pill";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { mutate } from "swr";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ClientTaskModal } from "@/components/widgets/client-task-modal";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { AlertCircle } from "lucide-react";
 
 
 const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"] as const;
@@ -50,6 +51,7 @@ type TaskRow = {
 
 export default function AdminTasksPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [openClientTasks, setOpenClientTasks] = useState(false);
   const [selectedClientTasks, setSelectedClientTasks] = useState<any[]>([]);
   const [selectedClientName, setSelectedClientName] = useState("");
@@ -57,8 +59,22 @@ export default function AdminTasksPage() {
   const [filterTaskType, setFilterTaskType] = useState<"ALL" | "ONBOARDING" | "ASSIGNED">("ALL");
   const [filterAssignedRole, setFilterAssignedRole] = useState<"ALL" | "CLIENT" | "SERVICE_CENTER" | "CPA">("ALL");
   const [filterDue, setFilterDue] = useState<"ALL" | "WITH_DUE" | "OVERDUE" | "CUSTOM">("ALL");
+  const [filterStatus, setFilterStatus] = useState<"ALL" | "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED">("ALL");
   const [dueFrom, setDueFrom] = useState<string | null>(null);
   const [dueTo, setDueTo] = useState<string | null>(null);
+
+  // Initialize filters from URL on mount
+  useEffect(() => {
+    const urlFilter = searchParams.get("filter");
+    const urlStatus = searchParams.get("status");
+
+    if (urlFilter === "overdue") {
+      setFilterDue("OVERDUE");
+    }
+    if (urlStatus === "in-progress") {
+      setFilterStatus("IN_PROGRESS");
+    }
+  }, [searchParams]);
 
   const { toast } = useToast();
   const { page, setPage, pageSize, setPageSize, q, setQ } = useServerTableState();
@@ -95,14 +111,23 @@ export default function AdminTasksPage() {
       render: (row) => row.assignedRole || "CLIENT",
     },
 
-    // ✅ NEW DUE DATE COLUMN (INSERTED HERE)
+    // ✅ DUE DATE COLUMN WITH OVERDUE STYLING
     {
       key: "dueDate",
       header: "Due",
-      render: (row) =>
-        row.dueDate
-          ? new Date(row.dueDate).toLocaleDateString()
-          : "-",
+      render: (row) => {
+        if (!row.dueDate) return <span className="text-muted-foreground">-</span>;
+        const dueDate = new Date(row.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isOverdue = dueDate < today && row.status !== "Completed";
+        return (
+          <span className={isOverdue ? "text-red-600 font-medium" : ""}>
+            {dueDate.toLocaleDateString()}
+            {isOverdue && <span className="ml-1 text-xs">(Overdue)</span>}
+          </span>
+        );
+      },
     },
 
     {
@@ -271,6 +296,18 @@ export default function AdminTasksPage() {
       if (toDate && taskDue > toDate) return false;
     }
 
+    // STATUS FILTER
+    if (filterStatus === "IN_PROGRESS") {
+      // Show only tasks with "In Progress" status
+      if (task.status !== "In Progress") return false;
+    }
+    if (filterStatus === "NOT_STARTED") {
+      if (task.status !== "Not Started") return false;
+    }
+    if (filterStatus === "COMPLETED") {
+      if (task.status !== "Completed") return false;
+    }
+
     return true;
   });
 
@@ -372,6 +409,25 @@ export default function AdminTasksPage() {
           </SelectContent>
         </Select>
 
+        {/* STATUS FILTER */}
+        <Select
+          value={filterStatus}
+          onValueChange={(v) => {
+            setFilterStatus(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Status</SelectItem>
+            <SelectItem value="NOT_STARTED">Not Started</SelectItem>
+            <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+            <SelectItem value="COMPLETED">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+
         {/* CUSTOM DATE RANGE */}
         {filterDue === "CUSTOM" && (
           <div className="flex items-center gap-2">
@@ -397,6 +453,23 @@ export default function AdminTasksPage() {
           </div>
         )}
 
+        {/* OVERDUE COUNT BADGE */}
+        {(() => {
+          const overdueCount = allTasks.filter((t) => {
+            if (!t.dueDate || t.status === "Completed") return false;
+            const dueDate = new Date(t.dueDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return dueDate < today;
+          }).length;
+          return overdueCount > 0 ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 rounded-full text-sm font-medium">
+              <AlertCircle className="h-4 w-4" />
+              {overdueCount} overdue
+            </div>
+          ) : null;
+        })()}
+
         {/* CLEAR */}
         <Button
           size="sm"
@@ -405,13 +478,14 @@ export default function AdminTasksPage() {
             setFilterTaskType("ALL");
             setFilterAssignedRole("ALL");
             setFilterDue("ALL");
+            setFilterStatus("ALL");
             setDueFrom(null);
             setDueTo(null);
             setQ("");
             setPage(1);
           }}
         >
-          Clear
+          Clear Filters
         </Button>
       </div>
 

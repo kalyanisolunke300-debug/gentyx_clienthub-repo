@@ -80,6 +80,9 @@ import { Sidebar } from "./sidebar";
 import { RightDrawer } from "./right-drawer";
 import { RoleBadge } from "@/components/widgets/role-badge";
 import { useUIStore } from "@/store/ui-store";
+import { PanelLeftClose, PanelLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /* -------------------------------------------------------
    Helper: read cookie on client
@@ -99,6 +102,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const hasHydrated = useUIStore((s) => s._hasHydrated);
   const setRole = useUIStore((s) => s.setRole);
   const setCurrentClientId = useUIStore((s) => s.setCurrentClientId);
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
 
   /* -------------------------------------------------------
      Hydrate Zustand from cookies (runs once on mount)
@@ -132,26 +137,69 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen w-screen flex overflow-hidden">
       {/* ---------- FIXED SIDEBAR WITH CLIENTHUB LOGO ---------- */}
-      <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-64 border-r bg-sidebar z-30 flex-col overflow-hidden">
+      <aside
+        className={cn(
+          "hidden md:flex fixed left-0 top-0 bottom-0 border-r bg-sidebar z-30 flex-col overflow-hidden transition-all duration-300 ease-in-out",
+          sidebarCollapsed ? "w-16" : "w-64"
+        )}
+      >
         {/* LOGO SECTION */}
-        <div className="h-24 flex flex-col items-center justify-center px-4 border-b bg-sidebar">
-          <img
-            src="/images/imagepng.png"
-            alt="ClientHub Logo"
-            className="w-36 h-auto object-contain"
-          />
+        <div className="h-24 flex flex-col items-center justify-center px-2 border-b bg-sidebar">
+          {sidebarCollapsed ? (
+            <img
+              src="/images/imagepng.png"
+              alt="Logo"
+              className="w-10 h-10 object-contain"
+            />
+          ) : (
+            <img
+              src="/images/imagepng.png"
+              alt="ClientHub Logo"
+              className="w-36 h-auto object-contain"
+            />
+          )}
         </div>
 
         {/* SIDEBAR MENU */}
-        <div className="flex-1">
-          <Sidebar />
+        <div className="flex-1 overflow-hidden">
+          <Sidebar collapsed={sidebarCollapsed} />
+        </div>
+
+        {/* TOGGLE BUTTON */}
+        <div className="p-2 border-t bg-sidebar">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-center text-sidebar-foreground hover:bg-sidebar-accent"
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeft className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4 mr-2" />
+                <span className="text-xs">Collapse</span>
+              </>
+            )}
+          </Button>
         </div>
       </aside>
 
       {/* ---------- MAIN CONTENT ---------- */}
-      <div className="flex flex-col flex-1 ml-0 md:ml-64">
+      <div
+        className={cn(
+          "flex flex-col flex-1 transition-all duration-300 ease-in-out",
+          sidebarCollapsed ? "ml-0 md:ml-16" : "ml-0 md:ml-64"
+        )}
+      >
         {/* TOP NAV */}
-        <div className="fixed top-0 left-0 md:left-64 right-0 z-40">
+        <div
+          className={cn(
+            "fixed top-0 right-0 z-40 transition-all duration-300 ease-in-out",
+            sidebarCollapsed ? "left-0 md:left-16" : "left-0 md:left-64"
+          )}
+        >
           <TopNav />
         </div>
 

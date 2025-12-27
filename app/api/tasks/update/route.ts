@@ -32,17 +32,14 @@ export async function POST(req: Request) {
 
     const clientId = clientResult.recordset[0]?.client_id;
 
-    if (!clientId) {
-      return NextResponse.json(
-        { success: false, error: "Client not found for this task" },
-        { status: 404 }
-      );
-    }
+    // Note: clientId could be 0 or null in some edge cases
+    // We'll proceed with update even if clientId is not found
+    // but skip progress calculation
 
     // -----------------------------------------------------
     // 2️⃣ Update the task
     // -----------------------------------------------------
-    await pool.request()
+    const updateResult = await pool.request()
       .input("taskId", sql.Int, taskId)
       .input("taskTitle", sql.VarChar(255), taskTitle)
       .input("dueDate", sql.DateTime, dueDate || null)
@@ -59,19 +56,39 @@ export async function POST(req: Request) {
         WHERE task_id = @taskId;
       `);
 
+    // Check if any row was updated
+    if (updateResult.rowsAffected[0] === 0) {
+      return NextResponse.json(
+        { success: false, error: "Task not found or no changes made" },
+        { status: 404 }
+      );
+    }
+
     // -----------------------------------------------------
     // 3️⃣ Recalculate the client's progress (MAIN LOGIC)
     // -----------------------------------------------------
-    await calculateClientProgress(clientId);
+    if (clientId) {
+      try {
+        await calculateClientProgress(clientId);
+      } catch (progressError) {
+        console.error("Progress calculation failed:", progressError);
+        // Don't fail the entire request - task was already updated
+      }
 
-    // Audit log
-    const isCompleted = status === "Completed";
-    logAudit({
-      clientId,
-      action: isCompleted ? AuditActions.TASK_COMPLETED : AuditActions.TASK_UPDATED,
-      actorRole: "ADMIN",
-      details: taskTitle || `Task #${taskId}`,
-    });
+      // Audit log
+      try {
+        const isCompleted = status === "Completed";
+        logAudit({
+          clientId,
+          action: isCompleted ? AuditActions.TASK_COMPLETED : AuditActions.TASK_UPDATED,
+          actorRole: "CLIENT",
+          details: taskTitle || `Task #${taskId}`,
+        });
+      } catch (auditError) {
+        console.error("Audit log failed:", auditError);
+        // Don't fail the entire request
+      }
+    }
 
     return NextResponse.json({ success: true });
 

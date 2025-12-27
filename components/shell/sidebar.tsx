@@ -21,7 +21,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+}
+
+export function Sidebar({ collapsed = false }: SidebarProps) {
   const role = useUIStore((s) => s.role);
   const hasHydrated = useUIStore((s) => s._hasHydrated);
   const pathname = usePathname();
@@ -38,8 +42,8 @@ export function Sidebar() {
     { href: "/admin/service-centers", label: "Service Centers", icon: Building2 },
     { href: "/admin/cpas", label: "CPAs", icon: Landmark },
     { href: "/admin/messages", label: "Messages", icon: Mail },
-    { href: "/admin/reports", label: "Reports", icon: BarChart2 },
     { href: "/admin/email-templates", label: "Email Templates", icon: Mail },
+    { href: "/admin/reports", label: "Reports", icon: BarChart2 },
     // { href: "/admin/documents", label: "Documents", icon: FileText },
   ];
 
@@ -124,15 +128,17 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
+              title={collapsed ? label : undefined}
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+                collapsed && "justify-center px-2",
                 active
                   ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
             >
-              <Icon className="size-4" />
-              <span>{label}</span>
+              <Icon className="size-4 shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
             </Link>
           );
         })}
@@ -141,11 +147,15 @@ export function Sidebar() {
       <div className="pt-2 mt-auto shrink-0">
         <Button
           variant="ghost"
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className={cn(
+            "w-full text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            collapsed ? "justify-center px-2" : "justify-start"
+          )}
           onClick={handleLogout}
+          title={collapsed ? "Logout" : undefined}
         >
-          <LogOut className="mr-2 size-4" />
-          Logout
+          <LogOut className={cn("size-4", !collapsed && "mr-2")} />
+          {!collapsed && "Logout"}
         </Button>
       </div>
     </div>

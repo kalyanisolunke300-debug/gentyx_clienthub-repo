@@ -108,10 +108,14 @@ export default function CPATasksPage() {
         }
     }
 
-    const formatDueDate = (dateString: string | null) => {
-        if (!dateString) return "No due date"
+    const formatDueDate = (dateString: string | null, status?: string) => {
+        if (!dateString) return { text: "No due date", isOverdue: false }
         const date = new Date(dateString)
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const isOverdue = date < today && status !== "Completed"
+        const text = date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        return { text, isOverdue }
     }
 
     const getStatusIcon = (status: string) => {
@@ -270,10 +274,19 @@ export default function CPATasksPage() {
                                                     </span>
                                                 </td>
                                                 <td className="py-4 pr-4">
-                                                    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                                        <Calendar className="h-4 w-4" />
-                                                        {formatDueDate(dueDate)}
-                                                    </span>
+                                                    {(() => {
+                                                        const { text, isOverdue } = formatDueDate(dueDate, task.status)
+                                                        return (
+                                                            <span className={cn(
+                                                                "flex items-center gap-1.5 text-sm",
+                                                                isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"
+                                                            )}>
+                                                                <Calendar className="h-4 w-4" />
+                                                                {text}
+                                                                {isOverdue && <span className="text-xs">(Overdue)</span>}
+                                                            </span>
+                                                        )
+                                                    })()}
                                                 </td>
                                                 <td className="py-4 pr-4">
                                                     <Select
