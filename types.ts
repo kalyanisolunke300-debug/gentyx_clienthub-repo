@@ -21,6 +21,10 @@ export type ClientProfile = {
   service_center_name?: string | null;
   cpa_name?: string | null;
 
+  // Email addresses of the assigned Service Center and CPA
+  service_center_email?: string | null;
+  cpa_email?: string | null;
+
   // Optional extras already returned by your API
   stage_id?: number;
   stage_name?: string;

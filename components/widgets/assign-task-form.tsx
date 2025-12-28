@@ -7,10 +7,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   assignTask,
   fetchClients,
+  fetchEmailTemplates,
 } from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -32,7 +35,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Mail, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useUIStore } from "@/store/ui-store";
@@ -47,7 +50,7 @@ const Schema = z.object({
   title: z.string().min(2, "Title is required"),
   clientId: z.string().min(1, "Client is required"),
   assigneeRole: z.enum(["CLIENT", "SERVICE_CENTER", "CPA"]),
-  dueDate: z.string().optional(),
+  dueDate: z.string().min(1, "Due date is required"), // Made mandatory
 });
 
 /* ======================= FORM ======================= */
@@ -67,9 +70,21 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
 
+  // Email notification states
+  const [sendEmail, setSendEmail] = useState(false);
+  const [selectedEmailTemplate, setSelectedEmailTemplate] = useState("");
+  const [templateEmailData, setTemplateEmailData] = useState({ subject: "", body: "" });
+  const [customEmailSubject, setCustomEmailSubject] = useState("");
+  const [customEmailBody, setCustomEmailBody] = useState("");
+  const [emailMode, setEmailMode] = useState<"template" | "custom">("template");
+
   /* ------------------- LOAD SQL DATA ------------------- */
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })
+  );
+
+  const { data: emailTemplates } = useSWR(["email-templates"], () =>
+    fetchEmailTemplates()
   );
 
   const prefilledClientId = context?.clientId ? String(context.clientId) : "";
@@ -129,6 +144,16 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         return;
       }
 
+      if (!values.dueDate) {
+        toast({
+          title: "Error",
+          description: "Due date is required",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       const payload = {
         taskTitle: values.title,
         clientId: Number(values.clientId),
@@ -163,6 +188,75 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         });
       }
 
+      // Send email notification if enabled
+      const selectedClient = clients?.data?.find(
+        (c: any) => String(c.client_id) === values.clientId
+      );
+
+      if (sendEmail && selectedClient?.primary_contact_email) {
+        let emailSubject = "";
+        let emailBody = "";
+
+        if (emailMode === "template" && selectedEmailTemplate && templateEmailData.subject && templateEmailData.body) {
+          // Use the editable template data (which user may have customized)
+          emailSubject = templateEmailData.subject;
+          emailBody = templateEmailData.body;
+        } else if (emailMode === "custom") {
+          emailSubject = customEmailSubject;
+          emailBody = customEmailBody;
+        }
+
+        if (emailSubject && emailBody) {
+          // Replace template variables
+          emailSubject = emailSubject
+            .replace(/\{\{clientName\}\}/gi, selectedClient.client_name || "")
+            .replace(/\{\{Client_Name\}\}/gi, selectedClient.client_name || "")
+            .replace(/\{\{taskTitle\}\}/gi, values.title)
+            .replace(/\{\{dueDate\}\}/gi, values.dueDate);
+
+          emailBody = emailBody
+            .replace(/\{\{clientName\}\}/gi, selectedClient.client_name || "")
+            .replace(/\{\{Client_Name\}\}/gi, selectedClient.client_name || "")
+            .replace(/\{\{taskTitle\}\}/gi, values.title)
+            .replace(/\{\{dueDate\}\}/gi, values.dueDate)
+            .replace(/\{\{assigneeRole\}\}/gi, values.assigneeRole.replace("_", " "));
+
+          try {
+            const emailRes = await fetch("/api/send-email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                to: selectedClient.primary_contact_email,
+                subject: emailSubject,
+                body: emailBody,
+                clientName: selectedClient.client_name,
+              }),
+            });
+
+            const emailJson = await emailRes.json();
+            if (emailJson.success) {
+              toast({
+                title: "Email Sent",
+                description: `Notification sent to ${selectedClient.primary_contact_email}`,
+              });
+            } else {
+              toast({
+                title: "Email Failed",
+                description: emailJson.error || "Failed to send notification email",
+                variant: "destructive",
+              });
+            }
+          } catch (emailError) {
+            console.error("Email send error:", emailError);
+            toast({
+              title: "Email Failed",
+              description: "Task assigned but email notification failed to send.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
+
       // 🔄 Refresh UI 
       mutate(["tasks"]);
       mutate(["clients"]);
@@ -188,9 +282,10 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   const selectedClientId = form.watch("clientId");
 
   // Get selected client name for display
-  const selectedClientName = clients?.data?.find(
+  const selectedClient = clients?.data?.find(
     (c: any) => String(c.client_id) === selectedClientId
-  )?.client_name;
+  );
+  const selectedClientName = selectedClient?.client_name;
 
   /* ======================= UI ======================= */
   return (
@@ -201,15 +296,22 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         {isEditMode ? "Update Task" : "Assign Task"}
       </h2>
 
-      {/* Title */}
+      {/* Title - Required */}
       <div className="grid gap-2">
-        <Label>Title</Label>
+        <Label>
+          Title <span className="text-red-500">*</span>
+        </Label>
         <Input {...form.register("title")} placeholder="Task title" />
+        {form.formState.errors.title && (
+          <p className="text-xs text-red-500">{form.formState.errors.title.message}</p>
+        )}
       </div>
 
-      {/* ✅ CLIENT DROPDOWN - ALWAYS VISIBLE */}
+      {/* ✅ CLIENT DROPDOWN - ALWAYS VISIBLE - Required */}
       <div className="grid gap-2">
-        <Label>Client Name</Label>
+        <Label>
+          Client Name <span className="text-red-500">*</span>
+        </Label>
 
         <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
           <PopoverTrigger asChild>
@@ -257,11 +359,16 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
             </Command>
           </PopoverContent>
         </Popover>
+        {form.formState.errors.clientId && (
+          <p className="text-xs text-red-500">{form.formState.errors.clientId.message}</p>
+        )}
       </div>
 
-      {/* Assignee Role */}
+      {/* Assignee Role - Required */}
       <div className="grid gap-2">
-        <Label>Assignee Role</Label>
+        <Label>
+          Assignee Role <span className="text-red-500">*</span>
+        </Label>
         <Select
           value={form.watch("assigneeRole")}
           onValueChange={(v) => form.setValue("assigneeRole", v as any)}
@@ -280,14 +387,235 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         </p>
       </div>
 
-      {/* Due Date */}
+      {/* Due Date - Required */}
       <div className="grid gap-2">
-        <Label>Due Date</Label>
+        <Label>
+          Due Date <span className="text-red-500">*</span>
+        </Label>
         <Input
           type="date"
           {...form.register("dueDate")}
           onFocus={(e) => e.currentTarget.showPicker?.()}
         />
+        {form.formState.errors.dueDate && (
+          <p className="text-xs text-red-500">{form.formState.errors.dueDate.message}</p>
+        )}
+      </div>
+
+      {/* Email Notification Section - Optional */}
+      <div className="border rounded-lg p-3 bg-muted/20 mt-2">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id="send-email-notification"
+            checked={sendEmail}
+            onCheckedChange={(checked) => setSendEmail(checked === true)}
+          />
+          <Label htmlFor="send-email-notification" className="flex items-center gap-2 cursor-pointer text-sm">
+            <Mail className="h-4 w-4 text-blue-600" />
+            Send Email Notification
+          </Label>
+          <span className="text-xs text-muted-foreground">(Optional)</span>
+        </div>
+
+        {sendEmail && (
+          <div className="mt-4 space-y-3 border-t pt-3">
+            {/* Email Mode Selection */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={emailMode === "template" ? "default" : "outline"}
+                onClick={() => setEmailMode("template")}
+              >
+                Use Template
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={emailMode === "custom" ? "default" : "outline"}
+                onClick={() => setEmailMode("custom")}
+              >
+                Custom Message
+              </Button>
+            </div>
+
+            {emailMode === "template" ? (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm">Select Email Template</Label>
+                  <Select
+                    value={selectedEmailTemplate}
+                    onValueChange={(value) => {
+                      setSelectedEmailTemplate(value);
+                      // Load template content into editable fields
+                      const template = emailTemplates?.find((t: any) => t.id.toString() === value);
+                      if (template) {
+                        setTemplateEmailData({
+                          subject: template.subject || "",
+                          body: template.body || ""
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {emailTemplates?.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id.toString()}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Editable Template Content */}
+                {selectedEmailTemplate && (
+                  <div className="space-y-3 border rounded-lg p-3 bg-white">
+                    {/* Auto-fill Button */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-blue-700">
+                        <strong>Tip:</strong> Click Auto-Fill to replace variables
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => {
+                          const taskTitle = form.getValues("title");
+                          const dueDate = form.getValues("dueDate");
+                          const assigneeRole = form.getValues("assigneeRole");
+                          setTemplateEmailData((prev) => ({
+                            subject: prev.subject
+                              .replace(/\{\{clientName\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{Client_Name\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{taskTitle\}\}/gi, taskTitle || "")
+                              .replace(/\{\{dueDate\}\}/gi, dueDate || ""),
+                            body: prev.body
+                              .replace(/\{\{clientName\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{Client_Name\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{taskTitle\}\}/gi, taskTitle || "")
+                              .replace(/\{\{dueDate\}\}/gi, dueDate || "")
+                              .replace(/\{\{assigneeRole\}\}/gi, assigneeRole?.replace("_", " ") || "")
+                              .replace(/\{\{Company_Name\}\}/gi, "MySage ClientHub")
+                              .replace(/\{\{Support_Email\}\}/gi, "support@clienthub.com")
+                          }));
+                          toast({ title: "Auto-filled", description: "Variables replaced with actual values" });
+                        }}
+                      >
+                        Auto-Fill
+                      </Button>
+                    </div>
+
+                    {/* Editable Subject */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Subject</Label>
+                      <Input
+                        value={templateEmailData.subject}
+                        onChange={(e) => setTemplateEmailData({ ...templateEmailData, subject: e.target.value })}
+                        placeholder="Email subject..."
+                        className="mt-1"
+                      />
+                    </div>
+
+                    {/* Editable Body */}
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Email Body</Label>
+                      <Textarea
+                        id="template-email-body"
+                        value={templateEmailData.body}
+                        onChange={(e) => setTemplateEmailData({ ...templateEmailData, body: e.target.value })}
+                        placeholder="Email content..."
+                        rows={6}
+                        className="mt-1 font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Quick Insert Variables */}
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { var: "{{clientName}}", label: "Client" },
+                        { var: "{{taskTitle}}", label: "Task" },
+                        { var: "{{dueDate}}", label: "Due" },
+                      ].map((item) => (
+                        <button
+                          key={item.var}
+                          type="button"
+                          className="text-xs px-2 py-0.5 bg-muted border rounded hover:bg-primary/10"
+                          onClick={() => {
+                            const textarea = document.getElementById("template-email-body") as HTMLTextAreaElement;
+                            if (textarea) {
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const newValue = templateEmailData.body.substring(0, start) + item.var + templateEmailData.body.substring(end);
+                              setTemplateEmailData((prev) => ({ ...prev, body: newValue }));
+                            } else {
+                              setTemplateEmailData((prev) => ({ ...prev, body: prev.body + item.var }));
+                            }
+                          }}
+                        >
+                          + {item.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Live Preview */}
+                    <div className="border-t pt-2">
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail className="h-3 w-3" /> Live Preview
+                      </Label>
+                      <div
+                        className="mt-1 p-2 bg-muted/30 rounded text-xs max-h-[120px] overflow-y-auto"
+                        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                        dangerouslySetInnerHTML={{
+                          __html: templateEmailData.body
+                            .replace(/\{\{clientName\}\}/gi, `<span class="bg-yellow-200 px-0.5 rounded">${selectedClient?.client_name || "{{clientName}}"}</span>`)
+                            .replace(/\{\{Client_Name\}\}/gi, `<span class="bg-yellow-200 px-0.5 rounded">${selectedClient?.client_name || "{{Client_Name}}"}</span>`)
+                            .replace(/\{\{taskTitle\}\}/gi, `<span class="bg-blue-200 px-0.5 rounded">${form.getValues("title") || "{{taskTitle}}"}</span>`)
+                            .replace(/\{\{dueDate\}\}/gi, `<span class="bg-green-200 px-0.5 rounded">${form.getValues("dueDate") || "{{dueDate}}"}</span>`)
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm">Email Subject</Label>
+                  <Input
+                    placeholder="New Task Assigned: {{taskTitle}}"
+                    value={customEmailSubject}
+                    onChange={(e) => setCustomEmailSubject(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Email Body</Label>
+                  <Textarea
+                    placeholder="Hi {{clientName}}, a new task has been assigned to you..."
+                    value={customEmailBody}
+                    onChange={(e) => setCustomEmailBody(e.target.value)}
+                    rows={4}
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                  <strong>Variables:</strong> {"{{clientName}}"}, {"{{taskTitle}}"}, {"{{dueDate}}"}, {"{{assigneeRole}}"}
+                </div>
+              </div>
+            )}
+
+            {selectedClient?.primary_contact_email && (
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <Send className="h-3 w-3" />
+                Email will be sent to: {selectedClient.primary_contact_email}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Buttons */}

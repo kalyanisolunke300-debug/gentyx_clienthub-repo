@@ -19,7 +19,7 @@ import {
 
 // Local Components
 import { SortableStageItem } from "./sortable-stage-item";
-import { fetchStagesList, fetchClients } from "@/lib/api";
+import { fetchStagesList, fetchClients, fetchEmailTemplates } from "@/lib/api";
 
 // UI Components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -27,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -40,7 +42,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -72,7 +75,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, ChevronsUpDown, Search, User,
   Settings, Copy, Save, XCircle, LayoutTemplate,
-  Trello, CheckCircle2
+  Trello, CheckCircle2, Mail, Send, FileText, Edit3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -118,6 +121,7 @@ export default function StagesPage() {
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })
   );
+  const { data: emailTemplates } = useSWR(["emailTemplates"], () => fetchEmailTemplates());
 
   const searchParams = useSearchParams();
   const clientIdFromUrl = searchParams.get("clientId");
@@ -143,6 +147,19 @@ export default function StagesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [templatePreviewStages, setTemplatePreviewStages] = useState<any[]>([]);
+
+  // Email Dialog States
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedEmailTemplate, setSelectedEmailTemplate] = useState<string>("");
+  const [emailMode, setEmailMode] = useState<"template" | "manual">("template");
+  const [manualEmailData, setManualEmailData] = useState({ subject: "", body: "" });
+  const [templateEmailData, setTemplateEmailData] = useState({ subject: "", body: "" });
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  // Get selected client details
+  const selectedClient = clients?.data?.find(
+    (c: any) => c.client_id.toString() === selectedClientId
+  );
 
   // Update Subtask Logic
   const updateSubtask = (stageId: string, index: number, updates: Partial<SubTask>) => {
@@ -427,6 +444,86 @@ export default function StagesPage() {
     }
   }
 
+  // --- SEND EMAIL HANDLER ---
+  async function handleSendEmail() {
+    if (!selectedClient) {
+      toast({ title: "Error", description: "No client selected", variant: "destructive" });
+      return;
+    }
+
+    const clientEmail = selectedClient.primary_contact_email;
+    if (!clientEmail) {
+      toast({ title: "Error", description: "Client has no email address", variant: "destructive" });
+      return;
+    }
+
+    let subject = "";
+    let body = "";
+
+    if (emailMode === "template") {
+      if (!selectedEmailTemplate) {
+        toast({ title: "Error", description: "Please select an email template", variant: "destructive" });
+        return;
+      }
+      if (!templateEmailData.subject.trim() || !templateEmailData.body.trim()) {
+        toast({ title: "Error", description: "Subject and body are required", variant: "destructive" });
+        return;
+      }
+      // Use the editable template data (which user may have customized)
+      subject = templateEmailData.subject;
+      body = templateEmailData.body;
+    } else {
+      if (!manualEmailData.subject.trim() || !manualEmailData.body.trim()) {
+        toast({ title: "Error", description: "Subject and body are required", variant: "destructive" });
+        return;
+      }
+      subject = manualEmailData.subject;
+      body = manualEmailData.body;
+    }
+
+    setIsSendingEmail(true);
+
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: clientEmail,
+          subject,
+          body,
+          clientName: selectedClient.client_name,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        toast({
+          title: "Email Sent",
+          description: `Email successfully sent to ${clientEmail}`,
+        });
+        setEmailDialogOpen(false);
+        setSelectedEmailTemplate("");
+        setManualEmailData({ subject: "", body: "" });
+        setTemplateEmailData({ subject: "", body: "" });
+      } else {
+        toast({
+          title: "Failed to send email",
+          description: json.error || "Unknown error occurred",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send email",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  }
+
 
   // --- RENDER ---
   return (
@@ -469,6 +566,16 @@ export default function StagesPage() {
           {selectedClientId && !showTemplateSelector && (
             <Button variant="outline" onClick={() => router.push(`/admin/clients/${selectedClientId}`)} className="gap-2">
               <User className="h-4 w-4" /> View Client
+            </Button>
+          )}
+
+          {selectedClientId && !showTemplateSelector && (
+            <Button
+              variant="outline"
+              onClick={() => setEmailDialogOpen(true)}
+              className="gap-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+            >
+              <Mail className="h-4 w-4" /> Send Email
             </Button>
           )}
 
@@ -616,10 +723,10 @@ export default function StagesPage() {
                       <span key={stage.id} className="flex items-center">
                         <span
                           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
-                              ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
-                              : isInProgress
-                                ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
-                                : "bg-gray-100 border border-gray-300 text-gray-600"
+                            ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
+                            : isInProgress
+                              ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
+                              : "bg-gray-100 border border-gray-300 text-gray-600"
                             }`}
                         >
                           {stage.name}
@@ -871,6 +978,327 @@ export default function StagesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={handleSave}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EMAIL DIALOG */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-600" />
+              Send Email to Client
+            </DialogTitle>
+            <DialogDescription>
+              Send an email to <span className="font-semibold">{selectedClient?.client_name}</span> ({selectedClient?.primary_contact_email})
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={emailMode} onValueChange={(v) => setEmailMode(v as "template" | "manual")} className="mt-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="template" className="gap-2">
+                <FileText className="h-4 w-4" />
+                Use Template
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="gap-2">
+                <Edit3 className="h-4 w-4" />
+                Manual Email
+              </TabsTrigger>
+            </TabsList>
+
+            {/* TEMPLATE MODE */}
+            <TabsContent value="template" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Select Email Template</Label>
+                <Select
+                  value={selectedEmailTemplate}
+                  onValueChange={(value) => {
+                    setSelectedEmailTemplate(value);
+                    // Load template content into editable fields
+                    const template = emailTemplates?.find((t: any) => t.id.toString() === value);
+                    if (template) {
+                      setTemplateEmailData({
+                        subject: template.subject || "",
+                        body: template.body || ""
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {emailTemplates?.map((t: any) => (
+                      <SelectItem key={t.id} value={t.id.toString()}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{t.name}</span>
+                          <span className="text-xs text-muted-foreground">{t.subject}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Editable Template Content */}
+              {selectedEmailTemplate && (
+                <div className="space-y-4">
+                  {/* Auto-fill Button */}
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <span className="text-sm text-blue-700 flex-1">
+                      <strong>Tip:</strong> Click "Auto-Fill" to replace template variables with this client&apos;s information.
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-white border-blue-300 text-blue-700 hover:bg-blue-100"
+                      onClick={() => {
+                        setTemplateEmailData((prev) => ({
+                          subject: prev.subject
+                            .replace(/\{\{clientName\}\}/gi, selectedClient?.client_name || "")
+                            .replace(/\{\{Client_Name\}\}/gi, selectedClient?.client_name || ""),
+                          body: prev.body
+                            .replace(/\{\{clientName\}\}/gi, selectedClient?.client_name || "")
+                            .replace(/\{\{Client_Name\}\}/gi, selectedClient?.client_name || "")
+                            .replace(/\{\{Company_Name\}\}/gi, "MySage ClientHub")
+                            .replace(/\{\{Support_Email\}\}/gi, "support@clienthub.com")
+                        }));
+                        toast({ title: "Auto-filled", description: "Template variables replaced with client info" });
+                      }}
+                    >
+                      Auto-Fill Variables
+                    </Button>
+                  </div>
+
+                  {/* Editable Subject */}
+                  <div className="space-y-2">
+                    <Label htmlFor="template-subject">Subject</Label>
+                    <Input
+                      id="template-subject"
+                      value={templateEmailData.subject}
+                      onChange={(e) => setTemplateEmailData({ ...templateEmailData, subject: e.target.value })}
+                      placeholder="Email subject..."
+                    />
+                  </div>
+
+                  {/* Editable Body */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="template-body">Email Body</Label>
+                      <span className="text-xs text-muted-foreground">HTML supported • Edit as needed</span>
+                    </div>
+                    <Textarea
+                      id="template-body"
+                      value={templateEmailData.body}
+                      onChange={(e) => setTemplateEmailData({ ...templateEmailData, body: e.target.value })}
+                      placeholder="Email content..."
+                      rows={12}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  {/* Variables Helper */}
+                  <div className="bg-muted/50 p-3 rounded-lg border">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Quick Insert Variables (inserts at end)</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { var: "{{clientName}}", label: "Client Name" },
+                        { var: "{{taskTitle}}", label: "Task Title" },
+                        { var: "{{dueDate}}", label: "Due Date" },
+                        { var: "{{stageName}}", label: "Stage Name" },
+                        { var: "{{Company_Name}}", label: "Company" },
+                        { var: "{{Support_Email}}", label: "Support Email" },
+                      ].map((item) => (
+                        <Badge
+                          key={item.var}
+                          variant="outline"
+                          className="bg-background cursor-pointer hover:bg-primary/10 transition-colors"
+                          onClick={() => {
+                            // Get the textarea element
+                            const textarea = document.getElementById("template-body") as HTMLTextAreaElement;
+                            if (textarea) {
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const currentValue = templateEmailData.body;
+                              // Insert at cursor position
+                              const newValue = currentValue.substring(0, start) + item.var + currentValue.substring(end);
+                              setTemplateEmailData((prev) => ({
+                                ...prev,
+                                body: newValue
+                              }));
+                              // Restore focus and cursor position after state update
+                              setTimeout(() => {
+                                textarea.focus();
+                                textarea.setSelectionRange(start + item.var.length, start + item.var.length);
+                              }, 0);
+                            } else {
+                              // Fallback: append to end
+                              setTemplateEmailData((prev) => ({
+                                ...prev,
+                                body: prev.body + item.var
+                              }));
+                            }
+                          }}
+                        >
+                          + {item.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Live Preview */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-muted/50 px-4 py-2 border-b flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Live Preview</span>
+                    </div>
+                    <div className="p-4 bg-white max-h-[300px] overflow-y-auto">
+                      <div
+                        className="text-sm"
+                        style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                        dangerouslySetInnerHTML={{
+                          __html: templateEmailData.body
+                            // Handle all clientName variations
+                            .replace(/\{\{clientName\}\}/gi, `<span class="bg-yellow-200 px-1 rounded font-medium">${selectedClient?.client_name || "{{clientName}}"}</span>`)
+                            .replace(/\{\{Client_Name\}\}/gi, `<span class="bg-yellow-200 px-1 rounded font-medium">${selectedClient?.client_name || "{{Client_Name}}"}</span>`)
+                            // Handle other variables with highlighting
+                            .replace(/\{\{taskTitle\}\}/gi, `<span class="bg-blue-200 px-1 rounded">{{taskTitle}}</span>`)
+                            .replace(/\{\{dueDate\}\}/gi, `<span class="bg-green-200 px-1 rounded">{{dueDate}}</span>`)
+                            .replace(/\{\{stageName\}\}/gi, `<span class="bg-purple-200 px-1 rounded">{{stageName}}</span>`)
+                            .replace(/\{\{Company_Name\}\}/gi, `<span class="bg-orange-200 px-1 rounded">{{Company_Name}}</span>`)
+                            .replace(/\{\{Support_Email\}\}/gi, `<span class="bg-pink-200 px-1 rounded">{{Support_Email}}</span>`)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!selectedEmailTemplate && emailTemplates?.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No Email Templates Found</p>
+                  <p className="text-sm mt-1">Create templates in the Email Templates section first.</p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => router.push("/admin/email-templates")}
+                  >
+                    Go to Email Templates
+                  </Button>
+                </div>
+              )}
+
+              {!selectedEmailTemplate && emailTemplates?.length > 0 && (
+                <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                  <FileText className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">Select a template above to get started</p>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* MANUAL MODE */}
+            <TabsContent value="manual" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="manual-subject">Subject</Label>
+                <Input
+                  id="manual-subject"
+                  value={manualEmailData.subject}
+                  onChange={(e) => setManualEmailData({ ...manualEmailData, subject: e.target.value })}
+                  placeholder="Enter email subject..."
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="manual-body">Email Body</Label>
+                  <span className="text-xs text-muted-foreground">HTML supported</span>
+                </div>
+                <Textarea
+                  id="manual-body"
+                  value={manualEmailData.body}
+                  onChange={(e) => setManualEmailData({ ...manualEmailData, body: e.target.value })}
+                  placeholder="Enter email content..."
+                  rows={10}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              {/* Variables Helper */}
+              <div className="bg-muted/50 p-3 rounded-lg border">
+                <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Quick Insert Variables</div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { var: "{{clientName}}", label: "Client Name" },
+                    { var: "{{taskTitle}}", label: "Task Title" },
+                    { var: "{{dueDate}}", label: "Due Date" },
+                    { var: "{{stageName}}", label: "Stage Name" },
+                    { var: "{{Company_Name}}", label: "Company" },
+                    { var: "{{Support_Email}}", label: "Support Email" },
+                  ].map((item) => (
+                    <Badge
+                      key={item.var}
+                      variant="outline"
+                      className="bg-background cursor-pointer hover:bg-primary/10"
+                      onClick={() => {
+                        // Get the textarea element
+                        const textarea = document.getElementById("manual-body") as HTMLTextAreaElement;
+                        if (textarea) {
+                          const start = textarea.selectionStart;
+                          const end = textarea.selectionEnd;
+                          const currentValue = manualEmailData.body;
+                          // Insert at cursor position
+                          const newValue = currentValue.substring(0, start) + item.var + currentValue.substring(end);
+                          setManualEmailData((prev) => ({
+                            ...prev,
+                            body: newValue
+                          }));
+                          // Restore focus and cursor position after state update
+                          setTimeout(() => {
+                            textarea.focus();
+                            textarea.setSelectionRange(start + item.var.length, start + item.var.length);
+                          }, 0);
+                        } else {
+                          // Fallback: append to end
+                          setManualEmailData((prev) => ({
+                            ...prev,
+                            body: prev.body + item.var
+                          }));
+                        }
+                      }}
+                    >
+                      + {item.label}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter className="mt-6 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEmailDialogOpen(false);
+                setSelectedEmailTemplate("");
+                setManualEmailData({ subject: "", body: "" });
+                setTemplateEmailData({ subject: "", body: "" });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={
+                isSendingEmail ||
+                (emailMode === "template" && (!selectedEmailTemplate || !templateEmailData.subject || !templateEmailData.body)) ||
+                (emailMode === "manual" && (!manualEmailData.subject || !manualEmailData.body))
+              }
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              {isSendingEmail ? "Sending..." : "Send Email"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

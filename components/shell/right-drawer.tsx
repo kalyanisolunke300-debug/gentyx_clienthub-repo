@@ -18,26 +18,26 @@ export function RightDrawer() {
 
   return (
     <Drawer open={rightDrawerOpen} direction="right" onOpenChange={(o) => !o && closeDrawer()}>
-      <DrawerContent className="fixed right-0 top-0 h-screen w-full max-w-md border-l bg-background">
-        <DrawerHeader className="flex items-center justify-between">
+      <DrawerContent className="fixed right-0 top-0 h-screen w-full max-w-md border-l bg-background flex flex-col">
+        <DrawerHeader className="flex items-center justify-between flex-shrink-0">
           {/* <DrawerTitle>
             {drawerView === "assignTask" && "Assign Task"}
             {drawerView === "setStage" && "Set Stage"}
             {drawerView === "uploadDoc" && "Upload Document"}
           </DrawerTitle> */}
           <DrawerTitle>
-          {drawerView === "assignTask" &&
-            (drawerContext?.taskId ? "Update Task" : "Assign Task")}
+            {drawerView === "assignTask" &&
+              (drawerContext?.taskId ? "Update Task" : "Assign Task")}
 
-          {drawerView === "setStage" && "Set Stage"}
-          {drawerView === "uploadDoc" && "Upload Document"}
-        </DrawerTitle>
+            {drawerView === "setStage" && "Set Stage"}
+            {drawerView === "uploadDoc" && "Upload Document"}
+          </DrawerTitle>
 
           <DrawerClose asChild>
             <Button variant="ghost">Close</Button>
           </DrawerClose>
         </DrawerHeader>
-        <div className="p-4">
+        <div className="p-4 flex-1 overflow-y-auto">
           {drawerView === "assignTask" && <AssignTaskForm context={drawerContext} />}
           {drawerView === "setStage" && <SetStageForm context={drawerContext} />}
           {drawerView === "uploadDoc" && <UploadDocForm context={drawerContext} />}

@@ -720,52 +720,95 @@ export default function ClientProfilePage() {
         <TabsContent value="overview" className="grid gap-4">
           {/* CLIENT SUMMARY */}
           <Card>
-            <CardHeader><CardTitle>Client Summary</CardTitle></CardHeader>
-            <CardContent className="grid gap-2 text-sm">
-              {/* <div>Client ID: {client?.client_id}</div> */}
-              <div><b>Code:</b> {client?.code}</div>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Client Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Code */}
+                <div className="bg-gradient-to-br from-slate-50 to-gray-100 border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="bg-slate-200 rounded-lg p-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                      </svg>
+                    </div>
+                    <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">Code</span>
+                  </div>
+                  <p className="text-lg font-semibold text-slate-800">{client?.code || "—"}</p>
+                </div>
 
-              <div>
-                <b>Created:</b>{" "}
-                {client?.created_at
-                  ? new Date(client.created_at).toLocaleString()
-                  : "-"}
+                {/* Created */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="bg-blue-100 rounded-lg p-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <span className="text-xs text-blue-600 font-medium uppercase tracking-wide">Created</span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {client?.created_at
+                      ? new Date(client.created_at).toLocaleDateString()
+                      : "—"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {client?.created_at
+                      ? new Date(client.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : ""}
+                  </p>
+                </div>
+
+                {/* Last Updated */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="bg-amber-100 rounded-lg p-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <span className="text-xs text-amber-600 font-medium uppercase tracking-wide">Last Updated</span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {client?.updated_at
+                      ? new Date(client.updated_at).toLocaleDateString()
+                      : "—"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {client?.updated_at
+                      ? new Date(client.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : ""}
+                  </p>
+                </div>
+
+                {/* Progress */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="bg-emerald-100 rounded-lg p-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <span className="text-xs text-emerald-600 font-medium uppercase tracking-wide">Progress</span>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <p className="text-2xl font-bold text-emerald-600">{progress}</p>
+                    <p className="text-sm font-medium text-emerald-600 mb-0.5">%</p>
+                  </div>
+                </div>
               </div>
-
-              <div>
-                <b>Last Updated:</b>{" "}
-                {client?.updated_at
-                  ? new Date(client.updated_at).toLocaleString()
-                  : "-"}
-              </div>
-
-              <div><b>Progress:</b> {progress}%</div>
-
             </CardContent>
           </Card>
 
           {/* STAGE TIMELINE */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 text-primary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-                Stage Timeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm">
+            <CardContent className="pt-6">
               {stages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-6 text-center">
                   <div className="bg-muted/50 rounded-full p-3 mb-3">
@@ -783,47 +826,91 @@ export default function ClientProfilePage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-2 py-2">
-                  {stages
-                    .sort((a: any, b: any) => a.order_number - b.order_number)
-                    .map((stage: any, index: number) => {
-
-                      // Check if stage is completed
-                      const stageWithSubtasks = subtasksByStage.find(
-                        (s: any) => s.client_stage_id === stage.client_stage_id
+                (() => {
+                  // Calculate completed stages count
+                  const sortedStages = stages.sort((a: any, b: any) => a.order_number - b.order_number);
+                  const completedCount = sortedStages.filter((stage: any) => {
+                    const stageWithSubtasks = subtasksByStage.find(
+                      (s: any) => s.client_stage_id === stage.client_stage_id
+                    );
+                    const allSubtasksCompleted =
+                      stageWithSubtasks?.subtasks?.length > 0 &&
+                      stageWithSubtasks?.subtasks?.every(
+                        (st: any) => st.status === "Completed"
                       );
+                    return stage.status === "Completed" || allSubtasksCompleted;
+                  }).length;
+                  const totalStages = sortedStages.length;
+                  const remainingCount = totalStages - completedCount;
+                  const progressPercent = totalStages > 0 ? Math.round((completedCount / totalStages) * 100) : 0;
 
-                      const allSubtasksCompleted =
-                        stageWithSubtasks?.subtasks?.length > 0 &&
-                        stageWithSubtasks?.subtasks?.every(
-                          (st: any) => st.status === "Completed"
-                        );
+                  return (
+                    <div className="space-y-4">
+                      {/* Overall Progress Header */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                        <span className="text-sm font-semibold text-emerald-600">{progressPercent}%</span>
+                      </div>
 
-                      const isCompleted =
-                        stage.status === "Completed" || allSubtasksCompleted;
-                      const isInProgress = stage.status === "In Progress";
+                      {/* Progress Bar */}
+                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500 ease-out"
+                          style={{
+                            width: `${progressPercent}%`,
+                            background: 'linear-gradient(90deg, #22c55e 0%, #4ade80 50%, #86efac 100%)',
+                          }}
+                        />
+                      </div>
 
-                      return (
-                        <span key={stage.client_stage_id} className="flex items-center">
-                          <span
-                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
-                              ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
-                              : isInProgress
-                                ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
-                                : "bg-gray-100 border border-gray-300 text-gray-600"
-                              }`}
-                          >
-                            {stage.stage_name}
-                          </span>
+                      {/* Stage Count Text */}
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>{completedCount} of {totalStages} stages completed</span>
+                        <span>{remainingCount} remaining</span>
+                      </div>
 
-                          {index < stages.length - 1 && (
-                            <span className="mx-3 text-muted-foreground font-bold">→</span>
-                          )}
-                        </span>
-                      );
-                    })}
+                      {/* Stage Pills */}
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        {sortedStages.map((stage: any, index: number) => {
+                          const stageWithSubtasks = subtasksByStage.find(
+                            (s: any) => s.client_stage_id === stage.client_stage_id
+                          );
+                          const allSubtasksCompleted =
+                            stageWithSubtasks?.subtasks?.length > 0 &&
+                            stageWithSubtasks?.subtasks?.every(
+                              (st: any) => st.status === "Completed"
+                            );
+                          const isCompleted = stage.status === "Completed" || allSubtasksCompleted;
+                          const isInProgress = stage.status === "In Progress";
 
-                </div>
+                          return (
+                            <span key={stage.client_stage_id} className="flex items-center">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
+                                  ? "bg-green-50 border border-green-400 text-green-700"
+                                  : isInProgress
+                                    ? "bg-blue-50 border border-blue-400 text-blue-700 animate-pulse"
+                                    : "bg-gray-100 border border-gray-300 text-gray-600"
+                                  }`}
+                              >
+                                {isCompleted && (
+                                  <svg className="w-3.5 h-3.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                                {stage.stage_name}
+                              </span>
+
+                              {index < sortedStages.length - 1 && (
+                                <span className="mx-2 text-gray-400">→</span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()
               )}
             </CardContent>
           </Card>
@@ -831,59 +918,97 @@ export default function ClientProfilePage() {
 
           {/* ✅ ASSIGN SERVICE CENTER & CPA */}
           <Card>
-            <CardHeader>
-              <CardTitle>Assign Service Center & CPA</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Assigned Team
+              </CardTitle>
             </CardHeader>
 
-            <CardContent className="grid gap-4 text-sm">
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Service Center Card */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="bg-blue-100 rounded-full p-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-600 font-medium uppercase tracking-wide">Service Center</p>
+                    </div>
+                  </div>
 
-              <div className="grid gap-2">
-                <div><b>Current Service Center:</b> {client?.service_center_name || "Not Assigned"}</div>
-                <div><b>Current CPA:</b> {client?.cpa_name || "Not Assigned"}</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-800">
+                        {client?.service_center_name || "Not Assigned"}
+                      </span>
+                    </div>
+
+                    {client?.service_center_email && (
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <a href={`mailto:${client.service_center_email}`} className="text-sm text-blue-600 hover:underline">
+                          {client.service_center_email}
+                        </a>
+                      </div>
+                    )}
+
+                    {!client?.service_center_name && (
+                      <p className="text-xs text-gray-400 italic">No service center assigned yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* CPA Card */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="bg-emerald-100 rounded-full p-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide">CPA</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-800">
+                        {client?.cpa_name || "Not Assigned"}
+                      </span>
+                    </div>
+
+                    {client?.cpa_email && (
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <a href={`mailto:${client.cpa_email}`} className="text-sm text-emerald-600 hover:underline">
+                          {client.cpa_email}
+                        </a>
+                      </div>
+                    )}
+
+                    {!client?.cpa_name && (
+                      <p className="text-xs text-gray-400 italic">No CPA assigned yet</p>
+                    )}
+                  </div>
+                </div>
               </div>
-              {/* 
-      <div className="grid grid-cols-2 gap-4">
-
-        <div className="grid gap-1">
-          <label className="text-xs font-medium">Service Center</label>
-          <select
-            className="border rounded px-2 py-2"
-            value={selectedServiceCenter ?? ""}
-            onChange={(e) => setSelectedServiceCenter(Number(e.target.value))}
-          >
-            <option value="">Select</option>
-            {serviceCenters.map((sc) => (
-              <option key={sc.service_center_id} value={sc.service_center_id}>
-                {sc.center_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid gap-1">
-          <label className="text-xs font-medium">CPA</label>
-          <select
-            className="border rounded px-2 py-2"
-            value={selectedCPA ?? ""}
-            onChange={(e) => setSelectedCPA(Number(e.target.value))}
-          >
-            <option value="">Select</option>
-            {cpas.map((cp) => (
-              <option key={cp.cpa_id} value={cp.cpa_id}>
-                {cp.cpa_name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-      </div>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSaveAssignment}>
-          Save Assignment
-        </Button>
-      </div> */}
-
             </CardContent>
           </Card>
         </TabsContent>
