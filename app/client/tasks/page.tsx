@@ -32,7 +32,10 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  Eye,
 } from "lucide-react";
+import { TaskCompleteModal } from "@/components/widgets/task-complete-modal";
+import { useRouter } from "next/navigation";
 
 const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"] as const;
 
@@ -67,6 +70,7 @@ type SubtaskItem = {
 };
 
 export default function ClientTasks() {
+  const router = useRouter();
   const role = useUIStore((s) => s.role);
   const currentClientId = useUIStore((s) => s.currentClientId);
   const setCurrentClientId = useUIStore((s) => s.setCurrentClientId);
@@ -81,6 +85,15 @@ export default function ClientTasks() {
   );
   const [expandedStages, setExpandedStages] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<"assigned" | "onboarding">("assigned");
+
+  // State for task completion modal (mandatory document upload)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [pendingTask, setPendingTask] = useState<{
+    id: number;
+    title: string;
+    type: "assigned" | "onboarding";
+    stageName?: string; // Only for onboarding subtasks
+  } | null>(null);
 
   const { page, setPage, pageSize, setPageSize, q, setQ } =
     useServerTableState();
@@ -161,11 +174,28 @@ export default function ClientTasks() {
     assignedRole: t.assignedRole || "CLIENT",
   }));
 
-  // Update task status
+  // Update task status - check if changing to Completed (requires document upload)
   const handleStatusChange = async (taskId: number, newStatus: string) => {
-    // Optimistic update - update UI immediately
-    const previousTasks = data?.data || [];
+    // If changing to Completed, show the document upload modal
+    if (newStatus === "Completed") {
+      const task = allTasks.find((t) => t.id === taskId);
+      if (task) {
+        setPendingTask({
+          id: taskId,
+          title: task.title,
+          type: "assigned",
+        });
+        setCompleteModalOpen(true);
+        return; // Don't update status yet - wait for document upload
+      }
+    }
 
+    // For non-Completed status changes, proceed normally
+    await updateTaskStatus(taskId, newStatus);
+  };
+
+  // Actual task status update function (called after document upload or for non-Completed status)
+  const updateTaskStatus = async (taskId: number, newStatus: string) => {
     try {
       const res = await fetch("/api/tasks/update", {
         method: "POST",
@@ -194,7 +224,6 @@ export default function ClientTasks() {
           description: errorMsg,
           variant: "destructive",
         });
-        // Refresh to revert optimistic update
         refreshTasks();
       }
     } catch (error) {
@@ -204,13 +233,35 @@ export default function ClientTasks() {
         description: "An error occurred while updating task status",
         variant: "destructive",
       });
-      // Refresh to revert optimistic update
       refreshTasks();
     }
   };
 
-  // Update subtask status
+  // Update subtask status - check if changing to Completed (requires document upload)
   const handleSubtaskStatusChange = async (subtaskId: number, newStatus: string) => {
+    // If changing to Completed, show the document upload modal
+    if (newStatus === "Completed") {
+      const subtask = subtasksFlat.find((s) => s.subtask_id === subtaskId);
+      if (subtask) {
+        // Find the stage that this subtask belongs to
+        const stage = stages.find((s) => s.client_stage_id === subtask.client_stage_id);
+        setPendingTask({
+          id: subtaskId,
+          title: subtask.subtask_title,
+          type: "onboarding",
+          stageName: stage?.stage_name, // Include stage name for folder structure
+        });
+        setCompleteModalOpen(true);
+        return; // Don't update status yet - wait for document upload
+      }
+    }
+
+    // For non-Completed status changes, proceed normally
+    await updateSubtaskStatus(subtaskId, newStatus);
+  };
+
+  // Actual subtask status update function (called after document upload or for non-Completed status)
+  const updateSubtaskStatus = async (subtaskId: number, newStatus: string) => {
     try {
       const res = await fetch("/api/stages/subtask/update-status", {
         method: "POST",
@@ -249,6 +300,19 @@ export default function ClientTasks() {
       });
       refreshStages();
     }
+  };
+
+  // Handle task completion after document upload
+  const handleTaskComplete = async () => {
+    if (!pendingTask) return;
+
+    if (pendingTask.type === "assigned") {
+      await updateTaskStatus(pendingTask.id, "Completed");
+    } else {
+      await updateSubtaskStatus(pendingTask.id, "Completed");
+    }
+
+    setPendingTask(null);
   };
 
   // Toggle stage expansion
@@ -360,6 +424,30 @@ export default function ClientTasks() {
             ))}
           </SelectContent>
         </Select>
+      ),
+    },
+    {
+      key: "id" as keyof TaskRow,
+      header: "Actions",
+      render: (row) => (
+        row.status === "Completed" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-1 text-primary"
+            onClick={() => {
+              // Navigate to the specific folder for this task
+              const folderPath = encodeURIComponent(`Assigned Task Completion Documents/${row.title}`);
+              router.push(`/client/documents?folder=${folderPath}`);
+            }}
+            title="View completion documents"
+          >
+            <Eye className="h-4 w-4" />
+            <span className="text-xs">View Docs</span>
+          </Button>
+        ) : (
+          <span className="text-muted-foreground text-xs">-</span>
+        )
       ),
     },
   ];
@@ -810,26 +898,47 @@ export default function ClientTasks() {
                                 </span>
                               </div>
 
-                              <Select
-                                value={subtask.status || "Not Started"}
-                                onValueChange={(value) =>
-                                  handleSubtaskStatusChange(subtask.subtask_id, value)
-                                }
-                              >
-                                <SelectTrigger
-                                  className={`h-8 w-32 px-3 rounded-full text-xs font-medium border ${STATUS_COLORS[subtask.status || "Not Started"]
-                                    }`}
+                              <div className="flex items-center gap-2">
+                                <Select
+                                  value={subtask.status || "Not Started"}
+                                  onValueChange={(value) =>
+                                    handleSubtaskStatusChange(subtask.subtask_id, value)
+                                  }
                                 >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {STATUS_OPTIONS.map((s) => (
-                                    <SelectItem key={s} value={s}>
-                                      {s}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                  <SelectTrigger
+                                    className={`h-8 w-32 px-3 rounded-full text-xs font-medium border ${STATUS_COLORS[subtask.status || "Not Started"]
+                                      }`}
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {STATUS_OPTIONS.map((s) => (
+                                      <SelectItem key={s} value={s}>
+                                        {s}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+
+                                {/* View Documents button for completed subtasks */}
+                                {subtask.status === "Completed" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 gap-1 text-primary"
+                                    onClick={() => {
+                                      // Navigate to the specific folder for this subtask
+                                      const folderPath = encodeURIComponent(
+                                        `Onboarding Stage Completion Documents/${stage.stage_name}-${subtask.subtask_title}`
+                                      );
+                                      router.push(`/client/documents?folder=${folderPath}`);
+                                    }}
+                                    title="View completion documents"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -851,6 +960,23 @@ export default function ClientTasks() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Task Completion Modal - requires document upload */}
+      {clientId && pendingTask && (
+        <TaskCompleteModal
+          open={completeModalOpen}
+          onClose={() => {
+            setCompleteModalOpen(false);
+            setPendingTask(null);
+          }}
+          onComplete={handleTaskComplete}
+          taskTitle={pendingTask.title}
+          taskId={pendingTask.id}
+          clientId={clientId}
+          taskType={pendingTask.type}
+          stageName={pendingTask.stageName}
+        />
+      )}
     </div>
   );
 }

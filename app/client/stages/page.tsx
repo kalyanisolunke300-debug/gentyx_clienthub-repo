@@ -344,6 +344,30 @@ export default function ClientStagesPage() {
 
   // --- SAVE TO SERVER ---
   async function handleServerSave() {
+    // Validate that all subtasks have title and due_date
+    for (const stage of stages) {
+      const tasks = subTasks[String(stage.id)] || [];
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        if (!task.title || task.title.trim() === "") {
+          toast({
+            title: "Validation Error",
+            description: `Stage "${stage.name}": Sub-task ${i + 1} is missing a task name.`,
+            variant: "destructive",
+          });
+          return;
+        }
+        if (!task.due_date) {
+          toast({
+            title: "Validation Error",
+            description: `Stage "${stage.name}": Sub-task "${task.title}" is missing a due date.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     setIsSaving(true);
     const formattedStages = stages.map((stage) => {
       const tasks = subTasks[String(stage.id)] || [];
@@ -537,10 +561,10 @@ export default function ClientStagesPage() {
                     <span key={stage.id} className="flex items-center">
                       <span
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isCompleted
-                            ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
-                            : isInProgress
-                              ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
-                              : "bg-gray-100 border border-gray-300 text-gray-600"
+                          ? "bg-green-100 border border-green-300 text-green-800 shadow-sm"
+                          : isInProgress
+                            ? "bg-blue-100 border border-blue-300 text-blue-800 shadow-sm animate-pulse"
+                            : "bg-gray-100 border border-gray-300 text-gray-600"
                           }`}
                       >
                         {stage.name}
@@ -683,6 +707,7 @@ export default function ClientStagesPage() {
                       key={`stage-${stage.id}`}
                       stage={stage}
                       subtasks={subTasks}
+                      clientId={clientId}
                       addSubtask={(id, title) => {
                         const key = id.toString();
                         setSubTasks(prev => ({

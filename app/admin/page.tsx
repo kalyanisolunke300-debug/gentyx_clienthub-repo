@@ -18,19 +18,16 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
   Tooltip,
   Legend,
-  Cell,
 } from "recharts";
 import { DataTable, type Column } from "@/components/data-table";
 import { ProgressRing } from "@/components/widgets/progress-ring";
 import { StatusPill } from "@/components/widgets/status-pill";
-import { fetchClients, fetchAllTasks, fetchDocuments, fetchStagesList } from "@/lib/api";
+import { fetchClients, fetchAllTasks, fetchDocuments } from "@/lib/api";
 
 
 
@@ -52,8 +49,6 @@ type TasksResponse = {
 // We will extend Task with client_name for the table
 type TaskRowWithClientName = Task & { client_name: string };
 
-const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#6366f1"];
-
 export default function AdminDashboard() {
   const router = useRouter();
 
@@ -68,7 +63,7 @@ export default function AdminDashboard() {
 
   // ---------- DATA FETCHING ----------
 
-  // 1. Clients (Load ALL for clients kpi + funnel)
+  // 1. Clients (Load ALL for clients kpi + progress chart)
   const { data: clients } = useSWR<ClientsResponse>(
     ["clients"],
     () => fetchClients({ page: 1, pageSize: 500 })
@@ -84,12 +79,6 @@ export default function AdminDashboard() {
   const { data: docs } = useSWR<DocumentFile[]>(
     ["docs"],
     () => fetchDocuments({ clientId: "" })
-  );
-
-  // 4. Master Stages (for correct Funnel ordering)
-  const { data: masterStages } = useSWR(
-    ["master-stages"],
-    () => fetchStagesList()
   );
 
   const clientRows: ClientProfile[] = clients?.data ?? [];
@@ -208,70 +197,7 @@ export default function AdminDashboard() {
   }).length;
 
 
-  // ---------- CHART DATA: ONBOARDING FUNNEL ----------
-  const stageChart = useMemo(() => {
-    // 1. Count clients per stage
-    const counts: Record<string, number> = {};
-    clientRows.forEach((c) => {
-      const stage = c.stage_name || "Unassigned";
-      counts[stage] = (counts[stage] || 0) + 1;
-    });
-
-    // 2. Use Master Stage Order if available
-    let orderedData = [];
-    if (masterStages?.data && Array.isArray(masterStages.data)) {
-      // Create a map for fast lookup of order
-      const masterOrder = masterStages.data; // array of { id, name, ... }
-
-      // Iterate master list to ensure correct order
-      orderedData = masterOrder.map((m: any) => ({
-        name: m.stage_name || m.name, // robust check
-        count: counts[m.stage_name || m.name] || 0
-      }));
-
-      // Add "Completed" at the end if it exists in counts but not in master list
-      if (counts["Completed"]) {
-        orderedData.push({ name: "Completed", count: counts["Completed"] });
-      }
-
-      // Add "Unassigned" or others not in master list?
-      // For a funnel, we usually just want the main stages + maybe completed.
-      // Let's stick to master list + Completed.
-    } else {
-      // Fallback: just entries
-      orderedData = Object.entries(counts).map(([name, count]) => ({
-        name,
-        count,
-      }));
-    }
-
-    // Filter out 0 counts? Or keep them to show gaps? Keeping them is better for "Funnel" visualization.
-    return orderedData;
-  }, [clientRows, masterStages]);
-
-
-  // ---------- CHART DATA: TASKS BY ROLE (STACKED) ----------
-  const tasksByRoleChart = useMemo(() => {
-    // 1. Identify all Roles
-    const roles = Array.from(new Set(taskRows.map(t => t.assigneeRole || "Unassigned")));
-
-    // 2. Identify all Statuses (for stacks)
-    // const statuses = Array.from(new Set(taskRows.map(t => t.status))); 
-    // Simplify statuses to meaningful groups if needed, or use raw.
-    const statuses = ["Pending", "In Review", "In Progress", "Completed", "Approved"];
-
-    // 3. Build data
-    return roles.map(role => {
-      const row: any = { role };
-      statuses.forEach(status => {
-        row[status] = taskRows.filter(t =>
-          (t.assigneeRole || "Unassigned") === role &&
-          (t.status || "Pending") === status
-        ).length;
-      });
-      return row;
-    });
-  }, [taskRows]);
+  // Note: Chart data is now computed inline in the render for better clarity
 
 
   // ---------- KPIS CONFIG ----------
@@ -394,65 +320,229 @@ export default function AdminDashboard() {
 
         {/* ---------- CHARTS ---------- */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Onboarding Funnel */}
+          {/* Client Onboarding Progress - Donut Chart */}
           <Card>
-            <CardHeader>
-              <CardTitle>Onboarding Funnel</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Current distribution of clients across stages
-              </p>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <UserCheck className="h-3.5 w-3.5 text-white" />
+                </div>
+                Client Onboarding Progress
+              </CardTitle>
             </CardHeader>
-            <CardContent className="h-72">
-              {stageChart.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  No data available
+            <CardContent>
+              {clientRows.length === 0 ? (
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                  No clients available
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stageChart} layout="vertical" margin={{ left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      cursor={{ fill: 'transparent' }}
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                    />
-                    <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={32}>
-                      {stageChart.map((_entry: { name: string; count: number }, index: number) => (
-                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                (() => {
+                  // Group clients by completion percentage
+                  const groups = [
+                    { label: "Not Started", range: [0, 0], color: "#9ca3af" },
+                    { label: "Early (1-25%)", range: [1, 25], color: "#f59e0b" },
+                    { label: "Mid (26-50%)", range: [26, 50], color: "#3b82f6" },
+                    { label: "Advanced (51-75%)", range: [51, 75], color: "#8b5cf6" },
+                    { label: "Near Done (76-99%)", range: [76, 99], color: "#10b981" },
+                    { label: "Completed", range: [100, 100], color: "#059669" },
+                  ];
+
+                  const chartData = groups.map(group => {
+                    const count = clientRows.filter(c => {
+                      const progress = c.progress ?? 0;
+                      if (group.range[0] === 0 && group.range[1] === 0) return progress === 0;
+                      return progress >= group.range[0] && progress <= group.range[1];
+                    }).length;
+                    return { name: group.label, value: count, color: group.color };
+                  }).filter(d => d.value > 0);
+
+                  const totalClients = clientRows.length;
+                  const avgProgress = Math.round(
+                    clientRows.reduce((sum, c) => sum + (c.progress ?? 0), 0) / totalClients
+                  );
+                  const completedCount = clientRows.filter(c => (c.progress ?? 0) === 100).length;
+
+                  return (
+                    <div className="flex items-center gap-4">
+                      {/* Donut Chart */}
+                      <div className="w-40 h-40 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={chartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={35}
+                              outerRadius={60}
+                              paddingAngle={2}
+                              dataKey="value"
+                              nameKey="name"
+                            >
+                              {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              wrapperStyle={{ zIndex: 100 }}
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+                                      <span className="font-semibold">{data.name}</span>
+                                      <span>: {data.value} clients</span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        {/* Center text - moved pointer-events to none so tooltip works */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-2xl font-bold text-gray-800">{avgProgress}%</span>
+                          <span className="text-xs text-muted-foreground">avg</span>
+                        </div>
+                      </div>
+
+                      {/* Legend & Stats */}
+                      <div className="flex-1 space-y-2">
+                        {chartData.slice(0, 4).map((item, index) => (
+                          <div key={item.name} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                              <span className="text-gray-600">{item.name}</span>
+                            </div>
+                            <span className="font-semibold">{item.value}</span>
+                          </div>
+                        ))}
+                        <div className="pt-2 mt-2 border-t grid grid-cols-2 gap-2 text-center">
+                          <div>
+                            <div className="text-lg font-bold text-blue-600">{totalClients}</div>
+                            <div className="text-xs text-muted-foreground">Total</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-green-600">{completedCount}</div>
+                            <div className="text-xs text-muted-foreground">Done</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
               )}
             </CardContent>
           </Card>
 
-          {/* Tasks by Role */}
+          {/* Task Status Overview - Donut Chart */}
           <Card>
-            <CardHeader>
-              <CardTitle>Tasks by Role</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Task load distribution and status per role
-              </p>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                  <ListChecks className="h-3.5 w-3.5 text-white" />
+                </div>
+                Task Status Overview
+              </CardTitle>
             </CardHeader>
-            <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={tasksByRoleChart}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="role" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend />
-                  <Bar dataKey="Pending" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="In Review" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="In Progress" stackId="a" fill="#8b5cf6" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Approved" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Completed" stackId="a" fill="#059669" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent>
+              {taskRows.length === 0 ? (
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                  No tasks available
+                </div>
+              ) : (
+                (() => {
+                  const statusConfig = [
+                    { status: "Pending", color: "#f59e0b" },
+                    { status: "In Progress", color: "#3b82f6" },
+                    { status: "In Review", color: "#8b5cf6" },
+                    { status: "Completed", color: "#10b981" },
+                    { status: "Approved", color: "#059669" },
+                  ];
+
+                  const chartData = statusConfig.map(item => ({
+                    name: item.status,
+                    value: taskRows.filter(t => (t.status || "Pending") === item.status).length,
+                    color: item.color
+                  })).filter(d => d.value > 0);
+
+                  const doneCount = taskRows.filter(t => t.status === "Completed" || t.status === "Approved").length;
+                  const donePercentage = Math.round((doneCount / taskRows.length) * 100);
+
+                  return (
+                    <div className="flex items-center gap-4">
+                      {/* Donut Chart */}
+                      <div className="w-40 h-40 relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={chartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={35}
+                              outerRadius={60}
+                              paddingAngle={2}
+                              dataKey="value"
+                              nameKey="name"
+                            >
+                              {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              wrapperStyle={{ zIndex: 100 }}
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+                                      <span className="font-semibold">{data.name}</span>
+                                      <span>: {data.value} tasks</span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        {/* Center text - pointer-events-none so tooltip works */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <span className="text-2xl font-bold text-gray-800">{donePercentage}%</span>
+                          <span className="text-xs text-muted-foreground">done</span>
+                        </div>
+                      </div>
+
+                      {/* Legend & Stats */}
+                      <div className="flex-1 space-y-2">
+                        {chartData.map((item) => (
+                          <div key={item.name} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                              <span className="text-gray-600">{item.name}</span>
+                            </div>
+                            <span className="font-semibold">{item.value}</span>
+                          </div>
+                        ))}
+                        <div className="pt-2 mt-2 border-t grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <div className="text-lg font-bold text-amber-600">{taskRows.length}</div>
+                            <div className="text-xs text-muted-foreground">Total</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-red-600">{overdueTasks}</div>
+                            <div className="text-xs text-muted-foreground">Overdue</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-green-600">{doneCount}</div>
+                            <div className="text-xs text-muted-foreground">Done</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
             </CardContent>
           </Card>
         </div>

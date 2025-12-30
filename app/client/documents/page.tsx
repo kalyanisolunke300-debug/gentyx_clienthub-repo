@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import useSWR, { mutate } from "swr";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +18,19 @@ import {
   File as FileIcon,
   Trash2,
   Upload,
+  CheckCircle2,
+  Layers,
 } from "lucide-react";
+
+// Special folder names for task completion documents
+const ASSIGNED_TASK_FOLDER = "Assigned Task Completion Documents";
+const ONBOARDING_FOLDER = "Onboarding Stage Completion Documents";
 
 export default function ClientDocuments() {
   const role = useUIStore((s) => s.role);
   const currentClientId = useUIStore((s) => s.currentClientId);
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const [clientId, setClientId] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -35,6 +43,14 @@ export default function ClientDocuments() {
       setClientId(currentClientId);
     }
   }, [role, currentClientId]);
+
+  // Check for folder path in URL query parameter
+  useEffect(() => {
+    const folderPath = searchParams.get("folder");
+    if (folderPath) {
+      setSelectedFolder(decodeURIComponent(folderPath));
+    }
+  }, [searchParams]);
 
   // Fetch documents using the same API as admin
   const { data: docsResponse, isLoading } = useSWR(
@@ -296,18 +312,63 @@ export default function ClientDocuments() {
                       ? `${selectedFolder}/${folder.name}`
                       : folder.name;
 
+                    // Special styling for completion document folders
+                    const isAssignedTaskFolder = folder.name === ASSIGNED_TASK_FOLDER ||
+                      (selectedFolder && selectedFolder.startsWith(ASSIGNED_TASK_FOLDER));
+                    const isOnboardingFolder = folder.name === ONBOARDING_FOLDER ||
+                      (selectedFolder && selectedFolder.startsWith(ONBOARDING_FOLDER));
+
+                    // Determine styling based on folder type
+                    let folderBgClass = "bg-amber-50/30 hover:bg-amber-50 border-gray-100 hover:border-amber-200";
+                    let folderIconClass = "text-amber-400 fill-amber-100 group-hover:fill-amber-200";
+                    let FolderIcon = Folder;
+
+                    if (folder.name === ASSIGNED_TASK_FOLDER) {
+                      folderBgClass = "bg-green-50/50 hover:bg-green-50 border-green-200 hover:border-green-300";
+                      folderIconClass = "text-green-500 fill-green-100 group-hover:fill-green-200";
+                      FolderIcon = CheckCircle2;
+                    } else if (folder.name === ONBOARDING_FOLDER) {
+                      folderBgClass = "bg-blue-50/50 hover:bg-blue-50 border-blue-200 hover:border-blue-300";
+                      folderIconClass = "text-blue-500 fill-blue-100 group-hover:fill-blue-200";
+                      FolderIcon = Layers;
+                    } else if (isAssignedTaskFolder) {
+                      folderBgClass = "bg-green-50/30 hover:bg-green-50 border-green-100 hover:border-green-200";
+                      folderIconClass = "text-green-400 fill-green-100 group-hover:fill-green-200";
+                    } else if (isOnboardingFolder) {
+                      folderBgClass = "bg-blue-50/30 hover:bg-blue-50 border-blue-100 hover:border-blue-200";
+                      folderIconClass = "text-blue-400 fill-blue-100 group-hover:fill-blue-200";
+                    }
+
                     return (
                       <div
                         key={folder.name}
                         onClick={() => setSelectedFolder(fullPath)}
-                        className="group relative flex flex-col items-center justify-center p-6 border rounded-xl 
-                          bg-amber-50/30 hover:bg-amber-50 border-gray-100 hover:border-amber-200 
-                          cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md"
+                        className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl 
+                          ${folderBgClass}
+                          cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md`}
                       >
-                        <Folder className="w-12 h-12 text-amber-400 mb-3 fill-amber-100 group-hover:fill-amber-200 transition-colors" />
+                        {/* Show special icon or folder icon */}
+                        {folder.name === ASSIGNED_TASK_FOLDER || folder.name === ONBOARDING_FOLDER ? (
+                          <div className="relative mb-3">
+                            <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
+                            <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' : 'bg-blue-500'}`}>
+                              <FolderIcon className="w-3 h-3 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <Folder className={`w-12 h-12 ${folderIconClass} mb-3 transition-colors`} />
+                        )}
                         <span className="text-sm font-medium text-gray-700 text-center truncate w-full px-2">
                           {folder.name}
                         </span>
+
+                        {/* Subtitle for special folders */}
+                        {folder.name === ASSIGNED_TASK_FOLDER && (
+                          <span className="text-xs text-green-600 mt-1">Task Completions</span>
+                        )}
+                        {folder.name === ONBOARDING_FOLDER && (
+                          <span className="text-xs text-blue-600 mt-1">Stage Completions</span>
+                        )}
 
                         <button
                           onClick={(e) => {

@@ -4,7 +4,7 @@
 
 import { CSS } from "@dnd-kit/utilities";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
-import { GripVertical, Edit2, Trash2, Plus } from "lucide-react";
+import { GripVertical, Edit2, Trash2, Plus, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +22,8 @@ import {
     PopoverContent,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { TaskCompleteModal } from "@/components/widgets/task-complete-modal";
+import { useRouter } from "next/navigation";
 
 /* ---------------- TYPES ---------------- */
 
@@ -44,6 +46,7 @@ export interface SortableStageItemProps {
     };
 
     subtasks: Record<string, Subtask[]>;
+    clientId: string; // Added for document upload
 
     updateSubtask: (
         stageId: string,
@@ -71,6 +74,7 @@ const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"];
 export function SortableStageItem({
     stage,
     subtasks,
+    clientId,
     addSubtask,
     removeSubtask,
     onEdit,
@@ -79,7 +83,15 @@ export function SortableStageItem({
     updateSubtask,
     onStageStartDateChange,
 }: SortableStageItemProps) {
+    const router = useRouter();
     const [showStartDate, setShowStartDate] = useState(false);
+
+    // State for task completion modal
+    const [completeModalOpen, setCompleteModalOpen] = useState(false);
+    const [pendingSubtask, setPendingSubtask] = useState<{
+        index: number;
+        title: string;
+    } | null>(null);
 
     const {
         attributes,
@@ -101,6 +113,37 @@ export function SortableStageItem({
 
     const stageStatus = stage.status || "Not Started";
     const stageSubtasks: Subtask[] = subtasks[stage.id] || [];
+
+    // Handle subtask status change - intercept "Completed" to show document upload modal
+    const handleSubtaskStatusChange = (index: number, value: string) => {
+        if (value === "Completed") {
+            const subtask = stageSubtasks[index];
+            setPendingSubtask({
+                index,
+                title: subtask.title || `Subtask ${index + 1}`,
+            });
+            setCompleteModalOpen(true);
+        } else {
+            updateSubtask(stage.id.toString(), index, { status: value });
+        }
+    };
+
+    // Handle task completion after document upload
+    const handleTaskComplete = () => {
+        if (pendingSubtask !== null) {
+            updateSubtask(stage.id.toString(), pendingSubtask.index, { status: "Completed" });
+            setPendingSubtask(null);
+        }
+    };
+
+    // Navigate to documents folder for this task
+    const viewDocuments = (subtaskTitle: string) => {
+        // Navigate to documents page with specific folder path: Onboarding Stage Completion Documents/[Stage]-[Subtask]
+        const folderPath = encodeURIComponent(
+            `Onboarding Stage Completion Documents/${stage.name}-${subtaskTitle}`
+        );
+        router.push(`/client/documents?folder=${folderPath}`);
+    };
 
     return (
         <div
@@ -236,53 +279,82 @@ export function SortableStageItem({
                                 initial={{ opacity: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ duration: 0.2 }}
-                                className="flex items-center justify-between bg-gray-100 rounded px-2 py-1 text-sm"
+                                className="flex items-center bg-gray-100 rounded px-2 py-1 text-sm gap-3"
                             >
-                                <Input
-                                    value={t.title}
-                                    className="h-7 text-xs w-[45%]"
-                                    onChange={(e) =>
-                                        updateSubtask(stage.id.toString(), index, {
-                                            title: e.target.value,
-                                        })
-                                    }
-                                />
+                                {/* Task Name - takes about 45% */}
+                                <div className="w-[45%] min-w-0">
+                                    <Input
+                                        value={t.title}
+                                        className={`h-7 text-xs w-full ${!t.title?.trim() ? 'border-red-300 focus:border-red-500' : ''}`}
+                                        placeholder="Sub-Task*"
+                                        required
+                                        onChange={(e) =>
+                                            updateSubtask(stage.id.toString(), index, {
+                                                title: e.target.value,
+                                            })
+                                        }
+                                    />
+                                </div>
 
-                                <Input
-                                    type="date"
-                                    value={t.due_date ?? ""}
-                                    className="h-7 text-xs w-[25%]"
-                                    onChange={(e) =>
-                                        updateSubtask(stage.id.toString(), index, {
-                                            due_date: e.target.value,
-                                        })
-                                    }
-                                />
+                                {/* Due Date - takes about 25% */}
+                                <div className="w-[25%] flex-shrink-0">
+                                    <Input
+                                        type="date"
+                                        value={t.due_date ?? ""}
+                                        className={`h-7 text-xs w-full ${!t.due_date ? 'border-red-300 focus:border-red-500' : ''}`}
+                                        required
+                                        onChange={(e) =>
+                                            updateSubtask(stage.id.toString(), index, {
+                                                due_date: e.target.value,
+                                            })
+                                        }
+                                    />
+                                </div>
 
-                                <Select
-                                    value={t.status || "Not Started"}
-                                    onValueChange={(value) =>
-                                        updateSubtask(stage.id.toString(), index, { status: value })
-                                    }
-                                >
-                                    <SelectTrigger className="h-7 w-[20%] text-xs">
-                                        <SelectValue placeholder="Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Not Started">Not Started</SelectItem>
-                                        <SelectItem value="In Progress">In Progress</SelectItem>
-                                        <SelectItem value="Completed">Completed</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                {/* Status - takes about 15% */}
+                                <div className="w-[15%] flex-shrink-0">
+                                    <Select
+                                        value={t.status || "Not Started"}
+                                        onValueChange={(value) =>
+                                            handleSubtaskStatusChange(index, value)
+                                        }
+                                    >
+                                        <SelectTrigger className="h-7 w-full text-xs">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Not Started">Not Started</SelectItem>
+                                            <SelectItem value="In Progress">In Progress</SelectItem>
+                                            <SelectItem value="Completed">Completed</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
 
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-5 w-5 p-0 text-destructive"
-                                    onClick={() => removeSubtask(stage.id, index)}
-                                >
-                                    <Trash2 className="size-4" />
-                                </Button>
+                                {/* Action buttons - fixed width */}
+                                <div className="flex items-center gap-1 flex-shrink-0 justify-end">
+                                    {/* View Documents button - only show for completed */}
+                                    {(t.status || "").toLowerCase() === "completed" && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 text-primary"
+                                            onClick={() => viewDocuments(t.title)}
+                                            title="View Documents"
+                                        >
+                                            <Eye className="size-4" />
+                                        </Button>
+                                    )}
+
+                                    {/* Delete button */}
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0 text-destructive"
+                                        onClick={() => removeSubtask(stage.id, index)}
+                                    >
+                                        <Trash2 className="size-4" />
+                                    </Button>
+                                </div>
                             </motion.div>
                         ))}
                     </AnimatePresence>
@@ -298,6 +370,23 @@ export function SortableStageItem({
                     Add task
                 </Button>
             </div>
+
+            {/* Task Completion Modal - requires document upload */}
+            {clientId && pendingSubtask && (
+                <TaskCompleteModal
+                    open={completeModalOpen}
+                    onClose={() => {
+                        setCompleteModalOpen(false);
+                        setPendingSubtask(null);
+                    }}
+                    onComplete={handleTaskComplete}
+                    taskTitle={pendingSubtask.title}
+                    taskId={pendingSubtask.index}
+                    clientId={clientId}
+                    taskType="onboarding"
+                    stageName={stage.name}
+                />
+            )}
         </div>
     );
 }

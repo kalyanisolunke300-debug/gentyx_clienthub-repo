@@ -241,7 +241,9 @@ export function SortableStageItem({
               >
                 <Input
                   value={t.title}
-                  className="h-7 text-xs w-[45%]"
+                  className={`h-7 text-xs w-[45%] ${!t.title?.trim() ? 'border-red-300 focus:border-red-500' : ''}`}
+                  placeholder="Sub-Task*"
+                  required
                   onChange={(e) =>
                     updateSubtask(stage.id.toString(), index, {
                       title: e.target.value,
@@ -252,7 +254,8 @@ export function SortableStageItem({
                 <Input
                   type="date"
                   value={t.due_date ?? ""}
-                  className="h-7 text-xs w-[25%]"
+                  className={`h-7 text-xs w-[25%] ${!t.due_date ? 'border-red-300 focus:border-red-500' : ''}`}
+                  required
                   onChange={(e) =>
                     updateSubtask(stage.id.toString(), index, {
                       due_date: e.target.value,
