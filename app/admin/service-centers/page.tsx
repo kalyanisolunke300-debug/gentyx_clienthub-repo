@@ -65,6 +65,7 @@ export default function ServiceCentersPage() {
   const [selectedCenter, setSelectedCenter] = useState<ServiceCenter | null>(null);
   const [assignedClients, setAssignedClients] = useState<any[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ center_name?: string; email?: string }>({});
 
 
   // ------------------------------
@@ -138,6 +139,7 @@ export default function ServiceCentersPage() {
       setUsers([]);
     }
 
+    setFormErrors({});
     setOpen(true);
   }
 
@@ -167,14 +169,24 @@ export default function ServiceCentersPage() {
   // CREATE / UPDATE
   // ------------------------------
   async function saveCenter() {
-    if (!formData.center_name) {
-      toast({
-        title: "Error",
-        description: "Center Name is required",
-        variant: "destructive",
-      });
+    // Validate required fields
+    const errors: { center_name?: string; email?: string } = {};
+
+    if (!formData.center_name.trim()) {
+      errors.center_name = "Center Name is required";
+    }
+    if (!formData.email.trim()) {
+      errors.email = "Email Address is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
+
+    setFormErrors({});
 
     setIsSaving(true);
 
@@ -337,28 +349,36 @@ export default function ServiceCentersPage() {
               >
                 <div className="grid gap-4">
                   <div className="grid gap-2">
-                    <Label>Center Name</Label>
+                    <Label>Center Name <span className="text-red-500">*</span></Label>
                     <Input
                       placeholder="e.g. Downtown Operations"
                       value={formData.center_name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, center_name: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormData({ ...formData, center_name: e.target.value });
+                        if (formErrors.center_name) setFormErrors({ ...formErrors, center_name: undefined });
+                      }}
                     />
+                    {formErrors.center_name && (
+                      <p className="text-xs text-red-500">{formErrors.center_name}</p>
+                    )}
                   </div>
 
                   {/* Hidden Center Code */}
                   <input type="hidden" value={formData.center_code} />
 
                   <div className="grid gap-2">
-                    <Label>Email Address</Label>
+                    <Label>Email Address <span className="text-red-500">*</span></Label>
                     <Input
                       placeholder="contact@example.com"
                       value={formData.email}
-                      onChange={(e) =>
-                        setFormData({ ...formData, email: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        if (formErrors.email) setFormErrors({ ...formErrors, email: undefined });
+                      }}
                     />
+                    {formErrors.email && (
+                      <p className="text-xs text-red-500">{formErrors.email}</p>
+                    )}
                   </div>
                 </div>
 

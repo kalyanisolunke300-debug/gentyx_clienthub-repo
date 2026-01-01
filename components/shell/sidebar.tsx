@@ -39,12 +39,12 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/admin/clients", label: "Clients", icon: Users },
     { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
     { href: "/admin/stages", label: "Onboarding Stages", icon: Library },
+    { href: "/admin/documents", label: "Documents", icon: FileText },
     { href: "/admin/service-centers", label: "Service Centers", icon: Building2 },
     { href: "/admin/cpas", label: "CPAs", icon: Landmark },
     { href: "/admin/messages", label: "Messages", icon: Mail },
     { href: "/admin/email-templates", label: "Email Templates", icon: Mail },
     { href: "/admin/reports", label: "Reports", icon: BarChart2 },
-    // { href: "/admin/documents", label: "Documents", icon: FileText },
   ];
 
   const clientLinks = [

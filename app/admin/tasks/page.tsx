@@ -18,8 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { mutate } from "swr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ClientTaskModal } from "@/components/widgets/client-task-modal";
+import { TaskCompleteModal } from "@/components/widgets/task-complete-modal";
 import { useState, useMemo, useEffect } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Eye } from "lucide-react";
 
 
 const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"] as const;
@@ -62,6 +63,14 @@ export default function AdminTasksPage() {
   const [filterStatus, setFilterStatus] = useState<"ALL" | "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED">("ALL");
   const [dueFrom, setDueFrom] = useState<string | null>(null);
   const [dueTo, setDueTo] = useState<string | null>(null);
+
+  // State for task completion modal (mandatory document upload)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [pendingTask, setPendingTask] = useState<{
+    id: number;
+    title: string;
+    clientId: number;
+  } | null>(null);
 
   // Initialize filters from URL on mount
   useEffect(() => {
@@ -137,6 +146,18 @@ export default function AdminTasksPage() {
         <Select
           value={row.status || "Not Started"}
           onValueChange={async (value) => {
+            // If changing to Completed, show the document upload modal
+            if (value === "Completed") {
+              setPendingTask({
+                id: row.id,
+                title: row.title,
+                clientId: row.clientId,
+              });
+              setCompleteModalOpen(true);
+              return; // Don't update status yet - wait for document upload
+            }
+
+            // For non-Completed status changes, proceed normally
             await fetch("/api/tasks/update", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -174,7 +195,26 @@ export default function AdminTasksPage() {
       className: "text-center",
       render: (row) => (
         <div className="flex items-center justify-center gap-2 w-full">
-          {/* ✅ EDIT */}
+          {/* ✅ VIEW DOCS (only for completed tasks) - fixed width for alignment */}
+          <div className="w-[85px]">
+            {row.status === "Completed" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 gap-1 text-primary"
+                onClick={() => {
+                  // Navigate to the specific folder for this task's completion docs
+                  const folderPath = encodeURIComponent(`Assigned Task Completion Documents/${row.title}`);
+                  router.push(`/admin/documents?clientId=${row.clientId}&folder=${folderPath}`);
+                }}
+                title="View completion documents"
+              >
+                <Eye className="h-4 w-4" />
+                <span className="text-xs">View Docs</span>
+              </Button>
+            )}
+          </div>
+
           {/* ✅ VIEW CLIENT TASKS */}
           <Button
             size="sm"
@@ -541,6 +581,41 @@ export default function AdminTasksPage() {
         clientId={selectedClientId}   // ✅ PASS CLIENT ID
         tasks={selectedClientTasks}
       />
+
+      {/* Task Completion Modal - requires document upload */}
+      {pendingTask && (
+        <TaskCompleteModal
+          open={completeModalOpen}
+          onClose={() => {
+            setCompleteModalOpen(false);
+            setPendingTask(null);
+          }}
+          onComplete={async () => {
+            if (!pendingTask) return;
+
+            // Update task status to Completed after document upload
+            await fetch("/api/tasks/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                taskId: pendingTask.id,
+                status: "Completed",
+              }),
+            });
+
+            mutate(["tasks"]); // ✅ refresh table
+            toast({
+              title: "Task Completed",
+              description: `Task "${pendingTask.title}" has been marked as complete.`,
+            });
+            setPendingTask(null);
+          }}
+          taskTitle={pendingTask.title}
+          taskId={pendingTask.id}
+          clientId={String(pendingTask.clientId)}
+          taskType="assigned"
+        />
+      )}
     </div>
   );
 }

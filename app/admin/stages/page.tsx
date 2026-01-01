@@ -69,13 +69,14 @@ import {
 } from "@/components/ui/command";
 
 import { ProgressRing } from "@/components/widgets/progress-ring";
+import { TaskCompleteModal } from "@/components/widgets/task-complete-modal";
 import { useToast } from "@/hooks/use-toast";
 
 // Icons
 import {
   Plus, ChevronsUpDown, Search, User,
   Settings, Copy, Save, XCircle, LayoutTemplate,
-  Trello, CheckCircle2, Mail, Send, FileText, Edit3
+  Trello, CheckCircle2, Mail, Send, FileText, Edit3, Eye
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -156,6 +157,15 @@ export default function StagesPage() {
   const [templateEmailData, setTemplateEmailData] = useState({ subject: "", body: "" });
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
+  // State for task completion modal (mandatory document upload)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [pendingSubtask, setPendingSubtask] = useState<{
+    stageId: string;
+    stageName: string;
+    index: number;
+    title: string;
+  } | null>(null);
+
   // Get selected client details
   const selectedClient = clients?.data?.find(
     (c: any) => c.client_id.toString() === selectedClientId
@@ -170,6 +180,30 @@ export default function StagesPage() {
       updatedSubtasksMap[stageId] = currentStageSubtasks;
       return updatedSubtasksMap;
     });
+  };
+
+  // Wrapper for subtask update that intercepts "Completed" status changes
+  const handleSubtaskUpdate = (stageId: string, index: number, updates: Partial<SubTask>) => {
+    // If changing status to Completed, show the document upload modal
+    if (updates.status === "Completed") {
+      const stageSubtasks = subTasks[stageId] || [];
+      const subtask = stageSubtasks[index];
+      const stage = stages.find(s => s.id === stageId);
+
+      if (subtask && stage) {
+        setPendingSubtask({
+          stageId,
+          stageName: stage.name,
+          index,
+          title: subtask.title,
+        });
+        setCompleteModalOpen(true);
+        return; // Don't update yet - wait for document upload
+      }
+    }
+
+    // For non-Completed status changes, proceed normally
+    updateSubtask(stageId, index, updates);
   };
 
   // --- EFFECTS ---
@@ -853,26 +887,71 @@ export default function StagesPage() {
             )}
 
             {/* SHOW PREVIEW WHEN SELECTING TEMPLATE */}
-            {showTemplateSelector && templatePreviewStages.length > 0 && (
+            {showTemplateSelector && selectedTemplateId && templatePreviewStages.length > 0 && (
               <Card className="bg-muted/30">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Template Preview</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {templatePreviewStages.map((s, idx) => (
-                      <div key={idx} className="bg-background border rounded p-3 flex items-start gap-3">
-                        <Badge variant="outline" className="mt-0.5">{idx + 1}</Badge>
-                        <div>
-                          <div className="font-medium text-sm">{s.stage_name}</div>
+                      <div key={idx} className="bg-background border rounded-lg overflow-hidden">
+                        {/* Stage Header */}
+                        <div className="p-3 flex items-center gap-3 border-b bg-gray-50/50">
+                          <Badge variant="outline" className="h-6 w-6 flex items-center justify-center rounded-full text-xs">
+                            {idx + 1}
+                          </Badge>
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{s.stage_name}</div>
+                          </div>
                           {s.subtasks?.length > 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {s.subtasks.length} subtasks included
-                            </p>
+                            <Badge variant="secondary" className="text-xs">
+                              {s.subtasks.length} subtask{s.subtasks.length !== 1 ? 's' : ''}
+                            </Badge>
                           )}
                         </div>
+
+                        {/* Subtasks List */}
+                        {s.subtasks?.length > 0 && (
+                          <div className="p-3 bg-white">
+                            <div className="space-y-2">
+                              {s.subtasks.map((subtask: any, subIdx: number) => (
+                                <div key={subIdx} className="flex items-start gap-2 text-sm">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  <span className="text-gray-700">
+                                    {subtask.subtask_title || subtask.title || `Subtask ${subIdx + 1}`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Empty subtask message */}
+                        {(!s.subtasks || s.subtasks.length === 0) && (
+                          <div className="p-3 text-xs text-muted-foreground italic">
+                            No subtasks in this stage
+                          </div>
+                        )}
                       </div>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* SHOW EMPTY TEMPLATE MESSAGE */}
+            {showTemplateSelector && selectedTemplateId && templatePreviewStages.length === 0 && (
+              <Card className="bg-amber-50/50 border-amber-200">
+                <CardContent className="py-6">
+                  <div className="flex flex-col items-center justify-center text-center">
+                    <div className="bg-amber-100 p-3 rounded-full mb-3">
+                      <LayoutTemplate className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <h4 className="font-medium text-amber-800 mb-1">This Template is Empty</h4>
+                    <p className="text-sm text-amber-600 max-w-md">
+                      The selected template has no stages configured. Please choose a different template or start from scratch.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -907,7 +986,7 @@ export default function StagesPage() {
                               ...prev, [key]: (prev[key] || []).filter((_, i) => i !== idx)
                             }));
                           }}
-                          updateSubtask={updateSubtask}
+                          updateSubtask={handleSubtaskUpdate}
                           onEdit={handleOpenDialog}
                           onDelete={handleDelete}
                           onStageStatusChange={(id, status) =>
@@ -917,6 +996,7 @@ export default function StagesPage() {
                             setStages(prev => prev.map(s => String(s.id) === String(id) ?
                               { ...s, start_date: date, status: s.status === "Not Started" && date ? "In Progress" : s.status } : s))
                           }
+                          clientId={selectedClientId}
                         />
                       ))}
                     </div>
@@ -1326,6 +1406,34 @@ export default function StagesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Task Completion Modal for Subtasks - requires document upload */}
+      {pendingSubtask && selectedClientId && (
+        <TaskCompleteModal
+          open={completeModalOpen}
+          onClose={() => {
+            setCompleteModalOpen(false);
+            setPendingSubtask(null);
+          }}
+          onComplete={() => {
+            if (!pendingSubtask) return;
+
+            // Update the subtask status to Completed after document upload
+            updateSubtask(pendingSubtask.stageId, pendingSubtask.index, { status: "Completed" });
+
+            toast({
+              title: "Subtask Completed",
+              description: `"${pendingSubtask.title}" has been marked as complete.`,
+            });
+            setPendingSubtask(null);
+          }}
+          taskTitle={pendingSubtask.title}
+          taskId={pendingSubtask.index}
+          clientId={selectedClientId}
+          taskType="onboarding"
+          stageName={pendingSubtask.stageName}
+        />
+      )}
     </div>
   );
 }

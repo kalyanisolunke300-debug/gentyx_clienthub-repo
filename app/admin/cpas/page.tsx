@@ -41,6 +41,7 @@ export default function CPAsPage() {
   const [assignedClients, setAssignedClients] = useState<any[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [formErrors, setFormErrors] = useState<{ name?: string; email?: string }>({});
 
   // ==========================
   // LOAD CPA LIST FROM SQL
@@ -107,6 +108,7 @@ export default function CPAsPage() {
       setFormData({ name: "", email: "" });
     }
 
+    setFormErrors({});
     setOpen(true);
   }
 
@@ -114,14 +116,24 @@ export default function CPAsPage() {
   // SAVE (CREATE OR UPDATE)
   // ==========================
   async function handleSave() {
+    // Validate required fields
+    const errors: { name?: string; email?: string } = {};
+
     if (!formData.name.trim()) {
-      toast({
-        title: "Error",
-        description: "CPA Name is required",
-        variant: "destructive",
-      });
+      errors.name = "CPA Name is required";
+    }
+    if (!formData.email.trim()) {
+      errors.email = "Email Address is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
+
+    setFormErrors({});
 
     setIsSaving(true);
 
@@ -247,28 +259,36 @@ export default function CPAsPage() {
 
               <div className="grid gap-6 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
                   <Input
                     id="name"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData({ ...formData, name: e.target.value });
+                      if (formErrors.name) setFormErrors({ ...formErrors, name: undefined });
+                    }}
                     placeholder="e.g. John Doe, CPA"
                   />
+                  {formErrors.name && (
+                    <p className="text-xs text-red-500">{formErrors.name}</p>
+                  )}
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="email">Email Address <span className="text-red-500">*</span></Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setFormData({ ...formData, email: e.target.value });
+                      if (formErrors.email) setFormErrors({ ...formErrors, email: undefined });
+                    }}
                     placeholder="contact@cpa-firm.com"
                   />
+                  {formErrors.email && (
+                    <p className="text-xs text-red-500">{formErrors.email}</p>
+                  )}
                 </div>
               </div>
 

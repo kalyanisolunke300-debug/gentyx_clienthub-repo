@@ -2,7 +2,7 @@
 "use client";
 
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createClient,
@@ -30,14 +30,24 @@ import useSWR from "swr";
 import { Plus, X } from "lucide-react";
 
 const Schema = z.object({
-  client_name: z.string().min(2, "Company name required"),
-  primary_contact_name: z.string().min(2, "Contact name required"),
-  primary_contact_email: z.string().email("Valid email required"),
-  primary_contact_phone: z.string().optional(),   // ✅ ADDED
+  client_name: z.string().min(2, "Company name is required"),
+  primary_contact_name: z.string().min(2, "Primary contact name is required"),
+  primary_contact_email: z.string().min(1, "Email is required").email("Valid email required"),
+  primary_contact_phone: z.string().min(1, "Phone number is required"),
   service_center_id: z.string().optional(),
   cpa_id: z.string().optional(),
   // stage_id: z.string().optional(),
 });
+
+// Helper function to format phone as 555-888-3333
+function formatPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
 
 type AssociatedUser = {
   id: string;
@@ -155,28 +165,52 @@ export default function NewClientPage() {
 
           {/* Company Name */}
           <div className="grid gap-2">
-            <Label>Company Name</Label>
+            <Label>Company Name <span className="text-red-500">*</span></Label>
             <Input {...form.register("client_name")} placeholder="Acme LLC" />
+            {form.formState.errors.client_name && (
+              <p className="text-xs text-red-500">{form.formState.errors.client_name.message}</p>
+            )}
           </div>
 
           {/* Primary Contact */}
           <div className="grid gap-2">
-            <Label>Primary Contact</Label>
+            <Label>Primary Contact <span className="text-red-500">*</span></Label>
             <Input {...form.register("primary_contact_name")} placeholder="John Doe" />
+            {form.formState.errors.primary_contact_name && (
+              <p className="text-xs text-red-500">{form.formState.errors.primary_contact_name.message}</p>
+            )}
           </div>
 
           {/* Email */}
           <div className="grid gap-2">
-            <Label>Email</Label>
+            <Label>Email <span className="text-red-500">*</span></Label>
             <Input {...form.register("primary_contact_email")} placeholder="john@example.com" />
+            {form.formState.errors.primary_contact_email && (
+              <p className="text-xs text-red-500">{form.formState.errors.primary_contact_email.message}</p>
+            )}
           </div>
           {/* Phone */}
           <div className="grid gap-2">
-            <Label>Phone</Label>
-            <Input
-              {...form.register("primary_contact_phone")}
-              placeholder="555-888-3333"
+            <Label>Phone <span className="text-red-500">*</span></Label>
+            <Controller
+              control={form.control}
+              name="primary_contact_phone"
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  placeholder="555-888-3333"
+                  inputMode="numeric"
+                  maxLength={12}
+                  onChange={(e) => {
+                    const formatted = formatPhoneInput(e.target.value);
+                    field.onChange(formatted);
+                  }}
+                />
+              )}
             />
+            {form.formState.errors.primary_contact_phone && (
+              <p className="text-xs text-red-500">{form.formState.errors.primary_contact_phone.message}</p>
+            )}
           </div>
 
           {/* Service Center */}
@@ -228,27 +262,7 @@ export default function NewClientPage() {
             </Select>
           </div>
 
-          {/* Initial Stage */}
-          {/* <div className="grid gap-2">
-            <Label>Initial Stage</Label>
 
-            <Select
-              value={form.watch("stage_id")}
-              onValueChange={(v) => form.setValue("stage_id", v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select stage" />
-              </SelectTrigger>
-
-              <SelectContent>
-                {(stages?.data || []).map((s: any) => (
-                  <SelectItem key={s.stage_id} value={String(s.stage_id)}>
-                    {s.stage_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div> */}
 
           {/* Associated Users */}
           <div className="border-t pt-4 mt-4">

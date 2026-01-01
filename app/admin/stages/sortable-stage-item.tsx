@@ -4,7 +4,7 @@
 
 import { CSS } from "@dnd-kit/utilities";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
-import { GripVertical, Edit2, Trash2, Plus } from "lucide-react";
+import { GripVertical, Edit2, Trash2, Plus, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Popover,
@@ -60,6 +61,8 @@ export interface SortableStageItemProps {
   onStageStatusChange: (id: string, status: string) => void;
 
   onStageStartDateChange: (stageId: string, startDate: string | null) => void;
+
+  clientId?: string;  // For navigating to documents
 }
 
 /* -------------- STAGE STATUSES --------------- */
@@ -78,7 +81,9 @@ export function SortableStageItem({
   onStageStatusChange,
   updateSubtask,
   onStageStartDateChange,
+  clientId,
 }: SortableStageItemProps) {
+  const router = useRouter();
   const [showStartDate, setShowStartDate] = useState(false);
 
   const {
@@ -278,6 +283,26 @@ export function SortableStageItem({
                     <SelectItem value="Completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* View Docs button for completed subtasks - fixed width for alignment */}
+                <div className="w-5">
+                  {t.status === "Completed" && clientId && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0 text-primary"
+                      onClick={() => {
+                        const folderPath = encodeURIComponent(
+                          `Onboarding Stage Completion Documents/${stage.name}-${t.title}`
+                        );
+                        router.push(`/admin/documents?clientId=${clientId}&folder=${folderPath}`);
+                      }}
+                      title="View completion documents"
+                    >
+                      <Eye className="size-4" />
+                    </Button>
+                  )}
+                </div>
 
                 <Button
                   size="sm"

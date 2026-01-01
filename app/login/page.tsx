@@ -187,7 +187,7 @@ export default function LoginPage() {
       {/* FOOTER TEXT */}
       <div className="powered-by-text">POWERED BY HUBONE SYSTEMS</div>
       <p className="footer-text">
-        © 2014–2025 HubOne Systems Inc. – All Rights Reserved
+        © 2014–{new Date().getFullYear()} HubOne Systems Inc. – All Rights Reserved
       </p>
     </div>
   );

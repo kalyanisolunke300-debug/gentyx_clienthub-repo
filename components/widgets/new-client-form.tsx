@@ -34,7 +34,7 @@ const NewClientSchema = z.object({
     .email("Valid email required")
     .min(3, "Email is required"),
   //primaryContactPhone: z.string().optional(),
-  primaryContactPhone: z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits").optional(),
+  primaryContactPhone: z.string().min(1, "Phone number is required").regex(/^[\d-]+$/, "Phone number must contain only digits"),
 
   serviceCenterId: z.string().optional(),
   cpaId: z.string().optional(),
@@ -159,7 +159,7 @@ export function NewClientForm() {
     >
       {/* Company Name */}
       <div className="grid gap-2">
-        <Label>Company Name</Label>
+        <Label>Company Name <span className="text-red-500">*</span></Label>
         <Input
           {...form.register("clientName")}
           placeholder="Acme LLC"
@@ -173,21 +173,31 @@ export function NewClientForm() {
 
       {/* Primary Contact */}
       <div className="grid gap-2">
-        <Label>Primary Contact Name</Label>
+        <Label>Primary Contact Name <span className="text-red-500">*</span></Label>
         <Input
           {...form.register("primaryContactName")}
           placeholder="Jane Doe"
         />
+        {form.formState.errors.primaryContactName && (
+          <p className="text-xs text-red-500">
+            {form.formState.errors.primaryContactName.message}
+          </p>
+        )}
       </div>
-   
+
       {/* Email */}
       <div className="grid gap-2">
-        <Label>Email</Label>
+        <Label>Email <span className="text-red-500">*</span></Label>
         <Input
           type="email"
           {...form.register("primaryContactEmail")}
           placeholder="jane@example.com"
         />
+        {form.formState.errors.primaryContactEmail && (
+          <p className="text-xs text-red-500">
+            {form.formState.errors.primaryContactEmail.message}
+          </p>
+        )}
       </div>
 
       {/* Phone */}
@@ -204,25 +214,30 @@ export function NewClientForm() {
       </div> */}
 
       {/* Phone */}
-        <div className="grid gap-2">
-          <Label>Phone</Label>
-          <Controller
-            control={form.control}
-            name="primaryContactPhone"
-            render={({ field }) => (
-              <Input
-                {...field}
-                placeholder="555-888-3333"
-                inputMode="numeric"
-                maxLength={12} // 123-456-7891
-                onChange={(e) => {
-                  const formatted = formatPhoneInput(e.target.value);
-                  field.onChange(formatted);
-                }}
-              />
-            )}
-          />
-        </div>
+      <div className="grid gap-2">
+        <Label>Phone <span className="text-red-500">*</span></Label>
+        <Controller
+          control={form.control}
+          name="primaryContactPhone"
+          render={({ field }) => (
+            <Input
+              {...field}
+              placeholder="555-888-3333"
+              inputMode="numeric"
+              maxLength={12} // 123-456-7891
+              onChange={(e) => {
+                const formatted = formatPhoneInput(e.target.value);
+                field.onChange(formatted);
+              }}
+            />
+          )}
+        />
+        {form.formState.errors.primaryContactPhone && (
+          <p className="text-xs text-red-500">
+            {form.formState.errors.primaryContactPhone.message}
+          </p>
+        )}
+      </div>
 
 
       {/* <Controller
