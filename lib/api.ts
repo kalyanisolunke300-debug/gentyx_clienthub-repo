@@ -414,3 +414,55 @@ export async function saveDefaultStages(payload: {
   });
   return res.json();
 }
+
+// ADMIN PROFILE API Calls
+export async function fetchAdminProfile() {
+  const res = await fetch("/api/admin/profile/get", { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch admin profile");
+  const json = await res.json();
+  return json.data;
+}
+
+export async function updateAdminProfile(payload: {
+  full_name: string;
+  email: string;
+  phone: string;
+}) {
+  const res = await fetch("/api/admin/profile/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to update admin profile");
+  return res.json();
+}
+
+export async function updateAdminPassword(payload: {
+  currentPassword?: string;
+  newPassword?: string;
+}) {
+  const res = await fetch("/api/admin/password/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || "Failed to update password");
+  return json;
+}
+
+export async function createAdminUser(payload: {
+  currentPassword?: string;
+  newEmail?: string;
+  newPassword?: string;
+}) {
+  const res = await fetch("/api/admin/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || "Failed to create admin");
+  return json;
+}
+

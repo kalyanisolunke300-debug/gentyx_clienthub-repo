@@ -6,7 +6,7 @@ import { logAudit, AuditActions } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
-    const { client_id, sender_role, receiver_role, body, parent_message_id, attachment_url, attachment_name } = await req.json();
+    const { client_id, sender_role, receiver_role, body, parent_message_id, attachment_url, attachment_name, service_center_id, cpa_id } = await req.json();
 
     const pool = await getDbPool();
 
@@ -14,7 +14,29 @@ export async function POST(req: Request) {
     const parsedClientId = client_id ? parseInt(client_id) : 0;
     const validClientId = parsedClientId > 0 ? parsedClientId : null;
 
-    console.log("📨 Adding message:", { client_id, parsedClientId, validClientId, sender_role, receiver_role });
+    // Handle service_center_id and cpa_id
+    const parsedServiceCenterId = service_center_id ? parseInt(service_center_id) : null;
+    const parsedCpaId = cpa_id ? parseInt(cpa_id) : null;
+
+    console.log("📨 Adding message:", { client_id, parsedClientId, validClientId, sender_role, receiver_role, service_center_id: parsedServiceCenterId, cpa_id: parsedCpaId });
+
+    // First, ensure the columns exist
+    try {
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.onboarding_messages') AND name = 'service_center_id')
+        BEGIN
+          ALTER TABLE dbo.onboarding_messages ADD service_center_id INT NULL
+        END
+      `);
+      await pool.request().query(`
+        IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.onboarding_messages') AND name = 'cpa_id')
+        BEGIN
+          ALTER TABLE dbo.onboarding_messages ADD cpa_id INT NULL
+        END
+      `);
+    } catch (alterErr) {
+      console.log("⚠️ Columns may already exist:", alterErr);
+    }
 
     // Insert the message
     try {
@@ -26,10 +48,12 @@ export async function POST(req: Request) {
         .input("parent_message_id", sql.Int, parent_message_id || null)
         .input("attachment_url", sql.NVarChar(sql.MAX), attachment_url || null)
         .input("attachment_name", sql.NVarChar(255), attachment_name || null)
+        .input("service_center_id", sql.Int, parsedServiceCenterId)
+        .input("cpa_id", sql.Int, parsedCpaId)
         .query(`
           INSERT INTO dbo.onboarding_messages 
-          (client_id, sender_role, receiver_role, body, parent_message_id, attachment_url, attachment_name)
-          VALUES (@client_id, @sender_role, @receiver_role, @body, @parent_message_id, @attachment_url, @attachment_name)
+          (client_id, sender_role, receiver_role, body, parent_message_id, attachment_url, attachment_name, service_center_id, cpa_id)
+          VALUES (@client_id, @sender_role, @receiver_role, @body, @parent_message_id, @attachment_url, @attachment_name, @service_center_id, @cpa_id)
         `);
       console.log("✅ Message inserted successfully");
     } catch (insertErr: any) {
@@ -58,10 +82,12 @@ export async function POST(req: Request) {
             .input("parent_message_id", sql.Int, parent_message_id || null)
             .input("attachment_url", sql.NVarChar(sql.MAX), attachment_url || null)
             .input("attachment_name", sql.NVarChar(255), attachment_name || null)
+            .input("service_center_id", sql.Int, parsedServiceCenterId)
+            .input("cpa_id", sql.Int, parsedCpaId)
             .query(`
               INSERT INTO dbo.onboarding_messages 
-              (client_id, sender_role, receiver_role, body, parent_message_id, attachment_url, attachment_name)
-              VALUES (@client_id, @sender_role, @receiver_role, @body, @parent_message_id, @attachment_url, @attachment_name)
+              (client_id, sender_role, receiver_role, body, parent_message_id, attachment_url, attachment_name, service_center_id, cpa_id)
+              VALUES (@client_id, @sender_role, @receiver_role, @body, @parent_message_id, @attachment_url, @attachment_name, @service_center_id, @cpa_id)
             `);
           console.log("✅ Message inserted after table alteration");
         } catch (alterErr) {

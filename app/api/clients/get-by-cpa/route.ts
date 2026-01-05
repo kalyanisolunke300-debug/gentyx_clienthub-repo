@@ -25,7 +25,8 @@ export async function GET(req: Request) {
           client_name,
           code,
           client_status,
-          status
+          status,
+          primary_contact_email
         FROM dbo.Clients
         WHERE cpa_id = @cpa_id
         ORDER BY client_name ASC

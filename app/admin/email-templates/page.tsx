@@ -368,7 +368,7 @@ export default function EmailTemplatesPage() {
                                             For admin-only trusted content, it's acceptable for now.
                                          */}
                         <div
-                          className="prose prose-sm max-w-none"
+                          className="prose prose-sm max-w-none whitespace-pre-wrap"
                           dangerouslySetInnerHTML={{ __html: tpl.body }}
                         />
                       </div>

@@ -116,11 +116,8 @@ export default function NewClientPage() {
         primaryContactName: values.primary_contact_name,
         primaryContactEmail: values.primary_contact_email,
         primaryContactPhone: values.primary_contact_phone,
-        // 👇 FIXED FIELD NAME & VALUE
-        service_center_id: Number(values.service_center_id) || null,
-
+        serviceCenterId: Number(values.service_center_id) || null,
         cpaId: Number(values.cpa_id) || null,
-        // stageId: Number(values.stage_id) || null,
         associatedUsers,
       });
 

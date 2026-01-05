@@ -5,11 +5,12 @@ import sql from "mssql";
 
 export async function GET(req: Request, { params }: any) {
     try {
-        const id = Number(params.id);
+        const { id } = await params;
+        const numericId = Number(id);
         const pool = await getDbPool();
 
         const result = await pool.request()
-            .input("id", sql.Int, id)
+            .input("id", sql.Int, numericId)
             .query(`
         SELECT 
           cpa_id,

@@ -51,7 +51,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers } from "lucide-react";
+import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark } from "lucide-react";
 import { formatPhone } from "@/lib/formatters";
 
 
@@ -1572,17 +1572,57 @@ export default function ClientProfilePage() {
 
         {/* ---------- MESSAGES ---------- */}
         <TabsContent value="messages">
-          <FlexibleChat
-            clientId={id}
-            clientName={client?.client_name}
-            currentUserRole="ADMIN"
-            recipients={[
-              { role: "CLIENT", label: client?.client_name || "Client", color: "bg-blue-500" },
-              { role: "SERVICE_CENTER", label: "Service Center", color: "bg-emerald-500" },
-              { role: "CPA", label: "CPA", color: "bg-amber-500" },
-            ]}
-            height="600px"
-          />
+          <div className="space-y-6">
+            {/* Chat with Client */}
+            <FlexibleChat
+              clientId={id}
+              clientName={client?.client_name ?? undefined}
+              currentUserRole="ADMIN"
+              recipients={[
+                { role: "CLIENT", label: client?.client_name || "Client", color: "bg-blue-500" },
+              ]}
+              height="500px"
+            />
+
+            {/* Links to Service Center and CPA Chat */}
+            <Card>
+              <CardContent className="py-6">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                  <p className="text-sm text-muted-foreground">Need to message the assigned team?</p>
+                  <div className="flex items-center gap-3">
+                    {client?.service_center_id ? (
+                      <a
+                        href={`/admin/messages?tab=service-centers&scId=${client.service_center_id}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                      >
+                        <Building2 className="size-4" />
+                        Chat with {client?.service_center_name || "Service Center"}
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
+                        <Building2 className="size-4" />
+                        No Service Center Assigned
+                      </span>
+                    )}
+                    {client?.cpa_id ? (
+                      <a
+                        href={`/admin/messages?tab=cpas&cpaId=${client.cpa_id}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
+                      >
+                        <Landmark className="size-4" />
+                        Chat with {client?.cpa_name || "CPA"}
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
+                        <Landmark className="size-4" />
+                        No CPA Assigned
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* ---------- AUDIT LOG ---------- */}

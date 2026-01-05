@@ -27,7 +27,8 @@ export async function GET(req: Request) {
           code,
           status,
           client_status,
-          created_at
+          created_at,
+          primary_contact_email
         FROM dbo.Clients
         WHERE service_center_id = @service_center_id
         ORDER BY created_at DESC

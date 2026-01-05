@@ -3,11 +3,11 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { useUIStore } from "@/store/ui-store";
 import { FlexibleChat } from "@/components/widgets/flexible-chat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, MessageSquare, ShieldCheck, Search } from "lucide-react";
+import { useUIStore } from "@/store/ui-store";
+import { Users, MessageSquare, Search, Landmark, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -19,31 +19,32 @@ interface Client {
 
 export default function CPAMessages() {
     const currentCpaId = useUIStore((s) => s.currentCpaId);
+    const [activeTab, setActiveTab] = useState("clients");
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [activeTab, setActiveTab] = useState("admin");
+    const [clientSearch, setClientSearch] = useState("");
 
     // Fetch clients assigned to this CPA
-    const { data: clientsResponse, isLoading } = useSWR(
-        currentCpaId ? ["cpa-clients", currentCpaId] : null,
+    const { data: clientsData, isLoading: clientsLoading } = useSWR(
+        currentCpaId ? ["cpa-clients-messages", currentCpaId] : null,
         async () => {
             const res = await fetch(`/api/clients/get-by-cpa?cpaId=${currentCpaId}`);
             const json = await res.json();
-            return json;
+            return { data: json.data || [] };
         }
     );
 
-    const clients: Client[] = clientsResponse?.data || [];
+    const clients: Client[] = clientsData?.data || [];
 
-    // Filter clients based on search
-    const filteredClients = clients.filter((client) =>
-        client.client_name.toLowerCase().includes(searchQuery.toLowerCase())
+    // Filter clients
+    const filteredClients = clients.filter((c) =>
+        c.client_name.toLowerCase().includes(clientSearch.toLowerCase())
     );
 
     if (!currentCpaId) {
         return (
-            <div className="flex items-center justify-center py-12">
-                <div className="text-muted-foreground">Loading...</div>
+            <div className="flex items-center justify-center py-20">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-3 text-muted-foreground">Loading...</span>
             </div>
         );
     }
@@ -51,7 +52,10 @@ export default function CPAMessages() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
+                <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+                    <MessageSquare className="h-6 w-6 text-primary" />
+                    Messages
+                </h1>
                 <p className="text-sm text-muted-foreground mt-1">
                     Communicate with Admin and your assigned clients
                 </p>
@@ -60,7 +64,7 @@ export default function CPAMessages() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full max-w-md grid-cols-2">
                     <TabsTrigger value="admin" className="flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4" />
+                        <Shield className="h-4 w-4" />
                         Chat with Admin
                     </TabsTrigger>
                     <TabsTrigger value="clients" className="flex items-center gap-2">
@@ -69,64 +73,45 @@ export default function CPAMessages() {
                     </TabsTrigger>
                 </TabsList>
 
-                {/* ADMIN CHAT TAB */}
+                {/* ADMIN TAB */}
                 <TabsContent value="admin" className="mt-4">
-                    <Card>
-                        <CardHeader className="border-b pb-3">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center">
-                                    <ShieldCheck className="h-5 w-5 text-violet-600" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-base">Admin Support</CardTitle>
-                                    <p className="text-xs text-muted-foreground">
-                                        Direct communication with the admin team
-                                    </p>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <FlexibleChat
-                                clientId="0"
-                                currentUserRole="CPA"
-                                recipients={[
-                                    { role: "ADMIN", label: "Admin", color: "bg-violet-500" },
-                                ]}
-                                height="500px"
-                            />
-                        </CardContent>
-                    </Card>
+                    <FlexibleChat
+                        clientId="0"
+                        cpaId={currentCpaId}
+                        currentUserRole="CPA"
+                        recipients={[
+                            { role: "ADMIN", label: "Admin", color: "bg-violet-500" },
+                        ]}
+                        height="600px"
+                    />
                 </TabsContent>
 
-                {/* CLIENTS CHAT TAB */}
+                {/* CLIENTS TAB */}
                 <TabsContent value="clients" className="mt-4">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        {/* Client List Sidebar */}
+                        {/* Client List */}
                         <Card className="lg:col-span-1">
                             <CardHeader className="pb-3 border-b">
                                 <CardTitle className="text-base flex items-center gap-2">
-                                    <Users className="h-4 w-4" />
-                                    Your Clients ({clients.length})
+                                    <Users className="h-4 w-4 text-amber-600" />
+                                    Clients ({clients.length})
                                 </CardTitle>
-                                {/* Search */}
                                 <div className="relative mt-3">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         placeholder="Search clients..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        value={clientSearch}
+                                        onChange={(e) => setClientSearch(e.target.value)}
                                         className="pl-9"
                                     />
                                 </div>
                             </CardHeader>
-                            <CardContent className="p-0 max-h-[450px] overflow-y-auto">
-                                {isLoading ? (
-                                    <div className="p-4 text-sm text-muted-foreground text-center">
-                                        Loading clients...
-                                    </div>
+                            <CardContent className="p-0 max-h-[500px] overflow-y-auto">
+                                {clientsLoading ? (
+                                    <div className="p-4 text-sm text-muted-foreground text-center">Loading...</div>
                                 ) : filteredClients.length === 0 ? (
                                     <div className="p-4 text-sm text-muted-foreground text-center">
-                                        {searchQuery ? "No clients found" : "No clients assigned"}
+                                        {clients.length === 0 ? "No clients assigned" : "No clients found"}
                                     </div>
                                 ) : (
                                     <div className="divide-y">
@@ -176,20 +161,19 @@ export default function CPAMessages() {
                                     currentUserRole="CPA"
                                     recipients={[
                                         { role: "CLIENT", label: selectedClient.client_name, color: "bg-blue-500" },
+                                        { role: "ADMIN", label: "Admin", color: "bg-violet-500" },
                                     ]}
-                                    height="550px"
+                                    height="600px"
                                 />
                             ) : (
-                                <Card className="h-[550px] flex items-center justify-center">
+                                <Card className="h-[600px] flex items-center justify-center">
                                     <div className="text-center space-y-3 opacity-50">
                                         <div className="bg-amber-100 p-4 rounded-full inline-block">
-                                            <MessageSquare className="size-8 text-amber-500" />
+                                            <Landmark className="size-8 text-amber-500" />
                                         </div>
                                         <div>
                                             <p className="font-medium text-slate-900">Select a client to chat</p>
-                                            <p className="text-sm text-slate-500">
-                                                Choose a client from the list on the left
-                                            </p>
+                                            <p className="text-sm text-slate-500">Choose from the list on the left</p>
                                         </div>
                                     </div>
                                 </Card>

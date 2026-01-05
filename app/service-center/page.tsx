@@ -25,6 +25,16 @@ export default function ServiceCenterDashboard() {
   const router = useRouter()
   const currentServiceCenterId = useUIStore((s) => s.currentServiceCenterId)
 
+  // Fetch Service Center Details
+  const { data: serviceCenterDetails } = useSWR(
+    currentServiceCenterId ? ["service-center-details", currentServiceCenterId] : null,
+    async () => {
+      const res = await fetch(`/api/service-centers/${currentServiceCenterId}/get`)
+      const json = await res.json()
+      return json.data
+    }
+  )
+
   // Fetch only clients assigned to this Service Center
   const { data: clientsData, mutate: refreshClients } = useSWR(
     currentServiceCenterId ? ["sc-clients", currentServiceCenterId] : null,
@@ -98,8 +108,10 @@ export default function ServiceCenterDashboard() {
       {/* Header with Settings */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Service Center Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's an overview of your work.</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Welcome back{serviceCenterDetails?.name ? `, ${serviceCenterDetails.name}` : ""}!
+          </h1>
+          <p className="text-muted-foreground">Here's an overview of your work.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">

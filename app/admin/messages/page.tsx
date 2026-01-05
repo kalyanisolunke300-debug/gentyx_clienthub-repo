@@ -1,7 +1,8 @@
 // app/admin/messages/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { FlexibleChat } from "@/components/widgets/flexible-chat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,6 +75,26 @@ export default function AdminMessages() {
         }
     );
     const cpas: CPA[] = cpaResponse?.data || [];
+
+    // Read URL search params
+    const searchParams = useSearchParams();
+
+    // Auto-select based on URL params
+    useEffect(() => {
+        const tab = searchParams.get("tab");
+        const scId = searchParams.get("scId");
+        const cpaId = searchParams.get("cpaId");
+
+        if (tab === "service-centers" && scId) {
+            setActiveTab("service-centers");
+            const sc = serviceCenters.find(s => s.service_center_id === parseInt(scId));
+            if (sc) setSelectedSC(sc);
+        } else if (tab === "cpas" && cpaId) {
+            setActiveTab("cpas");
+            const cpa = cpas.find(c => c.cpa_id === parseInt(cpaId));
+            if (cpa) setSelectedCPA(cpa);
+        }
+    }, [searchParams, serviceCenters, cpas]);
 
     // Filter functions
     const filteredClients = clients.filter((c) =>
@@ -276,6 +297,7 @@ export default function AdminMessages() {
                                 <FlexibleChat
                                     clientId="0" // SC-level chat (not client-specific)
                                     serviceCenterName={selectedSC.center_name}
+                                    serviceCenterId={selectedSC.service_center_id}
                                     currentUserRole="ADMIN"
                                     recipients={[
                                         { role: "SERVICE_CENTER", label: selectedSC.center_name, color: "bg-emerald-500" },
@@ -368,6 +390,7 @@ export default function AdminMessages() {
                             {selectedCPA ? (
                                 <FlexibleChat
                                     clientId="0" // CPA-level chat (not client-specific)
+                                    cpaId={selectedCPA.cpa_id}
                                     currentUserRole="ADMIN"
                                     recipients={[
                                         { role: "CPA", label: selectedCPA.cpa_name, color: "bg-amber-500" },

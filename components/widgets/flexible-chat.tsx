@@ -5,7 +5,7 @@ import useSWR, { mutate } from "swr"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { Send, Reply, X, FileText, Loader2, Paperclip } from "lucide-react"
+import { Send, Reply, X, FileText, Loader2, Paperclip, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Message {
@@ -31,6 +31,9 @@ interface FlexibleChatProps {
     clientId: string
     clientName?: string
     serviceCenterName?: string
+    cpaName?: string
+    serviceCenterId?: string | number  // For specific service center messaging
+    cpaId?: string | number  // For specific CPA messaging
     currentUserRole: "ADMIN" | "CLIENT" | "SERVICE_CENTER" | "CPA"
     recipients: ChatRecipient[]
     height?: string
@@ -54,6 +57,9 @@ export function FlexibleChat({
     clientId,
     clientName,
     serviceCenterName,
+    cpaName,
+    serviceCenterId,
+    cpaId,
     currentUserRole,
     recipients,
     height = "500px",
@@ -70,16 +76,33 @@ export function FlexibleChat({
     const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
     const [isUploading, setIsUploading] = useState(false)
 
+    // Update selectedRecipient when recipients prop changes (e.g., switching to a different SC/CPA)
+    useEffect(() => {
+        setSelectedRecipient(recipients[0])
+    }, [recipients])
+
+    // Determine active IDs based on the conversation context
+    // We only attach specific IDs if we are explicitly chatting WITH that entity role
+    // OR if we ARE that entity role (e.g. Service Center chatting with Admin/Client)
+    const activeServiceCenterId = (selectedRecipient.role === "SERVICE_CENTER" || currentUserRole === "SERVICE_CENTER") ? serviceCenterId : undefined
+    const activeCpaId = (selectedRecipient.role === "CPA" || currentUserRole === "CPA") ? cpaId : undefined
+
+    // Check if recipient is assigned (for enhancing the UI)
+    const isUnassigned =
+        (selectedRecipient.role === "SERVICE_CENTER" && !serviceCenterId) ||
+        (selectedRecipient.role === "CPA" && !cpaId);
+
     // Build the conversation key
     const conversationKey = `${currentUserRole},${selectedRecipient.role}`
 
     // Fetch messages for the current conversation
     const { data: msgsResponse, isLoading } = useSWR(
-        clientId ? ["messages", clientId, conversationKey] : null,
+        clientId ? ["messages", clientId, conversationKey, activeServiceCenterId, activeCpaId] : null,
         async () => {
-            const res = await fetch(
-                `/api/messages/get?clientId=${clientId}&conversationBetween=${conversationKey}`
-            )
+            let url = `/api/messages/get?clientId=${clientId}&conversationBetween=${conversationKey}`
+            if (activeServiceCenterId) url += `&serviceCenterId=${activeServiceCenterId}`
+            if (activeCpaId) url += `&cpaId=${activeCpaId}`
+            const res = await fetch(url)
             const json = await res.json()
             return json.data || []
         },
@@ -169,6 +192,8 @@ export function FlexibleChat({
                     parent_message_id: replyingTo?.id,
                     attachment_url: attachmentUrl,
                     attachment_name: attachmentName,
+                    service_center_id: activeServiceCenterId || null,
+                    cpa_id: activeCpaId || null,
                 }),
             })
 
@@ -178,7 +203,7 @@ export function FlexibleChat({
             if (fileInputRef.current) fileInputRef.current.value = ""
 
             toast({ title: "Message sent" })
-            mutate(["messages", clientId, conversationKey])
+            mutate(["messages", clientId, conversationKey, activeServiceCenterId, activeCpaId])
         } catch (error) {
             toast({ title: "Failed to send message", variant: "destructive" })
         } finally {
@@ -261,13 +286,19 @@ export function FlexibleChat({
                             Loading messages...
                         </div>
                     ) : messages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center space-y-2 opacity-50">
-                            <div className="bg-slate-200 p-4 rounded-full">
-                                <Send className="size-6 text-slate-500" />
+                        <div className={cn("flex flex-col items-center justify-center h-full text-center space-y-2", isUnassigned ? "opacity-100" : "opacity-50")}>
+                            <div className={cn("p-4 rounded-full", isUnassigned ? "bg-amber-100" : "bg-slate-200")}>
+                                {isUnassigned ? (
+                                    <AlertCircle className="size-6 text-amber-600" />
+                                ) : (
+                                    <Send className="size-6 text-slate-500" />
+                                )}
                             </div>
                             <div>
-                                <p className="font-medium text-slate-900">No messages yet</p>
-                                <p className="text-sm text-slate-500">
+                                <p className="font-medium text-slate-900">
+                                    {isUnassigned ? "No Assignment Found" : "No messages yet"}
+                                </p>
+                                <p className={cn("text-sm", isUnassigned ? "text-amber-600 font-bold" : "text-slate-500")}>
                                     Start the conversation with {selectedRecipient.label}
                                 </p>
                             </div>
@@ -471,13 +502,13 @@ export function FlexibleChat({
                             )}
                             title="Attach file"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={isUploading}
+                            disabled={isUploading || isUnassigned}
                         >
                             <Paperclip className="size-5" />
                         </Button>
 
                         <textarea
-                            placeholder={`Message ${selectedRecipient.label}...`}
+                            placeholder={isUnassigned ? "Recipient not assigned" : `Message ${selectedRecipient.label}...`}
                             className="flex-1 border-0 bg-transparent focus:outline-none focus:ring-0 px-2 py-2 min-h-[40px] max-h-32 resize-none text-sm"
                             value={messageText}
                             onChange={(e) => setMessageText(e.target.value)}
@@ -488,7 +519,8 @@ export function FlexibleChat({
                                 }
                             }}
                             rows={1}
-                            disabled={isSending}
+                            disabled={isSending || isUnassigned}
+                            style={{ cursor: isUnassigned ? "not-allowed" : "auto" }}
                         />
 
                         <Button
@@ -498,7 +530,7 @@ export function FlexibleChat({
                                 "h-9 w-9 rounded-full shrink-0 transition-all",
                                 messageText.trim() || attachmentFile ? myBubbleColor + " hover:opacity-90" : "bg-slate-300 hover:bg-slate-400"
                             )}
-                            disabled={(!messageText.trim() && !attachmentFile) || isSending}
+                            disabled={(!messageText.trim() && !attachmentFile) || isSending || isUnassigned}
                         >
                             {isSending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                         </Button>

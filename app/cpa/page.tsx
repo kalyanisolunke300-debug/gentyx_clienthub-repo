@@ -25,6 +25,16 @@ export default function CPADashboard() {
   const router = useRouter()
   const currentCpaId = useUIStore((s) => s.currentCpaId)
 
+  // Fetch CPA Details
+  const { data: cpaDetails } = useSWR(
+    currentCpaId ? ["cpa-details", currentCpaId] : null,
+    async () => {
+      const res = await fetch(`/api/cpas/${currentCpaId}/get`)
+      const json = await res.json()
+      return json.data
+    }
+  )
+
   // Fetch only clients assigned to this CPA
   const { data: clientsData, mutate: refreshClients } = useSWR(
     currentCpaId ? ["cpa-clients", currentCpaId] : null,
@@ -98,8 +108,10 @@ export default function CPADashboard() {
       {/* Header with Settings */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">CPA Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's an overview of your work.</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Welcome back{cpaDetails?.cpa_name ? `, ${cpaDetails.cpa_name}` : ""}!
+          </h1>
+          <p className="text-muted-foreground">Here's an overview of your work.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">

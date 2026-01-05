@@ -2,13 +2,14 @@
 
 import { useParams, useSearchParams } from "next/navigation"
 import useSWR, { mutate } from "swr"
-import { fetchClient, fetchTasks, fetchDocuments } from "@/lib/api"
+import { fetchClient, fetchTasks } from "@/lib/api"
+import type { ClientProfile } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DataTable, type Column } from "@/components/data-table"
 import { Button } from "@/components/ui/button"
 import { StatusPill } from "@/components/widgets/status-pill"
 import { FlexibleChat } from "@/components/widgets/flexible-chat"
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useState } from "react"
@@ -18,7 +19,7 @@ import {
   Mail,
   Phone,
   ClipboardList,
-  FileText,
+
   MessageSquare,
   Clock,
   CheckCircle2,
@@ -28,16 +29,7 @@ import {
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
-interface ClientProfile {
-  client_id: number
-  client_name: string
-  code: string
-  client_status: string
-  primary_contact_name: string
-  primary_contact_email: string
-  primary_contact_phone: string
-  onboarding_stage?: string
-}
+
 
 export default function CPAClientWorkspace() {
   const { id } = useParams<{ id: string }>()
@@ -46,9 +38,15 @@ export default function CPAClientWorkspace() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const { data: client } = useSWR<ClientProfile>(["cpa-client", id], () => fetchClient(id))
-  const { data: tasksData, mutate: refreshTasks } = useSWR(["cpa-tasks", id], () => fetchTasks({ clientId: id }))
-  const { data: docs } = useSWR(["cpa-docs", id], () => fetchDocuments({ clientId: id }))
+  const { data: client } = useSWR<ClientProfile>(
+    id ? `cpa-client-${id}` : null,
+    () => fetchClient(id!)
+  )
+  const { data: tasksData, mutate: refreshTasks } = useSWR(
+    id ? `cpa-tasks-${id}` : null,
+    () => fetchTasks({ clientId: id! })
+  )
+
 
   // Filter to only CPA tasks
   const cpaTasks = (tasksData?.data || []).filter((t: any) => t.assigneeRole === "CPA")
@@ -87,11 +85,7 @@ export default function CPAClientWorkspace() {
     }
   }
 
-  const docCols: Column<any>[] = [
-    { key: "name", header: "Document Name" },
-    { key: "status", header: "Status", render: (r) => <StatusPill status={r.status || "Uploaded"} /> },
-    { key: "created_at", header: "Uploaded", render: (r) => r.created_at ? new Date(r.created_at).toLocaleDateString() : "—" },
-  ]
+
 
   const chatRecipients = [
     { role: "CLIENT", label: client?.client_name || "Client", color: "bg-blue-500" },
@@ -184,10 +178,7 @@ export default function CPAClientWorkspace() {
             <ClipboardList className="h-4 w-4" />
             Tasks ({cpaTasks.length})
           </TabsTrigger>
-          <TabsTrigger value="documents" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Documents
-          </TabsTrigger>
+
           <TabsTrigger value="messages" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Messages
@@ -298,34 +289,7 @@ export default function CPAClientWorkspace() {
           </Card>
         </TabsContent>
 
-        {/* DOCUMENTS TAB */}
-        <TabsContent value="documents" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Client Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={docCols}
-                rows={docs || []}
-                onRowAction={(r: any) => (
-                  r.url && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => window.open(r.url, "_blank")}
-                    >
-                      View
-                    </Button>
-                  )
-                )}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+
 
         {/* MESSAGES TAB */}
         <TabsContent value="messages" className="mt-4">

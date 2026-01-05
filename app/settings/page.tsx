@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import useSWR from "swr"
-import { fetchAuditLogs } from "@/lib/api"
+import { useState, useEffect } from "react"
+import useSWR, { mutate } from "swr"
+import { fetchAuditLogs, fetchAdminProfile, updateAdminProfile } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -10,7 +10,17 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { User, Bell, Shield, Activity, Save, Eye, EyeOff, Check } from "lucide-react"
+import { User, Bell, Shield, Activity, Save, Eye, EyeOff, Check, Loader2, UserPlus, Lock, Plus, X } from "lucide-react"
+import { updateAdminPassword, createAdminUser } from "@/lib/api"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -21,11 +31,26 @@ export default function SettingsPage() {
 
   // Profile state
   const [profileData, setProfileData] = useState({
-    name: "Admin User",
-    email: "admin@mail.com",
+    name: "",
+    email: "",
     phone: "",
     role: "Administrator"
   })
+
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    fetchAdminProfile().then((data) => {
+      if (data) {
+        setProfileData({
+          name: data.full_name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          role: data.role || "Administrator"
+        })
+      }
+    })
+  }, [])
 
   // Notification settings state
   const [notifications, setNotifications] = useState({
@@ -40,12 +65,42 @@ export default function SettingsPage() {
   const [showSecret, setShowSecret] = useState(false)
   const [secretValue, setSecretValue] = useState("")
 
+  // Password Update State
+  const [currentPass, setCurrentPass] = useState("")
+  const [newPass, setNewPass] = useState("")
+  const [confirmPass, setConfirmPass] = useState("")
+  const [isUpdatingPass, setIsUpdatingPass] = useState(false)
+
+  // Create Admin State
+  const [newAdminEmail, setNewAdminEmail] = useState("")
+  const [newAdminPassword, setNewAdminPassword] = useState("")
+  const [adminConfirmPass, setAdminConfirmPass] = useState("")
+  const [masterPass, setMasterPass] = useState("") // Current admin password to confirm
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false)
+  const [showCreateAdminDialog, setShowCreateAdminDialog] = useState(false)
+
   // Save handlers
-  const handleSaveProfile = () => {
-    toast({
-      title: "Profile Updated",
-      description: "Your profile settings have been saved successfully.",
-    })
+  const handleSaveProfile = async () => {
+    setIsSaving(true)
+    try {
+      await updateAdminProfile({
+        full_name: profileData.name,
+        email: profileData.email,
+        phone: profileData.phone,
+      })
+      toast({
+        title: "Profile Updated",
+        description: "Your profile settings have been saved successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update profile.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleSaveNotifications = () => {
@@ -67,9 +122,74 @@ export default function SettingsPage() {
     toast({
       title: "Secret Stored",
       description: "Your secret has been securely stored.",
+      variant: "success"
     })
     setSecretValue("")
   }
+
+  const handleUpdatePassword = async () => {
+    if (!currentPass || !newPass || !confirmPass) {
+      toast({ title: "Error", description: "All fields are required", variant: "destructive" })
+      return
+    }
+    if (newPass !== confirmPass) {
+      toast({ title: "Error", description: "New passwords do not match", variant: "destructive" })
+      return
+    }
+
+    setIsUpdatingPass(true)
+    try {
+      await updateAdminPassword({ currentPassword: currentPass, newPassword: newPass })
+      toast({ title: "Success", description: "Password updated successfully" })
+      setCurrentPass("")
+      setNewPass("")
+      setConfirmPass("")
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update password", variant: "destructive" })
+    } finally {
+      setIsUpdatingPass(false)
+    }
+  }
+
+  const handleCreateAdmin = async () => {
+    if (!newAdminEmail || !newAdminPassword || !masterPass) {
+      toast({ title: "Error", description: "All fields are required", variant: "destructive" })
+      return
+    }
+    if (newAdminPassword !== adminConfirmPass) {
+      toast({ title: "Error", description: "New admin passwords do not match", variant: "destructive" })
+      return
+    }
+
+    setIsCreatingAdmin(true)
+    try {
+      await createAdminUser({
+        currentPassword: masterPass,
+        newEmail: newAdminEmail,
+        newPassword: newAdminPassword
+      })
+      toast({ title: "Success", description: "New admin user created successfully" })
+      setShowCreateAdminDialog(false)
+      setNewAdminEmail("")
+      setNewAdminPassword("")
+      setAdminConfirmPass("")
+      setMasterPass("")
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to create admin", variant: "destructive" })
+    } finally {
+      setIsCreatingAdmin(false)
+    }
+  }
+
+  const formatPhoneNumber = (value: string) => {
+    // Strip all non-digit characters
+    const phoneNumber = value.replace(/\D/g, "");
+
+    // Format as XXX-XXX-XXXX
+    if (phoneNumber.length <= 3) return phoneNumber;
+    if (phoneNumber.length <= 6) return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3)}`;
+    return `${phoneNumber.slice(0, 3)}-${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+  };
 
   return (
     <div className="space-y-6">
@@ -136,9 +256,13 @@ export default function SettingsPage() {
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input
                     id="phone"
-                    placeholder="Enter your phone number"
+                    placeholder="XXX-XXX-XXXX"
                     value={profileData.phone}
-                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                    onChange={(e) => {
+                      const formatted = formatPhoneNumber(e.target.value)
+                      setProfileData({ ...profileData, phone: formatted })
+                    }}
+                    maxLength={12} // 3+3+4 digits + 2 hyphens
                   />
                 </div>
                 <div className="space-y-2">
@@ -153,8 +277,8 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveProfile} className="gap-2">
-                  <Save className="h-4 w-4" />
+                <Button onClick={handleSaveProfile} className="gap-2" disabled={isSaving}>
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Save Changes
                 </Button>
               </div>
@@ -255,51 +379,122 @@ export default function SettingsPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="current-password">Current Password</Label>
-                    <Input id="current-password" type="password" placeholder="Enter current password" />
+                    <Input
+                      id="current-password"
+                      type="password"
+                      placeholder="Enter current password"
+                      value={currentPass}
+                      onChange={(e) => setCurrentPass(e.target.value)}
+                    />
                   </div>
                   <div></div>
                   <div className="space-y-2">
                     <Label htmlFor="new-password">New Password</Label>
-                    <Input id="new-password" type="password" placeholder="Enter new password" />
+                    <Input
+                      id="new-password"
+                      type="password"
+                      placeholder="Enter new password"
+                      value={newPass}
+                      onChange={(e) => setNewPass(e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirm-password">Confirm New Password</Label>
-                    <Input id="confirm-password" type="password" placeholder="Confirm new password" />
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={confirmPass}
+                      onChange={(e) => setConfirmPass(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <Button variant="outline">Update Password</Button>
+                  <Button onClick={handleUpdatePassword} disabled={isUpdatingPass}>
+                    {isUpdatingPass && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Password
+                  </Button>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Credentials Vault</CardTitle>
-                <CardDescription>Securely store sensitive credentials (one-time visibility)</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5 text-primary" />
+                  Admin Management
+                </CardTitle>
+                <CardDescription>Create new system administrators</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="relative">
-                  <Input
-                    type={showSecret ? "text" : "password"}
-                    placeholder="Enter secret value"
-                    value={secretValue}
-                    onChange={(e) => setSecretValue(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSecret(!showSecret)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-md">
-                  ⚠️ Warning: Secrets are encrypted and only visible once on submission. Make sure to save them securely.
-                </p>
-                <div className="flex justify-end">
-                  <Button onClick={handleSubmitSecret}>Store Secret</Button>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Create New Admin</p>
+                    <p className="text-xs text-muted-foreground">Add another user with full administrative privileges.</p>
+                  </div>
+                  <Dialog open={showCreateAdminDialog} onOpenChange={setShowCreateAdminDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="gap-2">
+                        <Plus className="h-4 w-4" /> Add Admin
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create New Administrator</DialogTitle>
+                        <DialogDescription>
+                          Enter the details for the new admin. You must confirm with your current password.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>New Admin Email</Label>
+                          <Input
+                            value={newAdminEmail}
+                            onChange={(e) => setNewAdminEmail(e.target.value)}
+                            placeholder="admin2@example.com"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>New Password</Label>
+                            <Input
+                              type="password"
+                              value={newAdminPassword}
+                              onChange={(e) => setNewAdminPassword(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Confirm Password</Label>
+                            <Input
+                              type="password"
+                              value={adminConfirmPass}
+                              onChange={(e) => setAdminConfirmPass(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4 mt-2">
+                          <div className="space-y-2">
+                            <Label className="text-amber-600">Confirm Your Identity</Label>
+                            <Input
+                              type="password"
+                              placeholder="Enter YOUR current password"
+                              value={masterPass}
+                              onChange={(e) => setMasterPass(e.target.value)}
+                            />
+                            <p className="text-[10px] text-muted-foreground">Required to authorize creation of a new admin.</p>
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="ghost" onClick={() => setShowCreateAdminDialog(false)}>Cancel</Button>
+                        <Button onClick={handleCreateAdmin} disabled={isCreatingAdmin}>
+                          {isCreatingAdmin && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Create Admin
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardContent>
             </Card>
@@ -333,9 +528,9 @@ export default function SettingsPage() {
                     >
                       <div className="flex items-center gap-3">
                         <div className={`h-2 w-2 rounded-full ${a.action?.includes('CREATE') ? 'bg-green-500' :
-                            a.action?.includes('UPDATE') ? 'bg-blue-500' :
-                              a.action?.includes('DELETE') ? 'bg-red-500' :
-                                'bg-gray-500'
+                          a.action?.includes('UPDATE') ? 'bg-blue-500' :
+                            a.action?.includes('DELETE') ? 'bg-red-500' :
+                              'bg-gray-500'
                           }`} />
                         <div>
                           <p className="font-medium text-sm">{a.action}</p>
@@ -355,6 +550,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </div >
   )
 }
