@@ -52,37 +52,27 @@ export default function AdminClientsList() {
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
 
-  // ---------- FETCH CLIENTS ----------
+  // ---------- FETCH CLIENTS (with server-side search and status filter) ----------
   const { data } = useSWR(
-    ["clients", page, clientPageSize, q],
-    () => fetchClients({ page, pageSize: clientPageSize, q }),
+    ["clients", page, clientPageSize, q, statusFilter],
+    () => fetchClients({ page, pageSize: clientPageSize, q, status: statusFilter }),
     { keepPreviousData: true }
   );
 
-  const allClientRows: ClientProfile[] = data?.data || [];
+  // Client data is already filtered and paginated by the server
+  const clientRows: ClientProfile[] = data?.data || [];
 
-  // Apply status filter
-  const clientRows = statusFilter === "ALL"
-    ? allClientRows
-    : allClientRows.filter((c) => {
-      const clientStatus = (c.status || "").toLowerCase();
-      const filterValue = statusFilter.toLowerCase();
-      return clientStatus === filterValue;
-    });
+  // Use the server's total count for proper pagination
+  const serverTotal = data?.total ?? 0;
 
   // ---- Client Pagination Calculations ----
-  const clientTotalItems = clientRows.length;
-
+  const clientTotalItems = serverTotal;
   const clientTotalPages = Math.ceil(clientTotalItems / clientPageSize);
-
   const clientStart = clientTotalItems > 0 ? (page - 1) * clientPageSize + 1 : 0;
   const clientEnd = Math.min(page * clientPageSize, clientTotalItems);
 
-  // Paginate filtered rows
-  const paginatedRows = clientRows.slice(
-    (page - 1) * clientPageSize,
-    page * clientPageSize
-  );
+  // Rows are already paginated by the server
+  const paginatedRows = clientRows;
 
   // ---------- TABLE COLUMNS ----------
   const cols: Column<ClientProfile>[] = [
@@ -140,7 +130,7 @@ export default function AdminClientsList() {
 
       {/* ---------- SEARCH & FILTERS ---------- */}
       <div className="flex flex-wrap items-center gap-3">
-        <TableToolbar q={q} setQ={setQ} />
+        <TableToolbar q={q} setQ={setQ} setPage={setPage} />
 
         {/* Status Filter */}
         <Select

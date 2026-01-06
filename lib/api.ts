@@ -8,15 +8,18 @@ export async function fetchClients({
   page = 1,
   pageSize = 10,
   q = "",
+  status = "ALL",
 }: {
   page?: number;
   pageSize?: number;
   q?: string;
+  status?: string;
 }) {
   const params = new URLSearchParams({
     page: page.toString(),
     pageSize: pageSize.toString(),
     q,
+    status,
   });
 
   const res = await fetch(`/api/clients/get?${params.toString()}`, {

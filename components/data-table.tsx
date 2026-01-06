@@ -56,17 +56,54 @@ export function TableToolbar({
   setQ,
   onCreate,
   ctaLabel = "Create",
+  setPage,
 }: {
   q?: string
   setQ?: (value: string) => void
   onCreate?: () => void
   ctaLabel?: string
+  setPage?: (p: number) => void
 }) {
+  // Local state for immediate input feedback
+  const [localQ, setLocalQ] = React.useState(q || "")
+  const debounceRef = React.useRef<NodeJS.Timeout | null>(null)
+
+  // Sync local state when external q changes
+  React.useEffect(() => {
+    setLocalQ(q || "")
+  }, [q])
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setLocalQ(value)
+
+    // Clear existing timeout
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    // Debounce the actual search query update (300ms)
+    debounceRef.current = setTimeout(() => {
+      setQ?.(value)
+      // Reset to page 1 when search changes
+      setPage?.(1)
+    }, 300)
+  }
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [])
+
   return (
     <div className="flex items-center gap-2">
       <Input
-        value={q}
-        onChange={(e) => setQ?.(e.target.value)}
+        value={localQ}
+        onChange={handleSearchChange}
         placeholder="Search..."
         className="max-w-xs"
       />

@@ -39,12 +39,14 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/admin/clients", label: "Clients", icon: Users },
     { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
     { href: "/admin/stages", label: "Onboarding Stages", icon: Library },
-    { href: "/admin/documents", label: "Documents", icon: FileText },
     { href: "/admin/service-centers", label: "Service Centers", icon: Building2 },
     { href: "/admin/cpas", label: "CPAs", icon: Landmark },
     { href: "/admin/messages", label: "Messages", icon: Mail },
     { href: "/admin/email-templates", label: "Email Templates", icon: Mail },
+    { href: "/admin/documents", label: "Documents", icon: FileText },
     { href: "/admin/reports", label: "Reports", icon: BarChart2 },
+    { href: "/admin/settings", label: "Settings", icon: Settings },
+    { href: "/help", label: "FAQ", icon: HelpCircle },
   ];
 
   const clientLinks = [
@@ -80,7 +82,8 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   ];
 
   // Admin and other roles use common links, clients have settings built-in
-  const commonLinks = role === "CLIENT" || role === "SERVICE_CENTER" || role === "CPA" ? [] : [
+  // Note: ADMIN now has Settings and FAQ in adminLinks, so skip commonLinks for ADMIN too
+  const commonLinks = role === "ADMIN" || role === "CLIENT" || role === "SERVICE_CENTER" || role === "CPA" ? [] : [
     { href: "/settings", label: "Settings", icon: Settings },
     { href: "/help", label: "FAQ", icon: HelpCircle },
   ];

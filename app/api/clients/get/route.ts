@@ -11,11 +11,14 @@ export async function GET(req: Request) {
     const page = Math.max(parseInt(searchParams.get("page") || "1"), 1);
     const pageSize = Math.max(parseInt(searchParams.get("pageSize") || "10"), 1);
     const q = (searchParams.get("q") || "").trim();
+    // Status filter: ALL, Not Started, In Progress, Completed
+    const statusFilter = (searchParams.get("status") || "ALL").trim();
     const offset = (page - 1) * pageSize;
 
     const request = pool
       .request()
       .input("Q", sql.VarChar(255), q)
+      .input("StatusFilter", sql.VarChar(50), statusFilter)
       .input("PageSize", sql.Int, pageSize)
       .input("Offset", sql.Int, offset);
 
@@ -24,7 +27,8 @@ export async function GET(req: Request) {
       SET NOCOUNT ON;
 
       /* ============================================
-         STEP 1 — BASE CLIENT QUERY (search + paging)
+         STEP 1 — BASE CLIENT QUERY (search filter)
+         Joins service centers and CPAs early for search
       ==============================================*/
       WITH ClientBase AS (
         SELECT
@@ -39,81 +43,90 @@ export async function GET(req: Request) {
           c.created_at,
           c.updated_at,
           c.service_center_id,
-          c.cpa_id
+          c.cpa_id,
+          sc.center_name AS service_center_name,
+          cp.cpa_name AS cpa_name
         FROM dbo.Clients c
+        LEFT JOIN dbo.service_centers sc ON sc.service_center_id = c.service_center_id
+        LEFT JOIN dbo.cpa_centers cp ON cp.cpa_id = c.cpa_id
         WHERE
           @Q = '' OR
           c.client_name LIKE '%' + @Q + '%' OR
           c.code LIKE '%' + @Q + '%' OR
-          c.primary_contact_name LIKE '%' + @Q + '%'
+          c.primary_contact_name LIKE '%' + @Q + '%' OR
+          sc.center_name LIKE '%' + @Q + '%' OR
+          cp.cpa_name LIKE '%' + @Q + '%'
       ),
-      ClientWithStage AS (
-      SELECT
-        cb.*,
-
-        stage_name = COALESCE(
-          -- ✅ 1. In Progress Stage
-          (
-            SELECT TOP 1 cs.stage_name
-            FROM dbo.client_stages cs
-            WHERE cs.client_id = cb.client_id
-              AND cs.status = 'In Progress'
-            ORDER BY cs.order_number
-          ),
-
-          -- ✅ 2. Last Completed Stage
-          (
-            SELECT TOP 1 cs.stage_name
-            FROM dbo.client_stages cs
-            WHERE cs.client_id = cb.client_id
-              AND cs.status = 'Completed'
-            ORDER BY cs.order_number DESC
-          ),
-
-          -- ✅ 3. First Not Started Required Stage
-          (
-            SELECT TOP 1 cs.stage_name
-            FROM dbo.client_stages cs
-            WHERE cs.client_id = cb.client_id
-              AND cs.status = 'Not Started'
-              AND cs.is_required = 1
-            ORDER BY cs.order_number
-          )
-        ),
-
-        -- ✅ ✅ ✅ FINAL CLIENT STATUS LOGIC (THIS FIXES YOUR STATUS COLUMN)
-        status =
-          CASE
-            -- ✅ ✅ 1. NO STAGES AT ALL → MUST BE NOT STARTED
-            WHEN NOT EXISTS (
-              SELECT 1 FROM dbo.client_stages cs
-              WHERE cs.client_id = cb.client_id
-            ) THEN 'Not Started'
-
-            -- ✅ ✅ 2. ALL STAGES COMPLETED
-            WHEN NOT EXISTS (
-              SELECT 1 FROM dbo.client_stages cs
-              WHERE cs.client_id = cb.client_id
-                AND cs.status <> 'Completed'
-            ) THEN 'Completed'
-
-            -- ✅ ✅ 3. ALL STAGES NOT STARTED
-            WHEN NOT EXISTS (
-              SELECT 1 FROM dbo.client_stages cs
-              WHERE cs.client_id = cb.client_id
-                AND cs.status <> 'Not Started'
-            ) THEN 'Not Started'
-
-            -- ✅ ✅ 4. MIXED (Completed + In Progress + Not Started)
-            ELSE 'In Progress'
-          END
-
-
-      FROM ClientBase cb
-    ),
 
       /* ============================================
-        STEP 3 — STAGE PROGRESS (STAGE + SUBTASK LOGIC)
+         STEP 2 — COMPUTE STAGE NAME AND STATUS
+      ==============================================*/
+      ClientWithStage AS (
+        SELECT
+          cb.*,
+
+          stage_name = COALESCE(
+            -- 1. In Progress Stage
+            (
+              SELECT TOP 1 cs.stage_name
+              FROM dbo.client_stages cs
+              WHERE cs.client_id = cb.client_id
+                AND cs.status = 'In Progress'
+              ORDER BY cs.order_number
+            ),
+
+            -- 2. Last Completed Stage
+            (
+              SELECT TOP 1 cs.stage_name
+              FROM dbo.client_stages cs
+              WHERE cs.client_id = cb.client_id
+                AND cs.status = 'Completed'
+              ORDER BY cs.order_number DESC
+            ),
+
+            -- 3. First Not Started Required Stage
+            (
+              SELECT TOP 1 cs.stage_name
+              FROM dbo.client_stages cs
+              WHERE cs.client_id = cb.client_id
+                AND cs.status = 'Not Started'
+                AND cs.is_required = 1
+              ORDER BY cs.order_number
+            )
+          ),
+
+          -- FINAL CLIENT STATUS LOGIC
+          status =
+            CASE
+              -- 1. NO STAGES AT ALL → NOT STARTED
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.client_stages cs
+                WHERE cs.client_id = cb.client_id
+              ) THEN 'Not Started'
+
+              -- 2. ALL STAGES COMPLETED
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.client_stages cs
+                WHERE cs.client_id = cb.client_id
+                  AND cs.status <> 'Completed'
+              ) THEN 'Completed'
+
+              -- 3. ALL STAGES NOT STARTED
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.client_stages cs
+                WHERE cs.client_id = cb.client_id
+                  AND cs.status <> 'Not Started'
+              ) THEN 'Not Started'
+
+              -- 4. MIXED (Completed + In Progress + Not Started)
+              ELSE 'In Progress'
+            END
+
+        FROM ClientBase cb
+      ),
+
+      /* ============================================
+         STEP 3 — STAGE PROGRESS (STAGE + SUBTASK LOGIC)
       ==============================================*/
       ClientStageProgress AS (
         SELECT
@@ -148,68 +161,130 @@ export async function GET(req: Request) {
           )
 
         FROM ClientWithStage cws
+      ),
+
+      /* ============================================
+         STEP 4 — APPLY STATUS FILTER
+      ==============================================*/
+      FilteredClients AS (
+        SELECT *
+        FROM ClientStageProgress
+        WHERE @StatusFilter = 'ALL' OR status = @StatusFilter
       )
 
-            /* ============================================
+      /* ============================================
          FINAL SELECT — RECORDSET[0]
       ==============================================*/
       SELECT
-        ctp.client_id,
-        ctp.client_name,
-        ctp.code,
-        ctp.client_status,
-        ctp.status,
-        ctp.sla_number,
-        ctp.primary_contact_name,
-        ctp.primary_contact_email,
-        ctp.primary_contact_phone,
-        ctp.created_at,
-        ctp.updated_at,
+        fc.client_id,
+        fc.client_name,
+        fc.code,
+        fc.client_status,
+        fc.status,
+        fc.sla_number,
+        fc.primary_contact_name,
+        fc.primary_contact_email,
+        fc.primary_contact_phone,
+        fc.created_at,
+        fc.updated_at,
 
-        ctp.service_center_id,
-        sc.center_name AS service_center_name,
+        fc.service_center_id,
+        fc.service_center_name,
         sc.email AS service_center_email,
 
-        ctp.cpa_id,
-        cp.cpa_name AS cpa_name,
+        fc.cpa_id,
+        fc.cpa_name,
         cp.email AS cpa_email,
 
-        ctp.stage_name,
+        fc.stage_name,
 
-
-        ctp.total_stages,
-        ctp.completed_stages,
+        fc.total_stages,
+        fc.completed_stages,
 
         progress =
           CASE 
-            WHEN ctp.total_stages = 0 THEN 0
-            ELSE (ctp.completed_stages * 100.0) / ctp.total_stages
+            WHEN fc.total_stages = 0 THEN 0
+            ELSE (fc.completed_stages * 100.0) / fc.total_stages
           END
 
-
-      FROM ClientStageProgress ctp
+      FROM FilteredClients fc
       LEFT JOIN dbo.service_centers sc
-        ON sc.service_center_id  = ctp.service_center_id
+        ON sc.service_center_id = fc.service_center_id
       LEFT JOIN dbo.cpa_centers cp
-        ON cp.cpa_id = ctp.cpa_id
-      ORDER BY ctp.created_at DESC
+        ON cp.cpa_id = fc.cpa_id
+      ORDER BY 
+        -- When searching, sort by relevance (exact client_name matches first)
+        CASE WHEN @Q <> '' THEN
+          CASE 
+            -- Exact client name match (highest priority)
+            WHEN fc.client_name LIKE @Q THEN 1
+            -- Client name starts with search term
+            WHEN fc.client_name LIKE @Q + '%' THEN 2
+            -- Client name contains search term
+            WHEN fc.client_name LIKE '%' + @Q + '%' THEN 3
+            -- Code matches
+            WHEN fc.code LIKE '%' + @Q + '%' THEN 4
+            -- Primary contact matches
+            WHEN fc.primary_contact_name LIKE '%' + @Q + '%' THEN 5
+            -- Service center / CPA matches (lowest priority)
+            ELSE 6
+          END
+        ELSE 0 END,
+        -- Secondary sort by created_at
+        fc.created_at DESC
       OFFSET @Offset ROWS
       FETCH NEXT @PageSize ROWS ONLY;
 
       /* ============================================
-         TOTAL COUNT — RECORDSET[1]
+         TOTAL COUNT (with same filters) — RECORDSET[1]
       ==============================================*/
+      ;WITH ClientBase AS (
+        SELECT
+          c.client_id
+        FROM dbo.Clients c
+        LEFT JOIN dbo.service_centers sc ON sc.service_center_id = c.service_center_id
+        LEFT JOIN dbo.cpa_centers cp ON cp.cpa_id = c.cpa_id
+        WHERE
+          @Q = '' OR
+          c.client_name LIKE '%' + @Q + '%' OR
+          c.code LIKE '%' + @Q + '%' OR
+          c.primary_contact_name LIKE '%' + @Q + '%' OR
+          sc.center_name LIKE '%' + @Q + '%' OR
+          cp.cpa_name LIKE '%' + @Q + '%'
+      ),
+      ClientWithStatus AS (
+        SELECT
+          cb.client_id,
+          status =
+            CASE
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.client_stages cs
+                WHERE cs.client_id = cb.client_id
+              ) THEN 'Not Started'
+
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.client_stages cs
+                WHERE cs.client_id = cb.client_id
+                  AND cs.status <> 'Completed'
+              ) THEN 'Completed'
+
+              WHEN NOT EXISTS (
+                SELECT 1 FROM dbo.client_stages cs
+                WHERE cs.client_id = cb.client_id
+                  AND cs.status <> 'Not Started'
+              ) THEN 'Not Started'
+
+              ELSE 'In Progress'
+            END
+        FROM ClientBase cb
+      )
       SELECT COUNT(*) AS total
-      FROM dbo.Clients c
-      WHERE
-        @Q = '' OR
-        c.client_name LIKE '%' + @Q + '%' OR
-        c.code LIKE '%' + @Q + '%' OR
-        c.primary_contact_name LIKE '%' + @Q + '%';
+      FROM ClientWithStatus
+      WHERE @StatusFilter = 'ALL' OR status = @StatusFilter;
     `);
 
     /* ============================================
-       FIX — CLEAN RECORDSETS EXTRACTION
+       CLEAN RECORDSETS EXTRACTION
     ==============================================*/
     const recordsets = Array.isArray(result.recordsets)
       ? (result.recordsets as sql.IRecordSet<any>[])
@@ -234,3 +309,4 @@ export async function GET(req: Request) {
     );
   }
 }
+
