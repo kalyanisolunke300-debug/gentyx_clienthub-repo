@@ -201,6 +201,10 @@ export async function GET(req: Request) {
         fc.total_stages,
         fc.completed_stages,
 
+        last_message_at = LastMsg.created_at,
+        last_message_body = LastMsg.body,
+        last_message_sender_role = LastMsg.sender_role,
+
         progress =
           CASE 
             WHEN fc.total_stages = 0 THEN 0
@@ -212,6 +216,12 @@ export async function GET(req: Request) {
         ON sc.service_center_id = fc.service_center_id
       LEFT JOIN dbo.cpa_centers cp
         ON cp.cpa_id = fc.cpa_id
+      OUTER APPLY (
+        SELECT TOP 1 m.created_at, m.body, m.sender_role
+        FROM dbo.onboarding_messages m
+        WHERE m.client_id = fc.client_id
+        ORDER BY m.created_at DESC
+      ) LastMsg
       ORDER BY 
         -- When searching, sort by relevance (exact client_name matches first)
         CASE WHEN @Q <> '' THEN
@@ -230,8 +240,8 @@ export async function GET(req: Request) {
             ELSE 6
           END
         ELSE 0 END,
-        -- Secondary sort by created_at
-        fc.created_at DESC
+        -- Sort by most recent message, then created_at
+        COALESCE(LastMsg.created_at, fc.created_at) DESC
       OFFSET @Offset ROWS
       FETCH NEXT @PageSize ROWS ONLY;
 

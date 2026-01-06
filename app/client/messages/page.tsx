@@ -28,23 +28,38 @@ export default function ClientMessages() {
     }
   }, [clientId]);
 
-  // Fetch client data to get service center info
+  // Fetch client data to get service center and CPA info
   const { data: client } = useSWR(
     clientId ? ["client", clientId] : null,
     () => fetchClient(clientId!)
   );
 
+  // Extract IDs from client data
+  const serviceCenterId = client?.service_center_id;
+  const cpaId = client?.cpa_id;
+
   // Fetch service center name if assigned
   const { data: serviceCenterData } = useSWR(
-    client?.service_center_id ? ["sc", client.service_center_id] : null,
+    serviceCenterId ? ["sc", serviceCenterId] : null,
     async () => {
-      const res = await fetch(`/api/service-centers/${client!.service_center_id}/get`);
+      const res = await fetch(`/api/service-centers/${serviceCenterId}/get`);
+      const json = await res.json();
+      return json.data;
+    }
+  );
+
+  // Fetch CPA name if assigned
+  const { data: cpaData } = useSWR(
+    cpaId ? ["cpa", cpaId] : null,
+    async () => {
+      const res = await fetch(`/api/cpas/${cpaId}/get`);
       const json = await res.json();
       return json.data;
     }
   );
 
   const serviceCenterName = serviceCenterData?.center_name;
+  const cpaName = cpaData?.cpa_name;
 
   if (!clientId) {
     return (
@@ -66,14 +81,18 @@ export default function ClientMessages() {
       <FlexibleChat
         clientId={clientId}
         serviceCenterName={serviceCenterName}
+        cpaName={cpaName}
+        serviceCenterId={serviceCenterId ?? undefined}
+        cpaId={cpaId ?? undefined}
         currentUserRole="CLIENT"
         recipients={[
           { role: "ADMIN", label: "Admin", color: "bg-violet-500" },
           { role: "SERVICE_CENTER", label: serviceCenterName || "Service Center", color: "bg-emerald-500" },
-          { role: "CPA", label: "CPA", color: "bg-amber-500" },
+          { role: "CPA", label: cpaName || "CPA", color: "bg-amber-500" },
         ]}
         height="600px"
       />
     </div>
   );
 }
+

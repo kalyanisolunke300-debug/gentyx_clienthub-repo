@@ -22,16 +22,26 @@ export async function GET(req: Request) {
       .input("service_center_id", sql.Int, Number(serviceCenterId))
       .query(`
         SELECT
-          client_id,
-          client_name,
-          code,
-          status,
-          client_status,
-          created_at,
-          primary_contact_email
-        FROM dbo.Clients
-        WHERE service_center_id = @service_center_id
-        ORDER BY created_at DESC
+          c.client_id,
+          c.client_name,
+          c.code,
+          c.status,
+          c.client_status,
+          c.created_at,
+          c.primary_contact_email,
+          LastMsg.created_at as last_message_at,
+          LastMsg.body as last_message_body,
+          LastMsg.sender_role as last_message_sender_role
+        FROM dbo.Clients c
+        OUTER APPLY (
+          SELECT TOP 1 m.created_at, m.body, m.sender_role
+          FROM dbo.onboarding_messages m
+          WHERE m.client_id = c.client_id
+            AND (m.service_center_id = @service_center_id OR m.service_center_id IS NULL)
+          ORDER BY m.created_at DESC
+        ) LastMsg
+        WHERE c.service_center_id = @service_center_id
+        ORDER BY COALESCE(LastMsg.created_at, c.created_at) DESC
       `);
 
     return NextResponse.json({

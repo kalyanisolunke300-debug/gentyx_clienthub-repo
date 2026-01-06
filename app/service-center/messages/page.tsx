@@ -1,7 +1,6 @@
-// app/service-center/messages/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { FlexibleChat } from "@/components/widgets/flexible-chat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,9 @@ interface Client {
     client_id: number;
     client_name: string;
     primary_contact_email?: string;
+    last_message_at?: string;
+    last_message_body?: string;
+    last_message_sender_role?: string;
 }
 
 export default function ServiceCenterMessages() {
@@ -23,7 +25,31 @@ export default function ServiceCenterMessages() {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [clientSearch, setClientSearch] = useState("");
 
-    // Fetch clients assigned to this Service Center
+    // Read Status Logic
+    const [readStatus, setReadStatus] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem("sage_sc_read_status");
+            if (stored) setReadStatus(JSON.parse(stored));
+        } catch (e) { console.error(e); }
+    }, []);
+
+    const markAsRead = (key: string) => {
+        const newState = { ...readStatus, [key]: new Date().toISOString() };
+        setReadStatus(newState);
+        localStorage.setItem("sage_sc_read_status", JSON.stringify(newState));
+    };
+
+    const isUnread = (key: string, lastMsgAt?: string, senderRole?: string) => {
+        if (!lastMsgAt || senderRole !== "CLIENT") return false;
+        const lastRead = readStatus[key];
+        if (!lastRead) return true;
+        return new Date(lastMsgAt) > new Date(lastRead);
+    };
+
+    // Fetch clients assigned to this SC
+    // ...
     const { data: clientsData, isLoading: clientsLoading } = useSWR(
         currentServiceCenterId ? ["sc-clients-messages", currentServiceCenterId] : null,
         async () => {
@@ -39,6 +65,16 @@ export default function ServiceCenterMessages() {
     const filteredClients = clients.filter((c) =>
         c.client_name.toLowerCase().includes(clientSearch.toLowerCase())
     );
+
+    const formatTime = (dateStr?: string) => {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
 
     if (!currentServiceCenterId) {
         return (
@@ -114,39 +150,64 @@ export default function ServiceCenterMessages() {
                                         {clients.length === 0 ? "No clients assigned" : "No clients found"}
                                     </div>
                                 ) : (
-                                    <div className="divide-y">
-                                        {filteredClients.map((client) => (
-                                            <button
-                                                key={client.client_id}
-                                                onClick={() => setSelectedClient(client)}
-                                                className={cn(
-                                                    "w-full flex items-center gap-3 p-4 text-left hover:bg-muted/50 transition-colors",
-                                                    selectedClient?.client_id === client.client_id && "bg-blue-50 border-l-4 border-blue-500"
-                                                )}
-                                            >
-                                                <div className={cn(
-                                                    "h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0",
-                                                    selectedClient?.client_id === client.client_id
-                                                        ? "bg-blue-500 text-white"
-                                                        : "bg-blue-100 text-blue-700"
-                                                )}>
-                                                    {client.client_name.substring(0, 2).toUpperCase()}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className={cn(
-                                                        "font-medium truncate",
-                                                        selectedClient?.client_id === client.client_id && "text-blue-700"
-                                                    )}>
-                                                        {client.client_name}
-                                                    </p>
-                                                    {client.primary_contact_email && (
-                                                        <p className="text-xs text-muted-foreground truncate">
-                                                            {client.primary_contact_email}
-                                                        </p>
+                                    <div className="divide-y relative">
+                                        {filteredClients.map((client) => {
+                                            const unread = isUnread(`client-${client.client_id}`, client.last_message_at, client.last_message_sender_role);
+                                            return (
+                                                <button
+                                                    key={client.client_id}
+                                                    onClick={() => {
+                                                        setSelectedClient(client);
+                                                        markAsRead(`client-${client.client_id}`);
+                                                    }}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors",
+                                                        selectedClient?.client_id === client.client_id && "bg-blue-50 border-l-4 border-blue-500"
                                                     )}
-                                                </div>
-                                            </button>
-                                        ))}
+                                                >
+                                                    <div className={cn(
+                                                        "h-12 w-12 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 relative",
+                                                        selectedClient?.client_id === client.client_id
+                                                            ? "bg-blue-500 text-white"
+                                                            : "bg-blue-100 text-blue-700"
+                                                    )}>
+                                                        {client.client_name.substring(0, 2).toUpperCase()}
+                                                        {unread && (
+                                                            <span className="absolute top-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white ring-2 ring-white"></span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start">
+                                                            <p className={cn(
+                                                                "font-medium truncate text-sm",
+                                                                selectedClient?.client_id === client.client_id && "text-blue-700",
+                                                                unread && "font-bold text-slate-900"
+                                                            )}>
+                                                                {client.client_name}
+                                                            </p>
+                                                            {client.last_message_at && (
+                                                                <span className={cn("text-[10px] whitespace-nowrap ml-2", unread ? "text-green-600 font-bold" : "text-muted-foreground")}>
+                                                                    {formatTime(client.last_message_at)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <p className={cn(
+                                                            "text-xs truncate mt-1 w-full",
+                                                            unread ? "text-slate-900 font-medium" : "text-muted-foreground"
+                                                        )}>
+                                                            {client.last_message_body ? (
+                                                                client.last_message_body.length > 35
+                                                                    ? client.last_message_body.substring(0, 35) + "..."
+                                                                    : client.last_message_body
+                                                            ) : (
+                                                                client.primary_contact_email || "No messages yet"
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </CardContent>

@@ -8,10 +8,20 @@ export async function GET() {
 
     const result = await pool.request().query(`
       SELECT 
-        service_center_id,
-        center_name
-      FROM service_centers
-      ORDER BY center_name
+        sc.service_center_id,
+        sc.center_name,
+        LastMsg.created_at as last_message_at,
+        LastMsg.body as last_message_body,
+        LastMsg.sender_role as last_message_sender_role
+      FROM service_centers sc
+      OUTER APPLY (
+        SELECT TOP 1 m.created_at, m.body, m.sender_role
+        FROM dbo.onboarding_messages m
+        WHERE m.service_center_id = sc.service_center_id
+          AND (m.client_id IS NULL OR m.client_id = 0)
+        ORDER BY m.created_at DESC
+      ) LastMsg
+      ORDER BY COALESCE(LastMsg.created_at, '1900-01-01') DESC, sc.center_name
     `);
 
     return NextResponse.json({
