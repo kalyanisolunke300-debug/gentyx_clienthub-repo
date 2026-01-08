@@ -47,6 +47,7 @@ type TaskRow = {
   assignedRole: string;   // ✅ correct field
   status: string;
   dueDate: string | null;
+  taskType: string;
 };
 
 
@@ -113,7 +114,15 @@ export default function AdminTasksPage() {
       header: "Client Name",
       render: (row) => getClientName(row.clientId),
     },
-    { key: "title", header: "Task" },
+    {
+      key: "title",
+      header: "Task",
+      render: (row) => (
+        <div className="max-w-[400px] truncate" title={row.title}>
+          {row.title}
+        </div>
+      ),
+    },
     {
       key: "assignedRole",
       header: "Assigned User",
@@ -248,33 +257,46 @@ export default function AdminTasksPage() {
           </Button>
 
           {/* ✅ DELETE */}
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={async () => {
-              if (!confirm("Delete this task?")) return;
+          {/* ✅ DELETE - Only for manual Assigned tasks */}
+          {row.taskType === "ASSIGNED" ? (
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={async () => {
+                if (!confirm("Delete this task?")) return;
 
-              const res = await fetch("/api/tasks/delete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  task_id: row.id,
-                }),
-              });
-
-              if (res.ok) {
-                toast({ title: "Task deleted" });
-                mutate(["tasks"]);
-              } else {
-                toast({
-                  title: "Failed to delete task",
-                  variant: "destructive",
+                const res = await fetch("/api/tasks/delete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    task_id: row.id,
+                  }),
                 });
-              }
-            }}
-          >
-            Delete
-          </Button>
+
+                if (res.ok) {
+                  toast({ title: "Task deleted" });
+                  mutate(["tasks"]);
+                } else {
+                  toast({
+                    title: "Failed to delete task",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Delete
+            </Button>
+          ) : (
+            // For Onboarding/Subtasks, we don't allow delete here (must be done in Stages)
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground opacity-50 cursor-not-allowed"
+              title="Manage in Stages"
+            >
+              Locked
+            </Button>
+          )}
 
         </div>
       ),

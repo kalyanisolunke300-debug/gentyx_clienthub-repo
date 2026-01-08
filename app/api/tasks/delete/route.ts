@@ -54,15 +54,26 @@ export async function POST(req: Request) {
     // -----------------------------------------------------
     // 3️⃣ Recalculate client progress
     // -----------------------------------------------------
-    await calculateClientProgress(clientId);
+    try {
+      if (clientId) {
+        await calculateClientProgress(clientId);
+      }
+    } catch (progressError) {
+      console.error("Progress calculation failed after delete:", progressError);
+      // Don't fail the request, task is already deleted
+    }
 
     // Audit log
-    logAudit({
-      clientId,
-      action: AuditActions.TASK_DELETED,
-      actorRole: "ADMIN",
-      details: `Task #${task_id}`,
-    });
+    try {
+      logAudit({
+        clientId: clientId || 0,
+        action: AuditActions.TASK_DELETED,
+        actorRole: "ADMIN",
+        details: `Task #${task_id}`,
+      });
+    } catch (auditError) {
+      console.error("Audit log failed after delete:", auditError);
+    }
 
     return NextResponse.json({ success: true });
 

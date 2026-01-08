@@ -2,14 +2,13 @@
 "use client";
 
 import { useContext } from "react";
-import { ThemeContext } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
-import { Sun, Moon, Inbox, HelpCircle, LogOut, UserCircle } from "lucide-react";
+import { Inbox, HelpCircle, LogOut, UserCircle } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
 
 export function TopNav() {
-  const { theme, setTheme } = useContext(ThemeContext);
+  // const { theme, setTheme } = useContext(ThemeContext);
   const role = useUIStore((s) => s.role);
   const hasHydrated = useUIStore((s) => s._hasHydrated);
   const router = useRouter();
@@ -38,7 +37,7 @@ export function TopNav() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-white dark:bg-slate-950">
+    <header className="sticky top-0 z-40 border-b bg-white">
       <div className="mx-auto flex h-14 items-center px-4">
 
         {/* ✅ LEFT SIDE — EMPTY */}
@@ -63,18 +62,7 @@ export function TopNav() {
             <HelpCircle className="size-5" />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            title="Toggle Theme"
-          >
-            {theme === "light" ? (
-              <Moon className="size-5" />
-            ) : (
-              <Sun className="size-5" />
-            )}
-          </Button>
+
 
           <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
             <LogOut className="size-5" />

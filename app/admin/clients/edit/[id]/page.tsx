@@ -137,9 +137,16 @@ export default function EditClientPage() {
           <label className="text-sm font-medium">Primary Contact Phone</label>
           <Input
             value={form.primary_contact_phone}
-            onChange={(e) =>
-              setForm({ ...form, primary_contact_phone: e.target.value })
-            }
+            onChange={(e) => {
+              const input = e.target.value.replace(/\D/g, "").substring(0, 10);
+              let formatted = input;
+              if (input.length > 6) {
+                formatted = `${input.substring(0, 3)}-${input.substring(3, 6)}-${input.substring(6)}`;
+              } else if (input.length > 3) {
+                formatted = `${input.substring(0, 3)}-${input.substring(3)}`;
+              }
+              setForm({ ...form, primary_contact_phone: formatted });
+            }}
           />
         </div>
 

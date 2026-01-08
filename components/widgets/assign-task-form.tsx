@@ -59,7 +59,8 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   const { data: taskData } = useSWR(
     isEditMode ? ["edit-task", context?.taskId] : null,
     async () => {
-      const res = await fetch(`/api/tasks/get?taskId=${context?.taskId}`);
+      if (!context?.taskId) return null;
+      const res = await fetch(`/api/tasks/get?taskId=${context.taskId}&taskType=ASSIGNED`);
       return res.json();
     }
   );
@@ -103,14 +104,16 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   });
 
   useEffect(() => {
-    if (!isEditMode || !taskData) return;
+    if (!isEditMode || !taskData || !taskData.success || !taskData.data || taskData.data.length === 0) return;
+
+    const task = taskData.data[0];
 
     form.reset({
-      title: taskData.task_title,
-      clientId: String(taskData.client_id),
-      assigneeRole: taskData.assigned_to_role,
-      dueDate: taskData.due_date
-        ? new Date(taskData.due_date).toISOString().split("T")[0]
+      title: task.title,
+      clientId: String(task.clientId),
+      assigneeRole: task.assignedRole,
+      dueDate: task.dueDate
+        ? new Date(task.dueDate).toISOString().split("T")[0]
         : "",
     });
 
@@ -172,7 +175,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
           body: JSON.stringify({
             taskId: context?.taskId,
             taskTitle: values.title,
-            status: context?.status || "Pending",
+            status: taskData?.data?.[0]?.status || context?.status || "Pending",
             dueDate: values.dueDate || null,
             assignedToRole: values.assigneeRole,
           }),

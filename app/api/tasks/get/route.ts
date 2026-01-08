@@ -27,6 +27,7 @@ export async function GET(req: Request) {
       .input("dueFrom", sql.Date, dueFrom || null)
       .input("dueTo", sql.Date, dueTo || null)
       .input("clientId", sql.Int, clientId || null)
+      .input("taskId", sql.Int, searchParams.get("taskId") || null)
       .input("offset", sql.Int, offset)
       .input("pageSize", sql.Int, pageSize)
       .query(`
@@ -76,6 +77,7 @@ export async function GET(req: Request) {
           AND (@dueFrom IS NULL OR x.dueDate >= @dueFrom)
           AND (@dueTo IS NULL OR x.dueDate <= @dueTo)
           AND (@clientId IS NULL OR x.clientId = @clientId)
+          AND (@taskId IS NULL OR x.id = @taskId)
           AND (
             @q IS NULL OR
             x.title LIKE '%' + @q + '%' OR
