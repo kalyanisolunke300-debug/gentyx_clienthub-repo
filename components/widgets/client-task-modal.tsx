@@ -58,9 +58,9 @@ export function ClientTaskModal({
             <thead className="bg-muted">
               <tr>
                 <th className="p-2 text-left">Task</th>
-                <th className="p-2">Assigned</th>
-                <th className="p-2">Due</th>
-                <th className="p-2">Status</th>
+                <th className="p-2 text-center">Type</th>
+                <th className="p-2 text-center">Due</th>
+                <th className="p-2 text-center">Status</th>
               </tr>
             </thead>
 
@@ -72,25 +72,35 @@ export function ClientTaskModal({
                   </td>
                 </tr>
               ) : (
-                tasks.map((t) => (
-                  <tr key={t.id}>
-                    <td className="p-2">{t.title}</td>
+                tasks.map((t) => {
+                  const isOnboarding = t.taskType === "ONBOARDING";
+                  return (
+                    <tr key={t.id}>
+                      <td className="p-2">{t.title}</td>
 
-                    <td className="p-2 text-center">
-                      {t.assigneeRole}
-                    </td>
+                      <td className="p-2 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${isOnboarding
+                              ? "bg-indigo-50 text-indigo-700"
+                              : "bg-slate-100 text-slate-700"
+                            }`}
+                        >
+                          {isOnboarding ? "Onboarding" : "Assigned"}
+                        </span>
+                      </td>
 
-                    <td className="p-2 text-center">
-                      {t.dueDate
-                        ? new Date(t.dueDate).toLocaleDateString()
-                        : "-"}
-                    </td>
+                      <td className="p-2 text-center">
+                        {t.dueDate
+                          ? new Date(t.dueDate).toLocaleDateString()
+                          : "-"}
+                      </td>
 
-                    <td className="p-2 text-center">
-                      <StatusPill status={t.status} />
-                    </td>
-                  </tr>
-                ))
+                      <td className="p-2 text-center">
+                        <StatusPill status={t.status} />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

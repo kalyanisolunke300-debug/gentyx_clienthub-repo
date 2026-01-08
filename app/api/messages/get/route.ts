@@ -100,32 +100,57 @@ export async function GET(req: Request) {
         .input("role1", sql.VarChar(50), role1)
         .input("role2", sql.VarChar(50), role2);
     } else if (validClientId) {
-      // Client-specific messages (generic - for CLIENT chat)
-      query = `
-        SELECT 
-          m.message_id,
-          m.client_id,
-          m.sender_role,
-          m.receiver_role,
-          m.body,
-          m.parent_message_id,
-          m.attachment_url,
-          m.attachment_name,
-          m.created_at,
-          c.client_name
-        FROM dbo.onboarding_messages m
-        LEFT JOIN dbo.Clients c ON m.client_id = c.client_id
-        WHERE m.client_id = @client_id
-          AND (
-            (m.sender_role = @role1 AND m.receiver_role = @role2)
-            OR (m.sender_role = @role2 AND m.receiver_role = @role1)
-          )
-        ORDER BY m.created_at ASC
-      `;
-      request
-        .input("client_id", sql.Int, validClientId)
-        .input("role1", sql.VarChar(50), role1)
-        .input("role2", sql.VarChar(50), role2);
+      // Client-specific messages
+      if (!role1 && !role2) {
+        // ✅ FETCH ALL MESSAGES FOR THIS CLIENT (Dashboard view)
+        query = `
+          SELECT 
+            m.message_id,
+            m.client_id,
+            m.sender_role,
+            m.receiver_role,
+            m.body,
+            m.parent_message_id,
+            m.attachment_url,
+            m.attachment_name,
+            m.created_at,
+            c.client_name,
+            m.service_center_id,
+            m.cpa_id
+          FROM dbo.onboarding_messages m
+          LEFT JOIN dbo.Clients c ON m.client_id = c.client_id
+          WHERE m.client_id = @client_id
+          ORDER BY m.created_at ASC
+        `;
+        request.input("client_id", sql.Int, validClientId);
+      } else {
+        // Specific conversation (Client <-> Role)
+        query = `
+          SELECT 
+            m.message_id,
+            m.client_id,
+            m.sender_role,
+            m.receiver_role,
+            m.body,
+            m.parent_message_id,
+            m.attachment_url,
+            m.attachment_name,
+            m.created_at,
+            c.client_name
+          FROM dbo.onboarding_messages m
+          LEFT JOIN dbo.Clients c ON m.client_id = c.client_id
+          WHERE m.client_id = @client_id
+            AND (
+              (m.sender_role = @role1 AND m.receiver_role = @role2)
+              OR (m.sender_role = @role2 AND m.receiver_role = @role1)
+            )
+          ORDER BY m.created_at ASC
+        `;
+        request
+          .input("client_id", sql.Int, validClientId)
+          .input("role1", sql.VarChar(50), role1)
+          .input("role2", sql.VarChar(50), role2);
+      }
     } else if (parsedServiceCenterId) {
       // Service Center-specific messages (Admin <-> specific Service Center, no client)
       query = `

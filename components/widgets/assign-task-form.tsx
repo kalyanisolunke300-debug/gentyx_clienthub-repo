@@ -60,7 +60,8 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
     isEditMode ? ["edit-task", context?.taskId] : null,
     async () => {
       if (!context?.taskId) return null;
-      const res = await fetch(`/api/tasks/get?taskId=${context.taskId}&taskType=ASSIGNED`);
+      const type = context?.taskType || "ASSIGNED";
+      const res = await fetch(`/api/tasks/get?taskId=${context.taskId}&taskType=${type}`);
       return res.json();
     }
   );

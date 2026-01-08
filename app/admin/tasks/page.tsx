@@ -128,6 +128,23 @@ export default function AdminTasksPage() {
       header: "Assigned User",
       render: (row) => row.assignedRole || "CLIENT",
     },
+    {
+      key: "taskType",
+      header: "Type",
+      render: (row) => {
+        const isOnboarding = row.taskType === "ONBOARDING";
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-semibold ${isOnboarding
+              ? "bg-indigo-50 text-indigo-700"
+              : "bg-slate-100 text-slate-700"
+              }`}
+          >
+            {isOnboarding ? "Onboarding" : "Assigned"}
+          </span>
+        );
+      },
+    },
 
     // ✅ DUE DATE COLUMN WITH OVERDUE STYLING
     {
@@ -250,6 +267,7 @@ export default function AdminTasksPage() {
             onClick={() =>
               openDrawer("assignTask", {
                 taskId: row.id,
+                taskType: row.taskType,
               })
             }
           >
