@@ -93,7 +93,7 @@ export async function POST(req: Request) {
             ? todayISO()
             : null);
 
-        // Insert STAGE including start_date + completed_at
+        // Insert STAGE including start_date + completed_at + document fields
         const stageInsert = await transaction
           .request()
           .input("clientId", sql.Int, clientId)
@@ -103,12 +103,14 @@ export async function POST(req: Request) {
           .input("status", sql.NVarChar, finalStatus)
           .input("startDate", sql.Date, startDate)
           .input("completedAt", sql.Date, completedAt)
+          .input("documentRequired", sql.Bit, stage.document_required ? 1 : 0)
+          .input("documentMode", sql.NVarChar(20), stage.document_mode || 'stage')
           .query(`
             INSERT INTO dbo.client_stages
-              (client_id, stage_name, order_number, is_required, status, start_date, completed_at, created_at)
+              (client_id, stage_name, order_number, is_required, status, start_date, completed_at, document_required, document_mode, created_at)
             OUTPUT INSERTED.client_stage_id
             VALUES
-              (@clientId, @stageName, @orderNum, @isRequired, @status, @startDate, @completedAt, GETDATE());
+              (@clientId, @stageName, @orderNum, @isRequired, @status, @startDate, @completedAt, @documentRequired, @documentMode, GETDATE());
           `);
 
         const stageId = stageInsert.recordset[0].client_stage_id;
@@ -143,11 +145,12 @@ export async function POST(req: Request) {
               .input("status", sql.NVarChar, sub.status || "Not Started")
               .input("orderNum", sql.Int, i + 1)
               .input("dueDate", sql.Date, sub.due_date || null)
+              .input("subDocRequired", sql.Bit, sub.document_required ? 1 : 0)
               .query(`
                 INSERT INTO dbo.client_stage_subtasks
-                  (client_stage_id, subtask_title, status, order_number, due_date, created_at)
+                  (client_stage_id, subtask_title, status, order_number, due_date, document_required, created_at)
                 VALUES
-                  (@stageId, @title, @status, @orderNum, @dueDate, GETDATE());
+                  (@stageId, @title, @status, @orderNum, @dueDate, @subDocRequired, GETDATE());
               `);
           }
         }

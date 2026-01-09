@@ -32,6 +32,9 @@ export function AssignTaskDialog() {
   const [dueDate, setDueDate] = useState("");
   const [description, setDescription] = useState("");
 
+  // Document requirement - optional
+  const [documentRequired, setDocumentRequired] = useState(true); // Default to true for backward compatibility
+
   // Email notification - optional
   const [sendEmail, setSendEmail] = useState(false);
   const [selectedEmailTemplate, setSelectedEmailTemplate] = useState("");
@@ -105,6 +108,7 @@ export function AssignTaskDialog() {
         assignedToRole: assigneeRole,
         dueDate: dueDate,
         description: description,
+        documentRequired: documentRequired,
       });
 
       // 2. Send email notification if enabled
@@ -255,6 +259,25 @@ export function AssignTaskDialog() {
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
         />
+      </div>
+
+      {/* Document Required Checkbox - Optional */}
+      <div className="border rounded-lg p-3 bg-amber-50/50 border-amber-200">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id="document-required"
+            checked={documentRequired}
+            onCheckedChange={(checked) => setDocumentRequired(checked === true)}
+          />
+          <Label htmlFor="document-required" className="cursor-pointer font-medium">
+            Is Document Required?
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2 ml-7">
+          {documentRequired
+            ? "Client must upload a document to complete this task."
+            : "Client can complete this task without uploading documents."}
+        </p>
       </div>
 
       {/* Email Notification Section - Optional */}

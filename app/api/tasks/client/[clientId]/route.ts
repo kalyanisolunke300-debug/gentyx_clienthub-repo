@@ -28,7 +28,10 @@ export async function GET(
         t.task_id AS id,
         t.task_title AS title,
         t.status,
+        t.order_number,
         t.due_date AS dueDate,
+        t.created_at AS createdAt,
+        ISNULL(t.document_required, 1) AS documentRequired,
         s.stage_name AS stage
         FROM dbo.onboarding_tasks t
         LEFT JOIN dbo.onboarding_stages s

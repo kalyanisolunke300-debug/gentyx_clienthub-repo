@@ -8,7 +8,7 @@ import { logAudit, AuditActions } from "@/lib/audit";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { taskId, taskTitle, dueDate, status, assignedToRole } = body;
+    const { taskId, taskTitle, dueDate, status, assignedToRole, documentRequired } = body;
 
     if (!taskId) {
       return NextResponse.json(
@@ -45,6 +45,7 @@ export async function POST(req: Request) {
       .input("dueDate", sql.DateTime, dueDate || null)
       .input("status", sql.VarChar(50), status)
       .input("assignedToRole", sql.VarChar(50), assignedToRole)
+      .input("documentRequired", sql.Bit, documentRequired === true || documentRequired === 1 ? 1 : (documentRequired === false || documentRequired === 0 ? 0 : null))
       .query(`
         UPDATE dbo.onboarding_tasks
         SET
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
           due_date = COALESCE(@dueDate, due_date),
           status = COALESCE(@status, status),
           assigned_to_role = COALESCE(@assignedToRole, assigned_to_role),
+          document_required = COALESCE(@documentRequired, document_required),
           updated_at = GETDATE()
         WHERE task_id = @taskId;
       `);

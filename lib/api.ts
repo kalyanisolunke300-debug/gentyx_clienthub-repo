@@ -144,6 +144,7 @@ export async function assignTask(payload: {
   dueDate?: string | null;
   description?: string;
   orderNumber?: number;
+  documentRequired?: boolean;
 }) {
   const res = await fetch("/api/tasks/add", {
     method: "POST",
@@ -155,6 +156,7 @@ export async function assignTask(payload: {
       dueDate: payload.dueDate || null,
       description: payload.description || "",
       orderNumber: payload.orderNumber || 1,
+      documentRequired: payload.documentRequired !== false, // Default to true
     }),
   });
 

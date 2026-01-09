@@ -52,7 +52,6 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const clientLinks = [
     { href: "/client", label: "Home", icon: LayoutGrid },
     { href: "/client/tasks", label: "My Tasks", icon: ListChecks },
-    { href: "/client/stages", label: "Onboarding Stages", icon: Library },
     { href: "/client/documents", label: "Documents", icon: FileText },
     { href: "/client/messages", label: "Messages", icon: Mail },
     { href: "/client/reports", label: "Reports", icon: BarChart2 },

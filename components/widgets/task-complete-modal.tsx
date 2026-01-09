@@ -33,6 +33,7 @@ type Props = {
     clientId: string;
     taskType: "assigned" | "onboarding";
     stageName?: string; // Stage name for onboarding subtasks
+    documentMode?: 'stage' | 'subtask'; // For onboarding: 'stage' = one doc for entire stage, 'subtask' = doc per subtask
 };
 
 export function TaskCompleteModal({
@@ -44,6 +45,7 @@ export function TaskCompleteModal({
     clientId,
     taskType,
     stageName,
+    documentMode = 'subtask', // Default to subtask mode for backward compatibility
 }: Props) {
     const { toast } = useToast();
     const [uploading, setUploading] = useState(false);
@@ -128,14 +130,21 @@ export function TaskCompleteModal({
 
             // Organize documents into structured folders:
             // - Assigned Task Completion Documents/Task Name/
-            // - Onboarding Stage Completion Documents/[Stage Name]-[Subtask Name]/
+            // - Onboarding Stage Completion Documents/[Stage Name]/ (for stage mode)
+            // - Onboarding Stage Completion Documents/[Stage Name]-[Subtask Name]/ (for subtask mode)
             let folderPath: string;
             if (taskType === "assigned") {
                 folderPath = `Assigned Task Completion Documents/${taskTitle}`;
             } else {
-                // For onboarding, use Stage Name - Subtask Name format
-                const subtaskFolder = stageName ? `${stageName}-${taskTitle}` : taskTitle;
-                folderPath = `Onboarding Stage Completion Documents/${subtaskFolder}`;
+                // For onboarding, folder structure depends on documentMode
+                if (documentMode === 'stage') {
+                    // Stage mode: just use stage name
+                    folderPath = `Onboarding Stage Completion Documents/${stageName || taskTitle}`;
+                } else {
+                    // Subtask mode: use Stage Name - Subtask Name format
+                    const subtaskFolder = stageName ? `${stageName}-${taskTitle}` : taskTitle;
+                    folderPath = `Onboarding Stage Completion Documents/${subtaskFolder}`;
+                }
             }
             formData.append("folderName", folderPath);
 

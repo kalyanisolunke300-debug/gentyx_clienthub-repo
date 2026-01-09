@@ -80,6 +80,9 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
   const [customEmailBody, setCustomEmailBody] = useState("");
   const [emailMode, setEmailMode] = useState<"template" | "custom">("template");
 
+  // Document requirement state
+  const [documentRequired, setDocumentRequired] = useState(true); // Default to true for backward compatibility
+
   /* ------------------- LOAD SQL DATA ------------------- */
   const { data: clients } = useSWR(["clients"], () =>
     fetchClients({ page: 1, pageSize: 100 })
@@ -117,6 +120,9 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         ? new Date(task.dueDate).toISOString().split("T")[0]
         : "",
     });
+
+    // Set document required state from task data (default to true if not set)
+    setDocumentRequired(task.documentRequired !== 0 && task.documentRequired !== false);
 
   }, [taskData, isEditMode]);
 
@@ -165,6 +171,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         dueDate: values.dueDate || null,
         description: "",
         orderNumber: 1,
+        documentRequired: documentRequired,
       };
 
       console.log("🚀 Final Payload Sent to assignTask():", payload);
@@ -179,6 +186,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
             status: taskData?.data?.[0]?.status || context?.status || "Pending",
             dueDate: values.dueDate || null,
             assignedToRole: values.assigneeRole,
+            documentRequired: documentRequired,
           }),
         });
 
@@ -404,6 +412,25 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         {form.formState.errors.dueDate && (
           <p className="text-xs text-red-500">{form.formState.errors.dueDate.message}</p>
         )}
+      </div>
+
+      {/* Document Required Checkbox */}
+      <div className="border rounded-lg p-3 bg-amber-50/50 border-amber-200 mt-2">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id="document-required"
+            checked={documentRequired}
+            onCheckedChange={(checked) => setDocumentRequired(checked === true)}
+          />
+          <Label htmlFor="document-required" className="cursor-pointer font-medium text-sm">
+            Is Document Required?
+          </Label>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2 ml-7">
+          {documentRequired
+            ? "Client must upload a document to complete this task."
+            : "Client can complete this task without uploading documents."}
+        </p>
       </div>
 
       {/* Email Notification Section - Optional */}

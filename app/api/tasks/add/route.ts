@@ -15,11 +15,13 @@ export async function POST(req: Request) {
       dueDate,
       assignedToRole,
       assigneeRole,
+      documentRequired = true, // Default to true for backward compatibility
     } = body;
 
     const clientId = Number(rawClientId);
     const finalTitle = taskTitle || title;
     const role = assignedToRole || assigneeRole || "CLIENT";
+    const docRequired = documentRequired === true || documentRequired === 1; // Ensure boolean
 
     if (!clientId || !finalTitle) {
       return NextResponse.json(
@@ -99,6 +101,7 @@ export async function POST(req: Request) {
       .input("dueDate", sql.DateTime, dueDate || null)
       .input("assignedToRole", sql.VarChar(50), role)
       .input("orderNumber", sql.Int, orderNumber)
+      .input("documentRequired", sql.Bit, docRequired ? 1 : 0)
       .query(`
         INSERT INTO dbo.onboarding_tasks
         (
@@ -110,6 +113,7 @@ export async function POST(req: Request) {
           due_date,
           status,
           order_number,
+          document_required,
           created_at,
           updated_at
         )
@@ -124,6 +128,7 @@ export async function POST(req: Request) {
           @dueDate,
           'Not Started',
           @orderNumber,
+          @documentRequired,
           GETDATE(),
           GETDATE()
         )

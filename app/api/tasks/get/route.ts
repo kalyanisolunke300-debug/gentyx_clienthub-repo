@@ -44,7 +44,8 @@ export async function GET(req: Request) {
             css.status        AS status,
             css.due_date      AS dueDate,
             s.stage_name      AS sourceStage,
-            css.created_at    AS createdAt
+            css.created_at    AS createdAt,
+            1                 AS documentRequired  -- Subtasks always require documents
           FROM dbo.client_stage_subtasks css
           LEFT JOIN dbo.client_stages cs
             ON cs.client_stage_id = css.client_stage_id
@@ -66,7 +67,8 @@ export async function GET(req: Request) {
             t.status                 AS status,
             t.due_date               AS dueDate,
             NULL                     AS sourceStage,
-            t.created_at             AS createdAt
+            t.created_at             AS createdAt,
+            ISNULL(t.document_required, 1) AS documentRequired
           FROM dbo.onboarding_tasks t
           JOIN dbo.clients c
             ON c.client_id = t.client_id
@@ -83,7 +85,7 @@ export async function GET(req: Request) {
             x.title LIKE '%' + @q + '%' OR
             x.clientName LIKE '%' + @q + '%'
           )
-        ORDER BY x.dueDate ASC
+        ORDER BY x.createdAt DESC
         OFFSET @offset ROWS
         FETCH NEXT @pageSize ROWS ONLY
       `);

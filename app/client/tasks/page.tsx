@@ -52,6 +52,11 @@ type TaskRow = {
   status: string;
   dueDate: string | null;
   assignedRole: string;
+  taskType: "ASSIGNED" | "ONBOARDING";
+  stageName?: string;
+  originalObject?: any;
+  createdAt?: string | Date | null;
+  documentRequired?: boolean;
 };
 
 type StageItem = {
@@ -67,6 +72,8 @@ type SubtaskItem = {
   subtask_title: string;
   status: string;
   order_number: number;
+  due_date?: string | null;
+  created_at?: string;
 };
 
 export default function ClientTasks() {
@@ -83,6 +90,7 @@ export default function ClientTasks() {
   const [filterDue, setFilterDue] = useState<"ALL" | "OVERDUE" | "UPCOMING">(
     "ALL"
   );
+  const [filterTaskType, setFilterTaskType] = useState<"ALL" | "ONBOARDING" | "ASSIGNED">("ALL");
   const [expandedStages, setExpandedStages] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<"assigned" | "onboarding">("assigned");
 
@@ -165,32 +173,112 @@ export default function ClientTasks() {
     }
   }, [stages]);
 
-  const allTasks: TaskRow[] = (data?.data || []).map((t: any) => ({
-    id: t.id,
-    title: t.title,
-    stage: t.stage || "-",
-    status: t.status || "Not Started",
-    dueDate: t.dueDate,
-    assignedRole: t.assignedRole || "CLIENT",
-  }));
+  // Combine and sort both assigned tasks and onboarding subtasks
+  const allTasks: TaskRow[] = useMemo(() => {
+    // 1. Map assigned tasks
+    const mappedAssigned: TaskRow[] = (data?.data || []).map((t: any) => {
+      // Debug: Log what documentRequired looks like from the API
+      console.log("Task from API:", t.id, t.title, "documentRequired:", t.documentRequired, "type:", typeof t.documentRequired);
+
+      // documentRequired: SQL BIT returns 0/1, convert to proper boolean
+      // If value is 0 or false = not required; otherwise = required (default true)
+      const isDocRequired = t.documentRequired === 0 || t.documentRequired === false ? false : true;
+
+      return {
+        id: t.id,
+        title: t.title,
+        stage: t.stage || "-",
+        status: t.status || "Not Started",
+        dueDate: t.dueDate,
+        assignedRole: t.assignedRole || "CLIENT",
+        taskType: "ASSIGNED" as const,
+        createdAt: t.createdAt,
+        documentRequired: isDocRequired,
+        originalObject: t,
+      };
+    });
+
+    // 2. Map onboarding subtasks
+    const mappedOnboarding: TaskRow[] = [];
+    stagesWithSubtasks.forEach((stage) => {
+      stage.subtasks.forEach((sub) => {
+        mappedOnboarding.push({
+          id: sub.subtask_id, // Note: ID collision possible if not handled by DB IDs properly. Assuming distinct for now or OK for display.
+          title: sub.subtask_title,
+          stage: stage.stage_name,
+          status: sub.status || "Not Started",
+          dueDate: sub.due_date || null, // ✅ Fix: Ensure undefined becomes null
+          assignedRole: "CLIENT",
+          taskType: "ONBOARDING",
+          stageName: stage.stage_name, // For folder paths
+          createdAt: sub.created_at, // ✅ Mapped from API
+          originalObject: sub,
+        });
+      });
+    });
+
+    // 3. Merge and Sort by Due Date (Earliest first), then by Created Date
+    const combined = [...mappedAssigned, ...mappedOnboarding];
+    return combined.sort((a, b) => {
+      // 1. Sort by Due Date (Latest/Furthest first)
+      // Tasks with due dates come before tasks without
+      if (a.dueDate && !b.dueDate) return -1;
+      if (!a.dueDate && b.dueDate) return 1;
+
+      if (a.dueDate && b.dueDate) {
+        const dueA = new Date(a.dueDate).getTime();
+        const dueB = new Date(b.dueDate).getTime();
+        if (dueA !== dueB) return dueB - dueA; // Descending
+      }
+
+      // 2. Secondary Sort: Most Recent Created first
+      const createA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+
+      return createB - createA;
+    });
+  }, [data, stagesWithSubtasks]);
+
+  // Combined Status Stats
+  const combinedStats = useMemo(() => {
+    return {
+      total: allTasks.length,
+      notStarted: allTasks.filter((t) => t.status === "Not Started").length,
+      inProgress: allTasks.filter((t) => t.status === "In Progress").length,
+      completed: allTasks.filter((t) => t.status === "Completed").length,
+    };
+  }, [allTasks]);
 
   // Update task status - check if changing to Completed (requires document upload)
   const handleStatusChange = async (taskId: number, newStatus: string) => {
-    // If changing to Completed, show the document upload modal
+    // If changing to Completed, check if document is required
     if (newStatus === "Completed") {
       const task = allTasks.find((t) => t.id === taskId);
       if (task) {
-        setPendingTask({
-          id: taskId,
-          title: task.title,
-          type: "assigned",
+        // Only show document upload modal if document is required
+        // documentRequired comes as 0/1 from SQL BIT type, or true/false
+        const isDocRequired = task.documentRequired === true;
+
+        console.log("Task documentRequired check:", {
+          taskId,
+          documentRequired: task.documentRequired,
+          isDocRequired
         });
-        setCompleteModalOpen(true);
-        return; // Don't update status yet - wait for document upload
+
+        if (isDocRequired) {
+          setPendingTask({
+            id: taskId,
+            title: task.title,
+            type: "assigned",
+          });
+          setCompleteModalOpen(true);
+          return; // Don't update status yet - wait for document upload
+        }
+        // If document not required, complete task directly
       }
     }
 
-    // For non-Completed status changes, proceed normally
+    // For non-Completed status changes or tasks not requiring documents, proceed normally
     await updateTaskStatus(taskId, newStatus);
   };
 
@@ -335,6 +423,10 @@ export default function ClientTasks() {
       if (!match) return false;
     }
 
+    if (filterTaskType !== "ALL" && task.taskType !== filterTaskType) {
+      return false;
+    }
+
     if (filterStatus !== "ALL" && task.status !== filterStatus) {
       return false;
     }
@@ -387,17 +479,48 @@ export default function ClientTasks() {
   const cols: Column<TaskRow>[] = [
     { key: "title", header: "Task" },
     {
+      key: "taskType",
+      header: "Type",
+      render: (row) => {
+        const isOnboarding = row.taskType === "ONBOARDING";
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-semibold ${isOnboarding
+              ? "bg-indigo-50 text-indigo-700"
+              : "bg-slate-100 text-slate-700"
+              }`}
+          >
+            {isOnboarding ? "Onboarding" : "Assigned"}
+          </span>
+        );
+      },
+    },
+    {
       key: "dueDate",
       header: "Due Date",
       render: (row) => {
         if (!row.dueDate)
           return <span className="text-muted-foreground">-</span>;
-        const dueDate = new Date(row.dueDate);
-        const isOverdue = dueDate < new Date() && row.status !== "Completed";
+
+        // Handle timezone issues: treat the server date as the intended calendar date
+        // API sends ISO string (UTC). We want to treat "2026-01-08" as Jan 8th Local, not Jan 7th 7pm.
+        const dateObj = new Date(row.dueDate);
+        const normalizedDue = new Date(
+          dateObj.getUTCFullYear(),
+          dateObj.getUTCMonth(),
+          dateObj.getUTCDate()
+        );
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize today to start of day
+
+        // Check if strictly before today and NOT completed
+        const isOverdue = normalizedDue < today && row.status !== "Completed";
+
         return (
           <span className={isOverdue ? "text-red-600 font-medium" : ""}>
-            {dueDate.toLocaleDateString()}
-            {isOverdue && <span className="ml-1 text-xs">(Overdue)</span>}
+            {normalizedDue.toLocaleDateString()}
+            {isOverdue && <span className="ml-1">(Overdue)</span>}
           </span>
         );
       },
@@ -408,7 +531,13 @@ export default function ClientTasks() {
       render: (row) => (
         <Select
           value={row.status || "Not Started"}
-          onValueChange={(value) => handleStatusChange(row.id, value)}
+          onValueChange={(value) => {
+            if (row.taskType === "ASSIGNED") {
+              handleStatusChange(row.id, value);
+            } else {
+              handleSubtaskStatusChange(row.id, value);
+            }
+          }}
         >
           <SelectTrigger
             className={`h-8 px-3 rounded-full text-xs font-medium border ${STATUS_COLORS[row.status || "Not Started"]
@@ -427,28 +556,44 @@ export default function ClientTasks() {
       ),
     },
     {
-      key: "id" as keyof TaskRow,
+      key: "id", // using id as key property
       header: "Actions",
-      render: (row) => (
-        row.status === "Completed" ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 gap-1 text-primary"
-            onClick={() => {
-              // Navigate to the specific folder for this task
-              const folderPath = encodeURIComponent(`Assigned Task Completion Documents/${row.title}`);
-              router.push(`/client/documents?folder=${folderPath}`);
-            }}
-            title="View completion documents"
-          >
-            <Eye className="h-4 w-4" />
-            <span className="text-xs">View Docs</span>
-          </Button>
-        ) : (
-          <span className="text-muted-foreground text-xs">-</span>
-        )
-      ),
+      render: (row) => {
+        // Check if task is completed AND requires/has documents
+        const isCompleted = row.status === "Completed";
+        const hasDocRequirement = row.documentRequired === true;
+
+        if (isCompleted && hasDocRequirement) {
+          return (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 gap-1 text-primary"
+              onClick={() => {
+                // Navigate to the specific folder for this task
+                let folderPath = "";
+                if (row.taskType === "ASSIGNED") {
+                  folderPath = encodeURIComponent(`Assigned Task Completion Documents/${row.title}`);
+                } else {
+                  folderPath = encodeURIComponent(
+                    `Onboarding Stage Completion Documents/${row.stageName}-${row.title}`
+                  );
+                }
+                router.push(`/client/documents?folder=${folderPath}`);
+              }}
+              title="View completion documents"
+            >
+              <Eye className="h-4 w-4" />
+              <span className="text-xs">View Docs</span>
+            </Button>
+          );
+        } else if (isCompleted) {
+          // Completed but no doc required - show checkmark or nothing
+          return <span className="text-green-600 text-xs">✓ Done</span>;
+        } else {
+          return <span className="text-muted-foreground text-xs">-</span>;
+        }
+      },
     },
   ];
 
@@ -476,490 +621,245 @@ export default function ClientTasks() {
         </div>
       </div>
 
-      {/* TABS */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-          <TabsTrigger value="assigned" className="gap-2">
-            <ListChecks className="h-4 w-4" />
-            Assigned Tasks ({assignedStats.total})
-          </TabsTrigger>
-          <TabsTrigger value="onboarding" className="gap-2">
-            <Layers className="h-4 w-4" />
-            Onboarding Stages ({stages.length})
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ============ ASSIGNED TASKS TAB ============ */}
-        <TabsContent value="assigned" className="space-y-6 mt-6">
-          {/* STATS CARDS */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card
-              className={`cursor-pointer transition-all ${filterStatus === "ALL" ? "ring-2 ring-primary" : ""
-                }`}
-              onClick={() => {
-                setFilterStatus("ALL");
-                setPage(1);
-              }}
-            >
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      Total Tasks
-                    </p>
-                    <p className="text-2xl font-bold">{assignedStats.total}</p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <ListChecks className="h-5 w-5 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className={`cursor-pointer transition-all ${filterStatus === "Not Started" ? "ring-2 ring-amber-500" : ""
-                }`}
-              onClick={() => {
-                setFilterStatus("Not Started");
-                setPage(1);
-              }}
-            >
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      Not Started
-                    </p>
-                    <p className="text-2xl font-bold text-amber-600">
-                      {assignedStats.notStarted}
-                    </p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-amber-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className={`cursor-pointer transition-all ${filterStatus === "In Progress" ? "ring-2 ring-blue-500" : ""
-                }`}
-              onClick={() => {
-                setFilterStatus("In Progress");
-                setPage(1);
-              }}
-            >
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      In Progress
-                    </p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {assignedStats.inProgress}
-                    </p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <AlertCircle className="h-5 w-5 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card
-              className={`cursor-pointer transition-all ${filterStatus === "Completed" ? "ring-2 ring-green-500" : ""
-                }`}
-              onClick={() => {
-                setFilterStatus("Completed");
-                setPage(1);
-              }}
-            >
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      Completed
-                    </p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {assignedStats.completed}
-                    </p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* FILTERS */}
-          <div className="flex flex-wrap items-center gap-3">
-            <TableToolbar q={q} setQ={setQ} />
-
-            <Select
-              value={filterStatus}
-              onValueChange={(v) => {
-                setFilterStatus(v as any);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-40">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Status</SelectItem>
-                <SelectItem value="Not Started">Not Started</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={filterDue}
-              onValueChange={(v) => {
-                setFilterDue(v as any);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Due Date" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Due Dates</SelectItem>
-                <SelectItem value="OVERDUE">Overdue</SelectItem>
-                <SelectItem value="UPCOMING">Due This Week</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {assignedStats.overdue > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 rounded-full text-sm font-medium">
-                <AlertCircle className="h-4 w-4" />
-                {assignedStats.overdue} overdue
+      {/* STATS CARDS */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card
+          className={`cursor-pointer transition-all ${filterStatus === "ALL" ? "ring-2 ring-primary" : ""}`}
+          onClick={() => {
+            setFilterStatus("ALL");
+            setPage(1);
+          }}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  Total Tasks
+                </p>
+                <p className="text-2xl font-bold">{combinedStats.total}</p>
               </div>
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <ListChecks className="h-5 w-5 text-primary" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all ${filterStatus === "Not Started" ? "ring-2 ring-amber-500" : ""}`}
+          onClick={() => {
+            setFilterStatus("Not Started");
+            setPage(1);
+          }}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  Not Started
+                </p>
+                <p className="text-2xl font-bold text-amber-600">
+                  {combinedStats.notStarted}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <Clock className="h-5 w-5 text-amber-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all ${filterStatus === "In Progress" ? "ring-2 ring-blue-500" : ""}`}
+          onClick={() => {
+            setFilterStatus("In Progress");
+            setPage(1);
+          }}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  In Progress
+                </p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {combinedStats.inProgress}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all ${filterStatus === "Completed" ? "ring-2 ring-green-500" : ""}`}
+          onClick={() => {
+            setFilterStatus("Completed");
+            setPage(1);
+          }}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase">
+                  Completed
+                </p>
+                <p className="text-2xl font-bold text-green-600">
+                  {combinedStats.completed}
+                </p>
+              </div>
+              <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* FILTERS */}
+      <div className="flex flex-wrap items-center gap-3">
+        <TableToolbar q={q} setQ={setQ} />
+
+        <Select
+          value={filterTaskType}
+          onValueChange={(v) => {
+            setFilterTaskType(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Task Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Types</SelectItem>
+            <SelectItem value="ONBOARDING">Onboarding</SelectItem>
+            <SelectItem value="ASSIGNED">Assigned</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filterStatus}
+          onValueChange={(v) => {
+            setFilterStatus(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Status</SelectItem>
+            <SelectItem value="Not Started">Not Started</SelectItem>
+            <SelectItem value="In Progress">In Progress</SelectItem>
+            <SelectItem value="Completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filterDue}
+          onValueChange={(v) => {
+            setFilterDue(v as any);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Due Date" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All Due Dates</SelectItem>
+            <SelectItem value="OVERDUE">Overdue</SelectItem>
+            <SelectItem value="UPCOMING">Due This Week</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setFilterStatus("ALL");
+            setFilterDue("ALL");
+            setFilterTaskType("ALL");
+            setQ("");
+            setPage(1);
+          }}
+        >
+          Clear Filters
+        </Button>
+      </div>
+
+      {/* TABLE */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-3 text-muted-foreground">
+            Loading tasks...
+          </span>
+        </div>
+      ) : rows.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="bg-muted/50 rounded-full p-4 mb-4">
+              <ListChecks className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="text-muted-foreground">No tasks found.</p>
+            {(filterStatus !== "ALL" || filterDue !== "ALL" || q) && (
+              <Button
+                variant="link"
+                onClick={() => {
+                  setFilterStatus("ALL");
+                  setFilterDue("ALL");
+                  setFilterTaskType("ALL");
+                  setQ("");
+                }}
+              >
+                Clear filters to see all tasks
+              </Button>
             )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <DataTable columns={cols} rows={rows} />
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setFilterStatus("ALL");
-                setFilterDue("ALL");
-                setQ("");
-                setPage(1);
-              }}
-            >
-              Clear Filters
-            </Button>
+          <div className="flex items-center justify-between text-sm text-muted-foreground py-3 px-1 border-t">
+            <div className="flex items-center gap-2">
+              <span>Items per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(val) => {
+                  setPageSize(Number(val));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-20 h-8">
+                  <SelectValue placeholder={pageSize} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              {start}–{end} of {total} tasks
+            </div>
           </div>
 
-          {/* TABLE */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-3 text-muted-foreground">
-                Loading tasks...
-              </span>
-            </div>
-          ) : rows.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <div className="bg-muted/50 rounded-full p-4 mb-4">
-                  <ListChecks className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">No tasks found.</p>
-                {(filterStatus !== "ALL" || filterDue !== "ALL" || q) && (
-                  <Button
-                    variant="link"
-                    onClick={() => {
-                      setFilterStatus("ALL");
-                      setFilterDue("ALL");
-                      setQ("");
-                    }}
-                  >
-                    Clear filters to see all tasks
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <DataTable columns={cols} rows={rows} />
-
-              <div className="flex items-center justify-between text-sm text-muted-foreground py-3 px-1 border-t">
-                <div className="flex items-center gap-2">
-                  <span>Items per page:</span>
-                  <Select
-                    value={String(pageSize)}
-                    onValueChange={(val) => {
-                      setPageSize(Number(val));
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="w-20 h-8">
-                      <SelectValue placeholder={pageSize} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  {start}–{end} of {total} tasks
-                </div>
-              </div>
-
-              <TablePagination
-                page={page}
-                pageSize={pageSize}
-                total={total}
-                setPage={setPage}
-              />
-            </>
-          )}
-        </TabsContent>
-
-        {/* ============ ONBOARDING STAGES TAB ============ */}
-        <TabsContent value="onboarding" className="space-y-6 mt-6">
-          {/* ONBOARDING STATS */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      Total Subtasks
-                    </p>
-                    <p className="text-2xl font-bold">{onboardingStats.total}</p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Layers className="h-5 w-5 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      Not Started
-                    </p>
-                    <p className="text-2xl font-bold text-amber-600">
-                      {onboardingStats.notStarted}
-                    </p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-amber-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      In Progress
-                    </p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {onboardingStats.inProgress}
-                    </p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                    <AlertCircle className="h-5 w-5 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase">
-                      Completed
-                    </p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {onboardingStats.completed}
-                    </p>
-                  </div>
-                  <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* STAGES LIST */}
-          {stagesWithSubtasks.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <div className="bg-muted/50 rounded-full p-4 mb-4">
-                  <Layers className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">
-                  No onboarding stages configured yet.
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your admin will set up your onboarding journey soon.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {stagesWithSubtasks.map((stage, stageIndex) => {
-                const isExpanded = expandedStages.includes(stage.client_stage_id);
-                const completedCount = stage.subtasks.filter(
-                  (s) => s.status === "Completed"
-                ).length;
-                const totalCount = stage.subtasks.length;
-                const allCompleted = totalCount > 0 && completedCount === totalCount;
-                const hasInProgress = stage.subtasks.some(
-                  (s) => s.status === "In Progress"
-                );
-
-                return (
-                  <Card key={stage.client_stage_id}>
-                    {/* Stage Header */}
-                    <CardHeader
-                      className="cursor-pointer py-4"
-                      onClick={() => toggleStage(stage.client_stage_id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {isExpanded ? (
-                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                          )}
-                          <div
-                            className={`flex items-center justify-center h-8 w-8 rounded-full text-sm font-bold ${allCompleted
-                              ? "bg-green-100 text-green-700"
-                              : hasInProgress
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-gray-100 text-gray-700"
-                              }`}
-                          >
-                            {stageIndex + 1}
-                          </div>
-                          <div>
-                            <CardTitle className="text-base flex items-center gap-2">
-                              {stage.stage_name}
-                              {allCompleted && (
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              )}
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {completedCount} of {totalCount} tasks completed
-                            </p>
-                          </div>
-                        </div>
-
-                        <div
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${allCompleted
-                            ? "bg-green-100 text-green-700"
-                            : hasInProgress
-                              ? "bg-blue-100 text-blue-700 animate-pulse"
-                              : "bg-gray-100 text-gray-600"
-                            }`}
-                        >
-                          {allCompleted
-                            ? "Completed"
-                            : hasInProgress
-                              ? "In Progress"
-                              : "Not Started"}
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    {/* Subtasks List */}
-                    {isExpanded && stage.subtasks.length > 0 && (
-                      <CardContent className="pt-0 pb-4">
-                        <div className="border rounded-lg divide-y">
-                          {stage.subtasks.map((subtask, idx) => (
-                            <div
-                              key={subtask.subtask_id}
-                              className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm text-muted-foreground w-6">
-                                  {idx + 1}.
-                                </span>
-                                <span className="text-sm">
-                                  {subtask.subtask_title}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Select
-                                  value={subtask.status || "Not Started"}
-                                  onValueChange={(value) =>
-                                    handleSubtaskStatusChange(subtask.subtask_id, value)
-                                  }
-                                >
-                                  <SelectTrigger
-                                    className={`h-8 w-32 px-3 rounded-full text-xs font-medium border ${STATUS_COLORS[subtask.status || "Not Started"]
-                                      }`}
-                                  >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {STATUS_OPTIONS.map((s) => (
-                                      <SelectItem key={s} value={s}>
-                                        {s}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-
-                                {/* View Documents button for completed subtasks */}
-                                {subtask.status === "Completed" && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 gap-1 text-primary"
-                                    onClick={() => {
-                                      // Navigate to the specific folder for this subtask
-                                      const folderPath = encodeURIComponent(
-                                        `Onboarding Stage Completion Documents/${stage.stage_name}-${subtask.subtask_title}`
-                                      );
-                                      router.push(`/client/documents?folder=${folderPath}`);
-                                    }}
-                                    title="View completion documents"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    )}
-
-                    {/* Empty subtasks message */}
-                    {isExpanded && stage.subtasks.length === 0 && (
-                      <CardContent className="pt-0 pb-4">
-                        <div className="text-center text-sm text-muted-foreground py-4 border rounded-lg bg-muted/20">
-                          No tasks in this stage yet.
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            setPage={setPage}
+          />
+        </>
+      )}
 
       {/* Task Completion Modal - requires document upload */}
       {clientId && pendingTask && (

@@ -18,20 +18,29 @@ export async function GET(req: Request) {
     const pool = await getDbPool();
 
     // -----------------------------
-    // 1️⃣ Fetch Stages
+    // 1️⃣ Fetch Stages (including document fields)
     // -----------------------------
     const stages = await pool
       .request()
       .input("clientId", sql.Int, Number(clientId))
       .query(`
-        SELECT client_stage_id, stage_name, order_number, is_required, status, start_date, completed_at
+        SELECT 
+          client_stage_id, 
+          stage_name, 
+          order_number, 
+          is_required, 
+          status, 
+          start_date, 
+          completed_at,
+          ISNULL(document_required, 0) as document_required,
+          ISNULL(document_mode, 'stage') as document_mode
         FROM client_stages
         WHERE client_id = @clientId
         ORDER BY order_number
       `);
 
     // -----------------------------
-    // 2️⃣ Fetch Subtasks WITH due_date (FIXED)
+    // 2️⃣ Fetch Subtasks WITH due_date and document_required
     // -----------------------------
     const subtasks = await pool
       .request()
@@ -43,7 +52,9 @@ export async function GET(req: Request) {
           t.subtask_title,
           t.status,
           t.order_number,
-          t.due_date   -- ⭐ ADDED THIS FIELD
+          t.due_date,
+          ISNULL(t.document_required, 0) as document_required,
+          t.created_at
         FROM client_stages s
         LEFT JOIN client_stage_subtasks t
           ON s.client_stage_id = t.client_stage_id

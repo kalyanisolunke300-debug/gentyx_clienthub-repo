@@ -48,6 +48,7 @@ type TaskRow = {
   status: string;
   dueDate: string | null;
   taskType: string;
+  documentRequired?: boolean | number; // ✅ Added for document requirement check
 };
 
 
@@ -172,15 +173,27 @@ export default function AdminTasksPage() {
         <Select
           value={row.status || "Not Started"}
           onValueChange={async (value) => {
-            // If changing to Completed, show the document upload modal
+            // If changing to Completed, check if document is required
             if (value === "Completed") {
-              setPendingTask({
-                id: row.id,
-                title: row.title,
-                clientId: row.clientId,
+              // Check if document is required (0 or false = not required)
+              const isDocRequired = row.documentRequired === 0 || row.documentRequired === false ? false : true;
+
+              console.log("Admin task completion check:", {
+                taskId: row.id,
+                documentRequired: row.documentRequired,
+                isDocRequired
               });
-              setCompleteModalOpen(true);
-              return; // Don't update status yet - wait for document upload
+
+              if (isDocRequired) {
+                setPendingTask({
+                  id: row.id,
+                  title: row.title,
+                  clientId: row.clientId,
+                });
+                setCompleteModalOpen(true);
+                return; // Don't update status yet - wait for document upload
+              }
+              // If document not required, fall through to update status directly
             }
 
             // For non-Completed status changes, proceed normally
@@ -221,9 +234,9 @@ export default function AdminTasksPage() {
       className: "text-center",
       render: (row) => (
         <div className="flex items-center justify-center gap-2 w-full">
-          {/* ✅ VIEW DOCS (only for completed tasks) - fixed width for alignment */}
+          {/* ✅ VIEW DOCS (only for completed tasks WITH document requirement) - fixed width for alignment */}
           <div className="w-[85px]">
-            {row.status === "Completed" && (
+            {row.status === "Completed" && (row.documentRequired === 1 || row.documentRequired === true) && (
               <Button
                 size="sm"
                 variant="ghost"

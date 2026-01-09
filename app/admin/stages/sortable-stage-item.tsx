@@ -30,6 +30,7 @@ export interface Subtask {
   title: string;
   status: string;
   due_date?: string | null;
+  document_required?: boolean; // Only relevant when parent stage's document_mode is 'subtask'
 }
 
 export interface SortableStageItemProps {
@@ -42,6 +43,8 @@ export interface SortableStageItemProps {
 
     start_date?: string | null;
     completed_at?: string | null;
+    document_required?: boolean;
+    document_mode?: 'stage' | 'subtask';
   };
 
   subtasks: Record<string, Subtask[]>;
@@ -62,7 +65,12 @@ export interface SortableStageItemProps {
 
   onStageStartDateChange: (stageId: string, startDate: string | null) => void;
 
+  onStageDocumentRequiredChange: (stageId: string, documentRequired: boolean) => void;
+  onStageDocumentModeChange: (stageId: string, documentMode: 'stage' | 'subtask') => void;
+
   clientId?: string;  // For navigating to documents
+  hasUnsavedChanges?: boolean; // Whether there are unsaved changes
+  onSaveRequired?: () => void; // Callback when save is required before navigation
 }
 
 /* -------------- STAGE STATUSES --------------- */
@@ -81,7 +89,11 @@ export function SortableStageItem({
   onStageStatusChange,
   updateSubtask,
   onStageStartDateChange,
+  onStageDocumentRequiredChange,
+  onStageDocumentModeChange,
   clientId,
+  hasUnsavedChanges,
+  onSaveRequired,
 }: SortableStageItemProps) {
   const router = useRouter();
   const [showStartDate, setShowStartDate] = useState(false);
@@ -227,6 +239,68 @@ export function SortableStageItem({
         </Select>
       </div>
 
+      {/* DOCUMENT REQUIREMENT */}
+      <div className="ml-6 mb-3 space-y-2">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={stage.document_required ?? false}
+              onChange={(e) => onStageDocumentRequiredChange(stage.id, e.target.checked)}
+              className="w-4 h-4 rounded border-primary text-primary focus:ring-primary/20"
+            />
+            <span className="text-xs font-medium text-amber-700">
+              📄 Document Required for this Stage
+            </span>
+          </label>
+        </div>
+
+        {/* Document Mode Selection - Only show if document is required */}
+        {stage.document_required && (
+          <div className="ml-6 flex items-center gap-2 bg-amber-50 p-2 rounded-md border border-amber-200">
+            <span className="text-xs text-muted-foreground">Document Mode:</span>
+            <Select
+              value={stage.document_mode || 'stage'}
+              onValueChange={(value: 'stage' | 'subtask') => onStageDocumentModeChange(stage.id, value)}
+            >
+              <SelectTrigger className="h-7 w-72 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="stage">
+                  One document for entire stage
+                </SelectItem>
+                <SelectItem value="subtask">
+                  Each sub-task requires document
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* View Document button for 'stage' mode when stage is completed */}
+            {stage.document_mode === 'stage' && stage.status === 'Completed' && clientId && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                onClick={() => {
+                  if (hasUnsavedChanges && onSaveRequired) {
+                    onSaveRequired();
+                    return;
+                  }
+                  const folderPath = encodeURIComponent(
+                    `Onboarding Stage Completion Documents/${stage.name}`
+                  );
+                  router.push(`/admin/documents?clientId=${clientId}&folder=${folderPath}`);
+                }}
+              >
+                <Eye className="size-3" />
+                View Stage Document
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* SUBTASKS */}
       <div className="ml-6 mt-2 border-t pt-2">
         <div className="text-xs font-semibold text-muted-foreground mb-2">
@@ -284,14 +358,19 @@ export function SortableStageItem({
                   </SelectContent>
                 </Select>
 
-                {/* View Docs button for completed subtasks - fixed width for alignment */}
+
+                {/* View Docs button for completed subtasks - only show when document_mode is 'subtask' */}
                 <div className="w-5">
-                  {t.status === "Completed" && clientId && (
+                  {t.status === "Completed" && clientId && stage.document_mode === 'subtask' && (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-5 w-5 p-0 text-primary"
                       onClick={() => {
+                        if (hasUnsavedChanges && onSaveRequired) {
+                          onSaveRequired();
+                          return;
+                        }
                         const folderPath = encodeURIComponent(
                           `Onboarding Stage Completion Documents/${stage.name}-${t.title}`
                         );

@@ -85,6 +85,7 @@ type SubTask = {
   title: string;
   status: string;
   due_date?: string | null;
+  document_required?: boolean; // Only relevant when parent stage's document_mode is 'subtask'
 };
 
 type Stage = {
@@ -95,6 +96,8 @@ type Stage = {
   status: string;
   start_date?: string | null;
   completed_at?: string | null;
+  document_required?: boolean; // Is documentation required for this stage?
+  document_mode?: 'stage' | 'subtask'; // 'stage' = one doc for whole stage, 'subtask' = each subtask needs its own doc
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -146,6 +149,8 @@ export default function StagesPage() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [templatePreviewStages, setTemplatePreviewStages] = useState<any[]>([]);
 
@@ -164,6 +169,7 @@ export default function StagesPage() {
     stageName: string;
     index: number;
     title: string;
+    documentMode: 'stage' | 'subtask';
   } | null>(null);
 
   // Get selected client details
@@ -180,29 +186,50 @@ export default function StagesPage() {
       updatedSubtasksMap[stageId] = currentStageSubtasks;
       return updatedSubtasksMap;
     });
+    setHasUnsavedChanges(true);
   };
 
   // Wrapper for subtask update that intercepts "Completed" status changes
   const handleSubtaskUpdate = (stageId: string, index: number, updates: Partial<SubTask>) => {
-    // If changing status to Completed, show the document upload modal
+    // If changing status to Completed, check if document is required
     if (updates.status === "Completed") {
       const stageSubtasks = subTasks[stageId] || [];
       const subtask = stageSubtasks[index];
       const stage = stages.find(s => s.id === stageId);
 
       if (subtask && stage) {
-        setPendingSubtask({
-          stageId,
-          stageName: stage.name,
-          index,
-          title: subtask.title,
-        });
-        setCompleteModalOpen(true);
-        return; // Don't update yet - wait for document upload
+        // Determine if document upload is required for this completion
+        let requiresDocument = false;
+
+        if (stage.document_required) {
+          if (stage.document_mode === 'stage') {
+            // Stage-level document: Show modal only when completing the LAST subtask of the stage
+            const otherSubtasksCompleted = stageSubtasks.every((st, i) =>
+              i === index || (st.status || '').toLowerCase() === 'completed'
+            );
+            requiresDocument = otherSubtasksCompleted;
+          } else if (stage.document_mode === 'subtask') {
+            // Subtask-level document: EVERY subtask requires document upload
+            requiresDocument = true;
+          }
+        }
+
+        if (requiresDocument) {
+          // Show document upload modal
+          setPendingSubtask({
+            stageId,
+            stageName: stage.name,
+            index,
+            title: subtask.title,
+            documentMode: stage.document_mode || 'subtask',
+          });
+          setCompleteModalOpen(true);
+          return; // Don't update yet - wait for document upload
+        }
       }
     }
 
-    // For non-Completed status changes, proceed normally
+    // For non-Completed status changes OR when no document is required, proceed normally
     updateSubtask(stageId, index, updates);
   };
 
@@ -217,6 +244,62 @@ export default function StagesPage() {
       if (json.success) setDefaultTemplates(json.data);
     })();
   }, [showTemplateSelector]);
+
+  // Warn user about unsaved changes when leaving the page
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Warn user when navigating away via browser back/forward or clicking internal links
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    // Handle browser back/forward buttons
+    const handlePopState = (e: PopStateEvent) => {
+      if (hasUnsavedChanges) {
+        const confirmLeave = window.confirm('You have unsaved changes. Are you sure you want to leave this page?');
+        if (!confirmLeave) {
+          // Push the current state back to prevent navigation
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+
+    // Push initial state so we can detect back button
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    // Handle internal link clicks
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a');
+      if (link && link.href && !link.href.startsWith('#') && !link.href.includes(window.location.pathname)) {
+        if (hasUnsavedChanges) {
+          const confirmLeave = window.confirm('You have unsaved changes. Are you sure you want to leave this page?');
+          if (!confirmLeave) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }
+    };
+
+    document.addEventListener('click', handleLinkClick, true);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('click', handleLinkClick, true);
+    };
+  }, [hasUnsavedChanges]);
 
   // Compute Stage Status
   const computeStageStatus = (tasks: SubTask[] = []) => {
@@ -306,6 +389,8 @@ export default function StagesPage() {
             status: s.status || "Not Started",
             start_date: s.start_date ? String(s.start_date).substring(0, 10) : null,
             completed_at: s.completed_at ? String(s.completed_at).substring(0, 10) : null,
+            document_required: s.document_required ?? false,
+            document_mode: s.document_mode || 'stage',
           }))
         );
 
@@ -317,6 +402,7 @@ export default function StagesPage() {
             title: st.subtask_title,
             status: st.status,
             due_date: st.due_date ? st.due_date.substring(0, 10) : "",
+            document_required: st.document_required ?? false,
           });
         });
         setSubTasks(subs);
@@ -444,10 +530,13 @@ export default function StagesPage() {
         status: autoStatus,
         start_date: stage.start_date ?? null,
         completed_at: autoStatus === "Completed" ? (stage.completed_at ?? todayISO()) : null,
+        document_required: stage.document_required ?? false,
+        document_mode: stage.document_mode || 'stage',
         subtasks: tasks.map((t) => ({
           title: t.title,
           status: t.status || "Not Started",
           due_date: t.due_date || null,
+          document_required: t.document_required ?? false,
         })),
       };
     });
@@ -469,6 +558,9 @@ export default function StagesPage() {
         toast({ title: "Save Failed", description: json.error, variant: "destructive" });
       } else {
         toast({ title: "Success", description: "Client stages saved successfully" });
+        setHasUnsavedChanges(false); // Reset unsaved changes flag after successful save
+        setShowSavedIndicator(true); // Show "Saved" indicator
+        setTimeout(() => setShowSavedIndicator(false), 3000); // Hide after 3 seconds
         // Reload to sync IDs
         const reload = await fetch(`/api/stages/client/get?clientId=${selectedClientId}`);
         const updated = await reload.json();
@@ -480,7 +572,9 @@ export default function StagesPage() {
             order: s.order_number ?? idx + 1,
             status: s.status,
             start_date: s.start_date ? String(s.start_date).slice(0, 10) : null,
-            completed_at: s.completed_at ? String(s.completed_at).slice(0, 10) : null
+            completed_at: s.completed_at ? String(s.completed_at).slice(0, 10) : null,
+            document_required: s.document_required ?? false,
+            document_mode: s.document_mode || 'stage',
           })));
 
           // Reload Subtasks
@@ -489,7 +583,10 @@ export default function StagesPage() {
             const key = String(st.client_stage_id);
             if (!subs[key]) subs[key] = [];
             subs[key].push({
-              title: st.subtask_title, status: st.status, due_date: st.due_date ? st.due_date.slice(0, 10) : ""
+              title: st.subtask_title,
+              status: st.status,
+              due_date: st.due_date ? st.due_date.slice(0, 10) : "",
+              document_required: st.document_required ?? false,
             });
           });
           setSubTasks(subs);
@@ -979,24 +1076,49 @@ export default function StagesPage() {
                               ...prev,
                               [key]: [...(prev[key] || []), { title: title?.trim() || "", status: "Not Started" }]
                             }));
+                            setHasUnsavedChanges(true);
                           }}
                           removeSubtask={(id, idx) => {
                             const key = id.toString();
                             setSubTasks(prev => ({
                               ...prev, [key]: (prev[key] || []).filter((_, i) => i !== idx)
                             }));
+                            setHasUnsavedChanges(true);
                           }}
                           updateSubtask={handleSubtaskUpdate}
                           onEdit={handleOpenDialog}
                           onDelete={handleDelete}
-                          onStageStatusChange={(id, status) =>
-                            setStages(prev => prev.map(s => s.id === id ? { ...s, status } : s))
-                          }
-                          onStageStartDateChange={(id, date) =>
+                          onStageStatusChange={(id, status) => {
+                            setStages(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+                            setHasUnsavedChanges(true);
+                          }}
+                          onStageStartDateChange={(id, date) => {
                             setStages(prev => prev.map(s => String(s.id) === String(id) ?
-                              { ...s, start_date: date, status: s.status === "Not Started" && date ? "In Progress" : s.status } : s))
-                          }
+                              { ...s, start_date: date, status: s.status === "Not Started" && date ? "In Progress" : s.status } : s));
+                            setHasUnsavedChanges(true);
+                          }}
+                          onStageDocumentRequiredChange={(id, documentRequired) => {
+                            setStages(prev => prev.map(s => s.id === id ? {
+                              ...s,
+                              document_required: documentRequired,
+                              // Default to 'stage' mode when first enabling
+                              document_mode: documentRequired ? (s.document_mode || 'stage') : undefined
+                            } : s));
+                            setHasUnsavedChanges(true);
+                          }}
+                          onStageDocumentModeChange={(id, documentMode) => {
+                            setStages(prev => prev.map(s => s.id === id ? { ...s, document_mode: documentMode } : s));
+                            setHasUnsavedChanges(true);
+                          }}
                           clientId={selectedClientId}
+                          hasUnsavedChanges={hasUnsavedChanges}
+                          onSaveRequired={() => {
+                            toast({
+                              title: "Save Required",
+                              description: "Please save your changes before viewing documents.",
+                              variant: "destructive",
+                            });
+                          }}
                         />
                       ))}
                     </div>
@@ -1005,8 +1127,20 @@ export default function StagesPage() {
 
                 {/* ACTION BAR */}
                 <div className="sticky bottom-4 mx-auto max-w-2xl bg-background/80 backdrop-blur-md border rounded-full shadow-lg p-2 flex items-center justify-center gap-3">
-                  <div className="text-sm font-medium mr-2 pl-3">
+                  <div className="text-sm font-medium mr-2 pl-3 flex items-center gap-2">
                     {stages.length} Stages configured
+                    {hasUnsavedChanges && (
+                      <span className="flex items-center gap-1 text-amber-600 text-xs font-medium bg-amber-100 px-2 py-0.5 rounded-full">
+                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                        Unsaved
+                      </span>
+                    )}
+                    {showSavedIndicator && !hasUnsavedChanges && (
+                      <span className="flex items-center gap-1 text-green-600 text-xs font-medium bg-green-100 px-2 py-0.5 rounded-full">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                        Saved
+                      </span>
+                    )}
                   </div>
                   <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => setCancelOpen(true)}>
                     <XCircle className="mr-2 h-4 w-4" /> Discard Changes
@@ -1432,6 +1566,7 @@ export default function StagesPage() {
           clientId={selectedClientId}
           taskType="onboarding"
           stageName={pendingSubtask.stageName}
+          documentMode={pendingSubtask.documentMode}
         />
       )}
     </div>

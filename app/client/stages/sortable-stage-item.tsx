@@ -31,6 +31,7 @@ export interface Subtask {
     title: string;
     status: string;
     due_date?: string | null;
+    document_required?: boolean; // Only relevant when parent stage's document_mode is 'subtask'
 }
 
 export interface SortableStageItemProps {
@@ -43,6 +44,8 @@ export interface SortableStageItemProps {
 
         start_date?: string | null;
         completed_at?: string | null;
+        document_required?: boolean;
+        document_mode?: 'stage' | 'subtask';
     };
 
     subtasks: Record<string, Subtask[]>;
@@ -114,15 +117,37 @@ export function SortableStageItem({
     const stageStatus = stage.status || "Not Started";
     const stageSubtasks: Subtask[] = subtasks[stage.id] || [];
 
-    // Handle subtask status change - intercept "Completed" to show document upload modal
+    // Handle subtask status change - conditionally show document upload modal based on document requirements
     const handleSubtaskStatusChange = (index: number, value: string) => {
         if (value === "Completed") {
             const subtask = stageSubtasks[index];
-            setPendingSubtask({
-                index,
-                title: subtask.title || `Subtask ${index + 1}`,
-            });
-            setCompleteModalOpen(true);
+
+            // Determine if document upload is required for this completion
+            let requiresDocument = false;
+
+            if (stage.document_required) {
+                if (stage.document_mode === 'stage') {
+                    // Stage-level document: Show modal only when completing the LAST subtask of the stage
+                    const otherSubtasksCompleted = stageSubtasks.every((st, i) =>
+                        i === index || (st.status || '').toLowerCase() === 'completed'
+                    );
+                    requiresDocument = otherSubtasksCompleted;
+                } else if (stage.document_mode === 'subtask') {
+                    // Subtask-level document: EVERY subtask requires document upload
+                    requiresDocument = true;
+                }
+            }
+
+            if (requiresDocument) {
+                setPendingSubtask({
+                    index,
+                    title: subtask.title || `Subtask ${index + 1}`,
+                });
+                setCompleteModalOpen(true);
+            } else {
+                // No document required, complete directly
+                updateSubtask(stage.id.toString(), index, { status: value });
+            }
         } else {
             updateSubtask(stage.id.toString(), index, { status: value });
         }
