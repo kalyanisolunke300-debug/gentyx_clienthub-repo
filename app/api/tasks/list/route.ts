@@ -22,7 +22,8 @@ export async function GET(req: Request) {
         t.assigned_to_role AS assigneeRole,
         t.status,
         t.due_date AS dueDate,
-        t.created_at
+        t.created_at,
+        t.document_required AS documentRequired
       FROM dbo.onboarding_tasks t
       LEFT JOIN dbo.clients c
         ON t.client_id = c.client_id

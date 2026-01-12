@@ -1453,11 +1453,20 @@ export default function ClientProfilePage() {
 
                     // Special folder names for task completion documents
                     const ASSIGNED_TASK_FOLDER = "Assigned Task Completion Documents";
+                    const ASSIGNED_TASK_CPA_FOLDER = "Assigned Task Completion Documents - CPA";
+                    const ASSIGNED_TASK_SC_FOLDER = "Assigned Task Completion Documents - Service Center";
                     const ONBOARDING_FOLDER = "Onboarding Stage Completion Documents";
 
                     // Special styling for completion document folders
                     const isAssignedTaskFolder = folder.name === ASSIGNED_TASK_FOLDER ||
-                      (selectedFolder && selectedFolder.startsWith(ASSIGNED_TASK_FOLDER));
+                      folder.name === ASSIGNED_TASK_CPA_FOLDER ||
+                      folder.name === ASSIGNED_TASK_SC_FOLDER ||
+                      (selectedFolder && (
+                        selectedFolder.startsWith(ASSIGNED_TASK_FOLDER) ||
+                        selectedFolder.startsWith(ASSIGNED_TASK_CPA_FOLDER) ||
+                        selectedFolder.startsWith(ASSIGNED_TASK_SC_FOLDER)
+                      ));
+
                     const isOnboardingFolder = folder.name === ONBOARDING_FOLDER ||
                       (selectedFolder && selectedFolder.startsWith(ONBOARDING_FOLDER));
 
@@ -1470,13 +1479,30 @@ export default function ClientProfilePage() {
                       folderBgClass = "bg-green-50/50 hover:bg-green-50 border-green-200 hover:border-green-300";
                       folderIconClass = "text-green-500 fill-green-100 group-hover:fill-green-200";
                       FolderBadgeIcon = CheckCircle2;
+                    } else if (folder.name === ASSIGNED_TASK_CPA_FOLDER) {
+                      folderBgClass = "bg-purple-50/50 hover:bg-purple-50 border-purple-200 hover:border-purple-300";
+                      folderIconClass = "text-purple-500 fill-purple-100 group-hover:fill-purple-200";
+                      FolderBadgeIcon = Landmark;
+                    } else if (folder.name === ASSIGNED_TASK_SC_FOLDER) {
+                      folderBgClass = "bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200 hover:border-indigo-300";
+                      folderIconClass = "text-indigo-500 fill-indigo-100 group-hover:fill-indigo-200";
+                      FolderBadgeIcon = Building2;
                     } else if (folder.name === ONBOARDING_FOLDER) {
                       folderBgClass = "bg-blue-50/50 hover:bg-blue-50 border-blue-200 hover:border-blue-300";
                       folderIconClass = "text-blue-500 fill-blue-100 group-hover:fill-blue-200";
                       FolderBadgeIcon = Layers;
                     } else if (isAssignedTaskFolder) {
-                      folderBgClass = "bg-green-50/30 hover:bg-green-50 border-green-100 hover:border-green-200";
-                      folderIconClass = "text-green-400 fill-green-100 group-hover:fill-green-200";
+                      // Check which specific assigned folder we are in to color code subfolders accordingly
+                      if (selectedFolder?.startsWith(ASSIGNED_TASK_CPA_FOLDER)) {
+                        folderBgClass = "bg-purple-50/30 hover:bg-purple-50 border-purple-100 hover:border-purple-200";
+                        folderIconClass = "text-purple-400 fill-purple-100 group-hover:fill-purple-200";
+                      } else if (selectedFolder?.startsWith(ASSIGNED_TASK_SC_FOLDER)) {
+                        folderBgClass = "bg-indigo-50/30 hover:bg-indigo-50 border-indigo-100 hover:border-indigo-200";
+                        folderIconClass = "text-indigo-400 fill-indigo-100 group-hover:fill-indigo-200";
+                      } else {
+                        folderBgClass = "bg-green-50/30 hover:bg-green-50 border-green-100 hover:border-green-200";
+                        folderIconClass = "text-green-400 fill-green-100 group-hover:fill-green-200";
+                      }
                     } else if (isOnboardingFolder) {
                       folderBgClass = "bg-blue-50/30 hover:bg-blue-50 border-blue-100 hover:border-blue-200";
                       folderIconClass = "text-blue-400 fill-blue-100 group-hover:fill-blue-200";
@@ -1491,23 +1517,36 @@ export default function ClientProfilePage() {
                           cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md`}
                       >
                         {/* Show special icon or folder icon */}
-                        {folder.name === ASSIGNED_TASK_FOLDER || folder.name === ONBOARDING_FOLDER ? (
+                        {folder.name === ASSIGNED_TASK_FOLDER || folder.name === ONBOARDING_FOLDER || folder.name === ASSIGNED_TASK_CPA_FOLDER || folder.name === ASSIGNED_TASK_SC_FOLDER ? (
                           <div className="relative mb-3">
                             <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
-                            <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' : 'bg-blue-500'}`}>
+                            <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' :
+                                folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
+                                  folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
+                                    'bg-blue-500'
+                              }`}>
                               <FolderBadgeIcon className="w-3 h-3 text-white" />
                             </div>
                           </div>
                         ) : (
                           <Folder className={`w-12 h-12 ${folderIconClass} mb-3 transition-colors`} />
                         )}
-                        <span className="text-sm font-medium text-gray-700 text-center truncate w-full px-2">
+                        <span
+                          className="text-sm font-medium text-gray-700 text-center truncate w-full px-2"
+                          title={folder.name}
+                        >
                           {folder.name}
                         </span>
 
                         {/* Subtitle for special folders */}
                         {folder.name === ASSIGNED_TASK_FOLDER && (
                           <span className="text-xs text-green-600 mt-1">Task Completions</span>
+                        )}
+                        {folder.name === ASSIGNED_TASK_CPA_FOLDER && (
+                          <span className="text-xs text-purple-600 mt-1">CPA Completions</span>
+                        )}
+                        {folder.name === ASSIGNED_TASK_SC_FOLDER && (
+                          <span className="text-xs text-indigo-600 mt-1">Center Completions</span>
                         )}
                         {folder.name === ONBOARDING_FOLDER && (
                           <span className="text-xs text-blue-600 mt-1">Stage Completions</span>

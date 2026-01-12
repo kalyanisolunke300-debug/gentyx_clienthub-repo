@@ -21,6 +21,7 @@ import {
   RefreshCw
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TaskCompleteModal } from "@/components/widgets/task-complete-modal"
 
 interface Task {
   id: number
@@ -34,6 +35,7 @@ interface Task {
   dueDate: string | null
   due_date?: string | null
   assigneeRole: string
+  documentRequired?: boolean | number
 }
 
 export default function ServiceCenterTasksPage() {
@@ -44,6 +46,15 @@ export default function ServiceCenterTasksPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [clientFilter, setClientFilter] = useState("all")
+
+  // State for task completion modal (mandatory document upload)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false)
+  const [pendingTask, setPendingTask] = useState<{
+    id: number
+    title: string
+    clientId: number
+    clientName: string
+  } | null>(null)
 
   // Fetch clients for filter dropdown
   const { data: clientsData } = useSWR(
@@ -68,10 +79,14 @@ export default function ServiceCenterTasksPage() {
     { refreshInterval: 30000 }
   )
 
-  // Filter to only SERVICE_CENTER tasks
-  const serviceCenterTasks: Task[] = (allTasksData || []).filter(
-    (task: any) => task.assigneeRole === "SERVICE_CENTER"
-  )
+  // Filter to only SERVICE_CENTER tasks and map documentRequired properly
+  const serviceCenterTasks: Task[] = (allTasksData || [])
+    .filter((task: any) => task.assigneeRole === "SERVICE_CENTER")
+    .map((task: any) => ({
+      ...task,
+      // SQL BIT returns 0/1, convert to proper boolean
+      documentRequired: task.documentRequired === 0 || task.documentRequired === false ? false : true
+    }))
 
   // Apply filters
   const filteredTasks = serviceCenterTasks.filter((task) => {
@@ -87,8 +102,42 @@ export default function ServiceCenterTasksPage() {
     return matchesSearch && matchesStatus && matchesClient
   })
 
-  // Update task status
+  // Update task status - check if changing to Completed (requires document upload)
   const handleStatusChange = async (taskId: number, newStatus: string) => {
+    // If changing to Completed, check if document is required
+    if (newStatus === "Completed") {
+      const task = serviceCenterTasks.find((t) => (t.id || t.task_id) === taskId)
+      if (task) {
+        const isDocRequired = task.documentRequired === true
+
+        console.log("Service Center Task documentRequired check:", {
+          taskId,
+          documentRequired: task.documentRequired,
+          isDocRequired
+        })
+
+        if (isDocRequired) {
+          const clientId = task.clientId || task.client_id
+          const clientName = task.clientName || task.client_name || `Client-${clientId}`
+          setPendingTask({
+            id: taskId,
+            title: task.title,
+            clientId: clientId!,
+            clientName: clientName
+          })
+          setCompleteModalOpen(true)
+          return // Don't update status yet - wait for document upload
+        }
+        // If document not required, complete task directly
+      }
+    }
+
+    // For non-Completed status changes or tasks not requiring documents, proceed normally
+    await updateTaskStatus(taskId, newStatus)
+  }
+
+  // Actual task status update function (called after document upload or for non-Completed status)
+  const updateTaskStatus = async (taskId: number, newStatus: string) => {
     try {
       const res = await fetch("/api/tasks/update", {
         method: "POST",
@@ -106,6 +155,13 @@ export default function ServiceCenterTasksPage() {
     } catch (error) {
       toast({ title: "Error", description: "Failed to update status", variant: "destructive" })
     }
+  }
+
+  // Handle task completion after document upload
+  const handleTaskComplete = async () => {
+    if (!pendingTask) return
+    await updateTaskStatus(pendingTask.id, "Completed")
+    setPendingTask(null)
   }
 
   const formatDueDate = (dateString: string | null | undefined, status?: string) => {
@@ -331,6 +387,25 @@ export default function ServiceCenterTasksPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Task Complete Modal for Document Upload */}
+      {pendingTask && (
+        <TaskCompleteModal
+          open={completeModalOpen}
+          onClose={() => {
+            setCompleteModalOpen(false)
+            setPendingTask(null)
+          }}
+          onComplete={handleTaskComplete}
+          taskTitle={pendingTask.title}
+          taskId={pendingTask.id}
+          clientId={String(pendingTask.clientId)}
+          clientName={pendingTask.clientName}
+          uploaderRole="SERVICE_CENTER"
+          taskType="assigned"
+        />
+      )}
     </div>
   )
 }
+

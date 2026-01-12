@@ -31,6 +31,8 @@ type Props = {
     taskTitle: string;
     taskId: number;
     clientId: string;
+    clientName?: string; // Client name for folder structure
+    uploaderRole?: "CLIENT" | "CPA" | "SERVICE_CENTER"; // Who is uploading the document
     taskType: "assigned" | "onboarding";
     stageName?: string; // Stage name for onboarding subtasks
     documentMode?: 'stage' | 'subtask'; // For onboarding: 'stage' = one doc for entire stage, 'subtask' = doc per subtask
@@ -43,6 +45,8 @@ export function TaskCompleteModal({
     taskTitle,
     taskId,
     clientId,
+    clientName,
+    uploaderRole = "CLIENT", // Default to CLIENT for backward compatibility
     taskType,
     stageName,
     documentMode = 'subtask', // Default to subtask mode for backward compatibility
@@ -128,22 +132,32 @@ export function TaskCompleteModal({
             formData.append("clientId", clientId);
             formData.append("fileType", getFileType(file.name));
 
-            // Organize documents into structured folders:
-            // - Assigned Task Completion Documents/Task Name/
-            // - Onboarding Stage Completion Documents/[Stage Name]/ (for stage mode)
-            // - Onboarding Stage Completion Documents/[Stage Name]-[Subtask Name]/ (for subtask mode)
+            // Organize documents into structured folders based on uploader role:
+            // - Assigned Task Completion Documents/[Client Name]/[Task Name]/ (for CLIENT uploads)
+            // - Assigned Task Completion Documents - CPA/[Client Name]/[Task Name]/ (for CPA uploads)
+            // - Assigned Task Completion Documents - Service Center/[Client Name]/[Task Name]/ (for SC uploads)
+            // - Onboarding Stage Completion Documents/[Client Name]/[Stage Name]/ (for stage mode)
             let folderPath: string;
+            const clientFolder = clientName || `Client-${clientId}`;
+
             if (taskType === "assigned") {
-                folderPath = `Assigned Task Completion Documents/${taskTitle}`;
+                // Different root folder based on who is uploading
+                let rootFolder = "Assigned Task Completion Documents";
+                if (uploaderRole === "CPA") {
+                    rootFolder = "Assigned Task Completion Documents - CPA";
+                } else if (uploaderRole === "SERVICE_CENTER") {
+                    rootFolder = "Assigned Task Completion Documents - Service Center";
+                }
+                folderPath = `${rootFolder}/${clientFolder}/${taskTitle}`;
             } else {
                 // For onboarding, folder structure depends on documentMode
                 if (documentMode === 'stage') {
                     // Stage mode: just use stage name
-                    folderPath = `Onboarding Stage Completion Documents/${stageName || taskTitle}`;
+                    folderPath = `Onboarding Stage Completion Documents/${clientFolder}/${stageName || taskTitle}`;
                 } else {
                     // Subtask mode: use Stage Name - Subtask Name format
                     const subtaskFolder = stageName ? `${stageName}-${taskTitle}` : taskTitle;
-                    folderPath = `Onboarding Stage Completion Documents/${subtaskFolder}`;
+                    folderPath = `Onboarding Stage Completion Documents/${clientFolder}/${subtaskFolder}`;
                 }
             }
             formData.append("folderName", folderPath);

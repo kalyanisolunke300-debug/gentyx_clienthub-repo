@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Building2, Mail, Phone, Calendar, User } from "lucide-react"
+import { Building2, Mail, Phone, Calendar, User, FolderOpen } from "lucide-react"
 import { FlexibleChat } from "@/components/widgets/flexible-chat"
+import { ClientDocumentsViewer } from "@/components/widgets/client-documents-viewer"
 
 export default function ServiceCenterClientWorkspace() {
   const { id } = useParams<{ id: string }>()
@@ -87,6 +88,10 @@ export default function ServiceCenterClientWorkspace() {
         <TabsList className="bg-muted/50">
           <TabsTrigger value="tasks" className="data-[state=active]:bg-background">
             My Tasks ({serviceCenterTasks.length})
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="data-[state=active]:bg-background">
+            <FolderOpen className="h-4 w-4 mr-1" />
+            Documents
           </TabsTrigger>
           <TabsTrigger value="messages" className="data-[state=active]:bg-background">
             Messages
@@ -167,6 +172,15 @@ export default function ServiceCenterClientWorkspace() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="documents" className="mt-4">
+          <ClientDocumentsViewer
+            clientId={id}
+            clientName={client?.client_name}
+            baseFolderPath="Assigned Task Completion Documents - Service Center"
+            height="500px"
+          />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">

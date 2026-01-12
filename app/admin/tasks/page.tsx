@@ -72,6 +72,7 @@ export default function AdminTasksPage() {
     id: number;
     title: string;
     clientId: number;
+    clientName: string;
   } | null>(null);
 
   // Initialize filters from URL on mount
@@ -189,6 +190,7 @@ export default function AdminTasksPage() {
                   id: row.id,
                   title: row.title,
                   clientId: row.clientId,
+                  clientName: getClientName(row.clientId),
                 });
                 setCompleteModalOpen(true);
                 return; // Don't update status yet - wait for document upload
@@ -243,7 +245,9 @@ export default function AdminTasksPage() {
                 className="h-8 gap-1 text-primary"
                 onClick={() => {
                   // Navigate to the specific folder for this task's completion docs
-                  const folderPath = encodeURIComponent(`Assigned Task Completion Documents/${row.title}`);
+                  // New structure: Assigned Task Completion Documents/{clientName}/{taskTitle}
+                  const clientName = getClientName(row.clientId);
+                  const folderPath = encodeURIComponent(`Assigned Task Completion Documents/${clientName}/${row.title}`);
                   router.push(`/admin/documents?clientId=${row.clientId}&folder=${folderPath}`);
                 }}
                 title="View completion documents"
@@ -666,6 +670,7 @@ export default function AdminTasksPage() {
           taskTitle={pendingTask.title}
           taskId={pendingTask.id}
           clientId={String(pendingTask.clientId)}
+          clientName={pendingTask.clientName}
           taskType="assigned"
         />
       )}

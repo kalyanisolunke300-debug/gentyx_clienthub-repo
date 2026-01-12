@@ -19,7 +19,7 @@ import {
   Mail,
   Phone,
   ClipboardList,
-
+  FolderOpen,
   MessageSquare,
   Clock,
   CheckCircle2,
@@ -28,6 +28,7 @@ import {
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { ClientDocumentsViewer } from "@/components/widgets/client-documents-viewer"
 
 
 
@@ -178,7 +179,10 @@ export default function CPAClientWorkspace() {
             <ClipboardList className="h-4 w-4" />
             Tasks ({cpaTasks.length})
           </TabsTrigger>
-
+          <TabsTrigger value="documents" className="gap-2">
+            <FolderOpen className="h-4 w-4" />
+            Documents
+          </TabsTrigger>
           <TabsTrigger value="messages" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Messages
@@ -289,7 +293,15 @@ export default function CPAClientWorkspace() {
           </Card>
         </TabsContent>
 
-
+        {/* DOCUMENTS TAB */}
+        <TabsContent value="documents" className="mt-4">
+          <ClientDocumentsViewer
+            clientId={id}
+            clientName={client.client_name}
+            baseFolderPath="Assigned Task Completion Documents - CPA"
+            height="500px"
+          />
+        </TabsContent>
 
         {/* MESSAGES TAB */}
         <TabsContent value="messages" className="mt-4">
