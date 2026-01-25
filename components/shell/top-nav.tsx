@@ -5,6 +5,7 @@ import { useContext } from "react";
 import { Button } from "@/components/ui/button";
 import { Inbox, HelpCircle, LogOut, UserCircle } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
+import { DateTimeDisplay } from "@/components/widgets/date-time-display";
 import { useRouter } from "next/navigation";
 
 export function TopNav() {
@@ -40,8 +41,10 @@ export function TopNav() {
     <header className="sticky top-0 z-40 border-b bg-white">
       <div className="mx-auto flex h-14 items-center px-4">
 
-        {/* ✅ LEFT SIDE — EMPTY */}
-        <div className="flex-1" />
+        {/* ✅ LEFT SIDE — DATE & TIME */}
+        <div className="flex-1">
+          <DateTimeDisplay />
+        </div>
 
         {/* ✅ RIGHT SIDE ICONS */}
         <div className="flex items-center gap-2">

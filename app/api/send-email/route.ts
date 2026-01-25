@@ -1,6 +1,6 @@
 // app/api/send-email/route.ts
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { EmailClient, EmailMessage } from "@azure/communication-email";
 
 export async function POST(req: Request) {
     try {
@@ -20,46 +20,69 @@ export async function POST(req: Request) {
             processedBody = processedBody.replace(/\{\{clientName\}\}/g, clientName);
         }
 
-        // Create transporter using environment variables
-        // For production, use your actual SMTP settings
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || "smtp.gmail.com",
-            port: parseInt(process.env.SMTP_PORT || "587"),
-            secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS, // Matches .env.local variable name
+        // Validate Azure Communication Services configuration
+        const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING;
+        const sender = process.env.AZURE_EMAIL_SENDER;
+
+        if (!connectionString) {
+            console.error("❌ Missing AZURE_COMMUNICATION_CONNECTION_STRING");
+            return NextResponse.json(
+                { success: false, error: "Email service not configured (missing connection string)" },
+                { status: 500 }
+            );
+        }
+
+        if (!sender) {
+            console.error("❌ Missing AZURE_EMAIL_SENDER");
+            return NextResponse.json(
+                { success: false, error: "Email service not configured (missing sender address)" },
+                { status: 500 }
+            );
+        }
+
+        // Create Azure Communication Services email client
+        const emailClient = new EmailClient(connectionString);
+
+        // Prepare the email message
+        const message: EmailMessage = {
+            senderAddress: sender,
+            content: {
+                subject: subject,
+                html: processedBody,
+                plainText: processedBody.replace(/<[^>]*>/g, ""), // Strip HTML for plain text fallback
             },
-        });
+            recipients: {
+                to: [{ address: to }],
+            },
+        };
 
-        // Verify connection configuration
-        await transporter.verify();
+        // Send the email using Azure Communication Services
+        const poller = await emailClient.beginSend(message);
+        const result = await poller.pollUntilDone();
 
-        // Send the email
-        const info = await transporter.sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
-            to: to,
-            subject: subject,
-            html: processedBody, // Use HTML body for rich content
-            text: processedBody.replace(/<[^>]*>/g, ""), // Strip HTML for plain text fallback
-        });
-
-        console.log("Email sent successfully:", info.messageId);
-
-        return NextResponse.json({
-            success: true,
-            messageId: info.messageId,
-            message: `Email sent successfully to ${to}`,
-        });
+        if (result.status === "Succeeded") {
+            console.log("✅ Email sent successfully via Azure Communication Services:", result.id);
+            return NextResponse.json({
+                success: true,
+                messageId: result.id,
+                message: `Email sent successfully to ${to}`,
+            });
+        } else {
+            console.error("❌ Email send failed:", result.error);
+            return NextResponse.json(
+                { success: false, error: result.error?.message || "Failed to send email" },
+                { status: 500 }
+            );
+        }
     } catch (error: any) {
         console.error("Send email error:", error);
 
-        // Handle specific nodemailer errors
+        // Handle Azure Communication Services specific errors
         let errorMessage = "Failed to send email";
-        if (error.code === "EAUTH") {
-            errorMessage = "SMTP authentication failed. Please check your email credentials.";
-        } else if (error.code === "ECONNECTION") {
-            errorMessage = "Could not connect to email server. Please check SMTP settings.";
+        if (error.code === "InvalidEmailAddress") {
+            errorMessage = "Invalid email address provided.";
+        } else if (error.code === "Unauthorized") {
+            errorMessage = "Email service authentication failed. Please check configuration.";
         } else if (error.message) {
             errorMessage = error.message;
         }

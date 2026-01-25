@@ -220,6 +220,11 @@ export async function GET(req: Request) {
         SELECT TOP 1 m.created_at, m.body, m.sender_role
         FROM dbo.onboarding_messages m
         WHERE m.client_id = fc.client_id
+          -- Only fetch messages from Admin-Client conversation thread
+          AND (
+            (m.sender_role = 'ADMIN' AND m.receiver_role = 'CLIENT')
+            OR (m.sender_role = 'CLIENT' AND m.receiver_role = 'ADMIN')
+          )
         ORDER BY m.created_at DESC
       ) LastMsg
       ORDER BY 

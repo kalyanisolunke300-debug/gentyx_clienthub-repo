@@ -1,16 +1,9 @@
 // lib/email.ts
-import nodemailer from "nodemailer";
+import { EmailClient, EmailMessage } from "@azure/communication-email";
 
-// Create reusable transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Create reusable email client using Azure Communication Services
+const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || "";
+const emailClient = connectionString ? new EmailClient(connectionString) : null;
 
 interface SendEmailOptions {
   to: string;
@@ -20,29 +13,50 @@ interface SendEmailOptions {
 }
 
 /**
- * Send an email using configured SMTP
+ * Send an email using Azure Communication Services
  */
 export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
   console.log("📧 sendEmail called with:", { to, subject: subject.substring(0, 50) });
-  console.log("📧 SMTP Config:", {
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    user: process.env.SMTP_USER ? "✅ Set" : "❌ Missing",
-    pass: process.env.SMTP_PASS ? "✅ Set" : "❌ Missing",
-    from: process.env.SMTP_FROM
+  console.log("📧 ACS Config:", {
+    connectionString: process.env.AZURE_COMMUNICATION_CONNECTION_STRING ? "✅ Set" : "❌ Missing",
+    sender: process.env.AZURE_EMAIL_SENDER
   });
 
-  try {
-    const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to,
-      subject,
-      html,
-      text: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
-    });
+  if (!emailClient) {
+    console.error("❌ Email client not initialized - missing connection string");
+    return { success: false, error: "Email client not configured" };
+  }
 
-    console.log("✅ Email sent successfully:", info.messageId);
-    return { success: true, messageId: info.messageId };
+  const sender = process.env.AZURE_EMAIL_SENDER;
+  if (!sender) {
+    console.error("❌ Missing AZURE_EMAIL_SENDER environment variable");
+    return { success: false, error: "Email sender not configured" };
+  }
+
+  try {
+    const message: EmailMessage = {
+      senderAddress: sender,
+      content: {
+        subject,
+        html,
+        plainText: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
+      },
+      recipients: {
+        to: [{ address: to }],
+      },
+    };
+
+    // Send the email using ACS
+    const poller = await emailClient.beginSend(message);
+    const result = await poller.pollUntilDone();
+
+    if (result.status === "Succeeded") {
+      console.log("✅ Email sent successfully via Azure Communication Services:", result.id);
+      return { success: true, messageId: result.id };
+    } else {
+      console.error("❌ Email send failed:", result.error);
+      return { success: false, error: result.error };
+    }
   } catch (error: any) {
     console.error("❌ Email send error:", error?.message || error);
     console.error("❌ Full error:", JSON.stringify(error, null, 2));
@@ -68,7 +82,7 @@ export async function sendMessageNotification({
   messagePreview,
   clientId,
 }: MessageNotificationOptions) {
-  const subject = `📬 New Message from ${senderName} - MySage ClientHub`;
+  const subject = `📬 New Message from ${senderName} - Legacy ClientHub`;
   const currentYear = new Date().getFullYear();
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -104,7 +118,7 @@ export async function sendMessageNotification({
                     <tr>
                       <td style="text-align: center;">
                         <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px;">MySage</span>
+                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px;">Legacy</span>
                           <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px; margin-left: 6px;">ClientHub</span>
                         </div>
                       </td>
@@ -175,10 +189,10 @@ export async function sendMessageNotification({
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from MySage ClientHub.</p>
+                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
                         <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">Please do not reply directly to this email.</p>
                         <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} MySage ClientHub. All rights reserved.</p>
+                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} Legacy ClientHub. All rights reserved.</p>
                         </div>
                       </td>
                     </tr>

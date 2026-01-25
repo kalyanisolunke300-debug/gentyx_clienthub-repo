@@ -53,9 +53,9 @@ export function ClientTaskModal({
           )}
         </DialogHeader>
 
-        <div className="border rounded-md overflow-hidden">
+        <div className="border rounded-md overflow-hidden max-h-[60vh] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted">
+            <thead className="bg-muted sticky top-0 z-10">
               <tr>
                 <th className="p-2 text-left">Task</th>
                 <th className="p-2 text-center">Type</th>
@@ -81,8 +81,8 @@ export function ClientTaskModal({
                       <td className="p-2 text-center">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${isOnboarding
-                              ? "bg-indigo-50 text-indigo-700"
-                              : "bg-slate-100 text-slate-700"
+                            ? "bg-indigo-50 text-indigo-700"
+                            : "bg-slate-100 text-slate-700"
                             }`}
                         >
                           {isOnboarding ? "Onboarding" : "Assigned"}

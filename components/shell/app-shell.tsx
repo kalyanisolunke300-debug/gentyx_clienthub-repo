@@ -105,7 +105,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             />
           ) : (
             <img
-              src="/images/imagepng.png"
+              src="/images/legacytest.png"
               alt="ClientHub Logo"
               className="w-36 h-auto object-contain"
             />
