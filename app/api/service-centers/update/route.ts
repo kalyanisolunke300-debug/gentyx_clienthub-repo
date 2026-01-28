@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { sendUpdateNotification } from "@/lib/email";
 
 export async function PUT(req: Request) {
   try {
@@ -102,6 +103,26 @@ export async function PUT(req: Request) {
           WHERE email = @oldEmail AND role = 'SERVICE_CENTER'
         `);
       console.log(`✅ Service Center login email updated from ${oldEmail} to ${email}`);
+    }
+
+    // 📧 Send profile update notification email to Service Center
+    if (email) {
+      try {
+        await sendUpdateNotification({
+          recipientEmail: email,
+          recipientName: center_name,
+          updateType: 'profile_updated',
+          details: {
+            title: 'Your Service Center Profile Has Been Updated',
+            description: `Your Service Center profile "${center_name}" has been updated by the administrator. If you did not expect this change, please contact support.`,
+            actionUrl: 'https://clienthub.hubonesystems.net/login',
+            actionLabel: 'View Your Profile',
+          },
+        });
+        console.log(`✅ Profile update notification sent to Service Center: ${email}`);
+      } catch (emailError) {
+        console.error(`⚠️ Failed to send profile update notification to Service Center: ${email}`, emailError);
+      }
     }
 
     return NextResponse.json({

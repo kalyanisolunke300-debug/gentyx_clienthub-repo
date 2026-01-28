@@ -4,6 +4,7 @@ import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 import { calculateClientProgress } from "@/lib/progress";
 import { logAudit, AuditActions } from "@/lib/audit";
+import { sendOnboardingOverviewEmail } from "@/lib/email";
 
 // Server-side stage status calculation
 function computeFinalStageStatus(subtasks: any[]) {
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     // ✅ Read body safely
     const body = await req.json();
     const clientId = body.clientId;
+    const sendEmailNotification = body.sendEmailNotification !== false; // Default to true
 
     // ✅ Always process stages in order (for cascade logic)
     const stages = Array.isArray(body.stages)
@@ -51,6 +53,22 @@ export async function POST(req: Request) {
     }
 
     const pool = await getDbPool();
+
+    // Fetch client details for email notification
+    const clientResult = await pool
+      .request()
+      .input("clientId", sql.Int, clientId)
+      .query(`
+        SELECT 
+          c.client_id,
+          c.client_name,
+          c.primary_contact_name,
+          c.primary_contact_email
+        FROM dbo.Clients c
+        WHERE c.client_id = @clientId
+      `);
+
+    const clientData = clientResult.recordset[0];
 
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
@@ -170,6 +188,40 @@ export async function POST(req: Request) {
         // Don't fail the request, just log it
       }
 
+      // Step 5: Send Onboarding Overview Email to Client
+      if (sendEmailNotification && clientData?.primary_contact_email && stages.length > 0) {
+        try {
+          console.log(`📧 Sending onboarding overview email to ${clientData.primary_contact_email}`);
+
+          // Format stages for email
+          const formattedStages = stages.map((stage: any) => ({
+            name: stage.name,
+            status: computeFinalStageStatus(stage.subtasks || []),
+            subtasks: (stage.subtasks || []).map((sub: any) => ({
+              title: sub.title,
+              status: sub.status || 'Not Started',
+              due_date: sub.due_date,
+            }))
+          }));
+
+          const emailResult = await sendOnboardingOverviewEmail({
+            recipientEmail: clientData.primary_contact_email,
+            recipientName: clientData.primary_contact_name || clientData.client_name,
+            clientName: clientData.client_name,
+            stages: formattedStages,
+          });
+
+          if (emailResult.success) {
+            console.log(`✅ Onboarding overview email sent successfully to ${clientData.primary_contact_email}`);
+          } else {
+            console.warn(`⚠️ Onboarding overview email failed:`, emailResult.error);
+          }
+        } catch (emailError) {
+          console.error("❌ Onboarding overview email error:", emailError);
+          // Don't fail the request if email fails
+        }
+      }
+
       return NextResponse.json({ success: true });
     } catch (innerErr) {
       await transaction.rollback();
@@ -184,3 +236,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

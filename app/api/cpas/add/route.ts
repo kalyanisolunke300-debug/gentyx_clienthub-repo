@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { sendCpaWelcomeEmail } from "@/lib/email";
 
 const DEFAULT_PASSWORD = "Cpa@12345";
 
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
         FROM cpa_centers 
         WHERE LOWER(cpa_name) = LOWER(@name)
       `);
-
+        
     if (existingCpa.recordset.length > 0) {
       return NextResponse.json(
         {
@@ -112,6 +113,15 @@ export async function POST(req: Request) {
           `);
 
         console.log(`✅ Created CPA user credentials for ${email}`);
+
+        // 📧 Send welcome email to the CPA
+        try {
+          await sendCpaWelcomeEmail(email, name, nextCode);
+          console.log(`✅ Welcome email sent to CPA: ${email}`);
+        } catch (emailError) {
+          console.error(`⚠️ Failed to send welcome email to CPA: ${email}`, emailError);
+          // Don't fail the entire request if email fails
+        }
       }
     }
 

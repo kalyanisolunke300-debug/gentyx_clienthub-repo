@@ -1,4 +1,4 @@
-import { Shield, User, FileCheck, Headphones, LucideIcon } from "lucide-react";
+import { Shield, User, FileCheck, Headphones, LucideIcon, Handshake, LogIn, UserPlus, Users, ListTodo, ClipboardList, Activity, MessageSquare, CheckCircle, Mail, LayoutDashboard, ClipboardCheck, Upload, MessageCircle, TrendingUp, PartyPopper, UserCheck, FileSearch, FilePlus, Clock, ArrowRight, HelpCircle } from "lucide-react";
 
 export type FlowStep = {
     title: string;
@@ -19,6 +19,14 @@ export type RoleHelpContent = {
     flow: FlowStep[];
     faqs: FAQItem[];
     color: string;
+};
+
+// Icon mapping for dynamic icon loading
+export const ICON_MAP: Record<string, LucideIcon> = {
+    Shield, User, FileCheck, Headphones, LogIn, UserPlus, Users, ListTodo,
+    ClipboardList, Activity, MessageSquare, CheckCircle, Mail, LayoutDashboard,
+    ClipboardCheck, Upload, MessageCircle, TrendingUp, PartyPopper, UserCheck,
+    FileSearch, FilePlus, Clock, ArrowRight, HelpCircle, Handshake
 };
 
 export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
@@ -70,7 +78,7 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
     CLIENT: {
         id: "CLIENT",
         title: "Client",
-        icon: User,
+        icon: Handshake,
         description: "The end-user organization undergoing the onboarding process.",
         color: "text-green-600 dark:text-green-400",
         responsibilities: [

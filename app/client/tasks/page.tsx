@@ -496,6 +496,20 @@ export default function ClientTasks() {
       },
     },
     {
+      key: "stage",
+      header: "Onboarding Stage",
+      render: (row) => {
+        if (row.taskType === "ONBOARDING" && row.stageName) {
+          return (
+            <span className="px-2 py-1 rounded-md text-xs font-medium bg-white text-gray-900 border border-gray-300 shadow-sm">
+              {row.stageName}
+            </span>
+          );
+        }
+        return <span className="text-muted-foreground">-</span>;
+      },
+    },
+    {
       key: "dueDate",
       header: "Due Date",
       render: (row) => {

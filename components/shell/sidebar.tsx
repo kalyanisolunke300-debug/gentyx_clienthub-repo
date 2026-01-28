@@ -16,8 +16,9 @@ import {
   BarChart2,
   Mail,
   Settings,
-  HelpCircle,
+  Handshake,
   LogOut,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -43,10 +44,10 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/admin/cpas", label: "CPAs", icon: Landmark },
     { href: "/admin/messages", label: "Messages", icon: Mail },
     { href: "/admin/email-templates", label: "Email Templates", icon: Mail },
-    { href: "/admin/documents", label: "Documents", icon: FileText },
+    // { href: "/admin/documents", label: "Documents", icon: FileText },
     { href: "/admin/reports", label: "Reports", icon: BarChart2 },
     { href: "/admin/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "FAQ", icon: HelpCircle },
+    { href: "/help", label: "Help Center", icon: Handshake },
   ];
 
   const clientLinks = [
@@ -57,7 +58,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/client/reports", label: "Reports", icon: BarChart2 },
     { href: "/client/profile", label: "Profile", icon: Users },
     { href: "/client/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "FAQ", icon: HelpCircle },
+    { href: "/help", label: "Help Center", icon: Handshake },
   ];
 
   const scLinks = [
@@ -67,7 +68,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/service-center/messages", label: "Messages", icon: Mail },
     { href: "/inbox", label: "Work Queue", icon: ListChecks },
     { href: "/service-center/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "FAQ", icon: HelpCircle },
+    { href: "/help", label: "Help Center", icon: Handshake },
   ];
 
   const cpaLinks = [
@@ -77,14 +78,14 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/cpa/messages", label: "Messages", icon: Mail },
     { href: "/inbox", label: "Work Queue", icon: ListChecks },
     { href: "/cpa/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "FAQ", icon: HelpCircle },
+    { href: "/help", label: "Help Center", icon: Handshake },
   ];
 
   // Admin and other roles use common links, clients have settings built-in
   // Note: ADMIN now has Settings and FAQ in adminLinks, so skip commonLinks for ADMIN too
   const commonLinks = role === "ADMIN" || role === "CLIENT" || role === "SERVICE_CENTER" || role === "CPA" ? [] : [
     { href: "/settings", label: "Settings", icon: Settings },
-    { href: "/help", label: "FAQ", icon: HelpCircle },
+    { href: "/help", label: "Help Center", icon: Handshake },
   ];
 
   const roleLinks =

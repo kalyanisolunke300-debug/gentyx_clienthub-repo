@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { sendTaskNotificationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
       assignedToRole,
       assigneeRole,
       documentRequired = true, // Default to true for backward compatibility
+      sendNotification = true, // Default to send email notification
     } = body;
 
     const clientId = Number(rawClientId);
@@ -36,23 +38,37 @@ export async function POST(req: Request) {
     const pool = await getDbPool();
 
     // -----------------------------------------------------
-    // 2️⃣ VERIFY CLIENT EXISTS (ONLY REQUIRED VALIDATION)
+    // 2️⃣ VERIFY CLIENT EXISTS AND GET CLIENT DETAILS
     // -----------------------------------------------------
-    const clientCheck = await pool
+    const clientResult = await pool
       .request()
       .input("clientId", sql.Int, clientId)
       .query(`
-        SELECT 1
-        FROM dbo.Clients
-        WHERE client_id = @clientId
+        SELECT 
+          c.client_id,
+          c.client_name,
+          c.primary_contact_name,
+          c.primary_contact_email,
+          c.cpa_id,
+          c.service_center_id,
+          cp.cpa_name,
+          cp.email as cpa_email,
+          sc.center_name as service_center_name,
+          sc.email as service_center_email
+        FROM dbo.Clients c
+        LEFT JOIN dbo.cpa_centers cp ON cp.cpa_id = c.cpa_id
+        LEFT JOIN dbo.service_centers sc ON sc.service_center_id = c.service_center_id
+        WHERE c.client_id = @clientId
       `);
 
-    if (!clientCheck.recordset.length) {
+    if (!clientResult.recordset.length) {
       return NextResponse.json(
         { success: false, error: "Invalid clientId" },
         { status: 404 }
       );
     }
+
+    const client = clientResult.recordset[0];
 
     // -----------------------------------------------------
     // 3️⃣ GET A SAFE STAGE ID (FALLBACK – NO BLOCKING)
@@ -134,9 +150,88 @@ export async function POST(req: Request) {
         )
       `);
 
+    const taskId = insertResult.recordset[0].task_id;
+
+    // -----------------------------------------------------
+    // 6️⃣ SEND EMAIL NOTIFICATION (AUTOMATIC)
+    // -----------------------------------------------------
+    console.log(`📧 Email notification check: sendNotification=${sendNotification}`);
+
+    if (sendNotification) {
+      try {
+        console.log(`📧 Client data for email:`, {
+          client_name: client.client_name,
+          primary_contact_email: client.primary_contact_email,
+          cpa_email: client.cpa_email,
+          service_center_email: client.service_center_email,
+        });
+        console.log(`📧 Task assigned to role: ${role}`);
+
+        // Determine recipient based on assigned role
+        let recipientEmail: string | null = null;
+        let recipientName: string = "";
+        let recipientRole: "CLIENT" | "CPA" | "SERVICE_CENTER" = "CLIENT";
+
+        switch (role.toUpperCase()) {
+          case "CLIENT":
+            recipientEmail = client.primary_contact_email;
+            recipientName = client.primary_contact_name || client.client_name;
+            recipientRole = "CLIENT";
+            break;
+
+          case "CPA":
+            recipientEmail = client.cpa_email;
+            recipientName = client.cpa_name || "CPA";
+            recipientRole = "CPA";
+            break;
+
+          case "SERVICE_CENTER":
+            recipientEmail = client.service_center_email;
+            recipientName = client.service_center_name || "Service Center";
+            recipientRole = "SERVICE_CENTER";
+            break;
+        }
+
+        console.log(`📧 Recipient determined: email=${recipientEmail}, name=${recipientName}, role=${recipientRole}`);
+
+        if (recipientEmail) {
+          console.log(`📧 Sending task assignment notification to ${recipientRole}: ${recipientEmail}`);
+
+          const emailResult = await sendTaskNotificationEmail({
+            recipientEmail,
+            recipientName,
+            recipientRole,
+            taskTitle: finalTitle,
+            taskDescription: description,
+            dueDate,
+            clientName: client.client_name,
+            notificationType: "assigned",
+            assignedByName: "Admin",
+          });
+
+          console.log(`📧 Email result:`, emailResult);
+
+          if (emailResult.success) {
+            console.log(`✅ Task notification email sent successfully to ${recipientEmail}`);
+          } else {
+            console.warn(`⚠️ Task notification email failed:`, emailResult.error);
+          }
+        } else {
+          console.warn(`⚠️ No email found for ${role} role - notification skipped`);
+        }
+      } catch (emailError: any) {
+        // Don't fail the task creation if email fails
+        console.error("❌ Task notification email error:", emailError?.message || emailError);
+        console.error("❌ Full error:", JSON.stringify(emailError, null, 2));
+      }
+    } else {
+      console.log(`📧 Email notification skipped (sendNotification=false)`);
+    }
+
+
     return NextResponse.json({
       success: true,
-      taskId: insertResult.recordset[0].task_id,
+      taskId,
     });
 
   } catch (err: any) {
@@ -147,6 +242,7 @@ export async function POST(req: Request) {
     );
   }
 }
+
 
 
 //  // app/api/tasks/add/route.ts

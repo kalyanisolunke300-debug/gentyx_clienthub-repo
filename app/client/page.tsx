@@ -307,14 +307,6 @@ export default function ClientHome() {
               </svg>
               Your Onboarding Progress
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/client/stages")}
-              className="text-primary hover:text-primary"
-            >
-              View Details <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
           </div>
         </CardHeader>
         <CardContent>

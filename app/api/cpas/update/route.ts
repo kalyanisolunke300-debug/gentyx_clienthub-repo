@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { sendUpdateNotification } from "@/lib/email";
 
 export async function POST(req: Request) {
   return handleUpdate(req);
@@ -110,6 +111,26 @@ async function handleUpdate(req: Request) {
           WHERE email = @oldEmail AND role = 'CPA'
         `);
       console.log(`✅ CPA login email updated from ${oldEmail} to ${email}`);
+    }
+
+    // 📧 Send profile update notification email to CPA
+    if (email) {
+      try {
+        await sendUpdateNotification({
+          recipientEmail: email,
+          recipientName: actualName,
+          updateType: 'profile_updated',
+          details: {
+            title: 'Your CPA Profile Has Been Updated',
+            description: `Your CPA profile "${actualName}" has been updated by the administrator. If you did not expect this change, please contact support.`,
+            actionUrl: 'https://clienthub.hubonesystems.net/login',
+            actionLabel: 'View Your Profile',
+          },
+        });
+        console.log(`✅ Profile update notification sent to CPA: ${email}`);
+      } catch (emailError) {
+        console.error(`⚠️ Failed to send profile update notification to CPA: ${email}`, emailError);
+      }
     }
 
     return NextResponse.json({ success: true, message: "CPA updated successfully" });

@@ -3,7 +3,7 @@
 
 import { useContext } from "react";
 import { Button } from "@/components/ui/button";
-import { Inbox, HelpCircle, LogOut, UserCircle } from "lucide-react";
+import { Inbox, Handshake, LogOut, UserCircle } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { DateTimeDisplay } from "@/components/widgets/date-time-display";
 import { useRouter } from "next/navigation";
@@ -62,7 +62,7 @@ export function TopNav() {
           </Button>
 
           <Button variant="ghost" size="icon" onClick={() => router.push("/help")} title="Help">
-            <HelpCircle className="size-5" />
+            <Handshake className="size-5" />
           </Button>
 
 

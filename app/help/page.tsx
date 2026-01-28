@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowLeft, ChevronRight, HelpCircle } from "lucide-react"
+import { ArrowLeft, ChevronRight, HelpCircle, Edit } from "lucide-react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,10 +12,55 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { ROLE_CONTENT, RoleHelpContent } from "./help-content"
+import { ROLE_CONTENT, RoleHelpContent, ICON_MAP } from "./help-content"
+import { useUIStore } from "@/store/ui-store"
 
 export default function HelpPage() {
   const [selectedRole, setSelectedRole] = useState<RoleHelpContent | null>(null)
+  const [helpData, setHelpData] = useState<Record<string, RoleHelpContent>>(ROLE_CONTENT)
+  const role = useUIStore((s) => s.role)
+
+  useEffect(() => {
+    async function fetchHelpContent() {
+      try {
+        const res = await fetch("/api/help")
+        const json = await res.json()
+        if (json.success && json.data && json.data.length > 0) {
+          const transformed: Record<string, RoleHelpContent> = {}
+          json.data.forEach((r: any) => {
+            transformed[r.role_key] = {
+              id: r.role_key,
+              title: r.title,
+              description: r.description,
+              icon: ICON_MAP[r.icon_name] || ICON_MAP.HelpCircle,
+              color: r.color_class,
+              responsibilities: r.responsibilities.map((x: any) => x.description),
+              flow: r.flow.map((x: any) => ({
+                title: x.title,
+                description: x.description,
+                icon: x.icon,
+                type: x.type
+              })),
+              faqs: r.faqs.map((f: any) => ({ question: f.question, answer: f.answer }))
+            }
+          })
+          setHelpData(transformed)
+        }
+      } catch (err) {
+        console.error("Failed to fetch help content", err)
+      }
+    }
+    fetchHelpContent()
+  }, [])
+
+  useEffect(() => {
+    if (role && role !== "ADMIN") {
+      const targetRole = role === "SERVICE_CENTER" ? "SERVICE_CENTER" : role;
+      if (helpData[targetRole]) {
+        setSelectedRole(helpData[targetRole]);
+      }
+    }
+  }, [role, helpData])
 
   // Animation variants for staggered list items
   const containerVariants = {
@@ -34,11 +80,21 @@ export default function HelpPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Help & Process Flows</h1>
-        <p className="text-muted-foreground mt-2">
-          Select your role to view detailed workflows, responsibilities, and FAQs.
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Help & Process Flows</h1>
+          <p className="text-muted-foreground mt-2">
+            Select your role to view detailed workflows, responsibilities, and FAQs.
+          </p>
+        </div>
+        {role === "ADMIN" && (
+          <Button asChild variant="outline">
+            <Link href="/admin/settings">
+              <Edit className="w-4 h-4 mr-2" />
+              Edit in Settings
+            </Link>
+          </Button>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -50,7 +106,7 @@ export default function HelpPage() {
             exit={{ opacity: 0, y: -20 }}
             className="grid gap-6 md:grid-cols-2 lg:grid-cols-4"
           >
-            {Object.values(ROLE_CONTENT).map((role) => {
+            {Object.values(helpData).map((role) => {
               const Icon = role.icon
               return (
                 <Card
@@ -71,7 +127,7 @@ export default function HelpPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-sm font-medium text-primary flex items-center gap-1 group/btn">
-                      View Workflow
+                      View Guide
                       <ChevronRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
                     </div>
                   </CardContent>
@@ -87,14 +143,16 @@ export default function HelpPage() {
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
-            <Button
-              variant="ghost"
-              className="group pl-0 hover:pl-2 transition-all"
-              onClick={() => setSelectedRole(null)}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Role Selection
-            </Button>
+            {role === "ADMIN" && (
+              <Button
+                variant="ghost"
+                className="group pl-0 hover:pl-2 transition-all"
+                onClick={() => setSelectedRole(null)}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Role Selection
+              </Button>
+            )}
 
             <div className="grid gap-6 md:grid-cols-3">
               {/* Left Column: Role Info */}
@@ -128,7 +186,7 @@ export default function HelpPage() {
                 {/* Workflow Card */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Process Workflow</CardTitle>
+                    <CardTitle>Guide</CardTitle>
                     <CardDescription>Step-by-step guide for the {selectedRole.title} role</CardDescription>
                   </CardHeader>
                   <CardContent>

@@ -127,6 +127,18 @@ export default function ClientStagesPage() {
   const [templatePreviewStages, setTemplatePreviewStages] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Redirect clients away from this page - they should not be able to edit stages
+  useEffect(() => {
+    if (role === "CLIENT") {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to edit onboarding stages. Contact your administrator for assistance.",
+        variant: "destructive",
+      });
+      router.replace("/client");
+    }
+  }, [role, router, toast]);
+
   // Wait for client context from login
   useEffect(() => {
     if (role === "CLIENT" && currentClientId) {

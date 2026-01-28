@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { sendServiceCenterWelcomeEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -103,6 +104,17 @@ export async function POST(req: Request) {
             INSERT INTO dbo.Users (email, password, role)
             VALUES (@email, @password, @role)
           `);
+
+        console.log(`✅ Created Service Center user credentials for ${email}`);
+
+        // 📧 Send welcome email to the Service Center
+        try {
+          await sendServiceCenterWelcomeEmail(email, name, centerCode);
+          console.log(`✅ Welcome email sent to Service Center: ${email}`);
+        } catch (emailError) {
+          console.error(`⚠️ Failed to send welcome email to Service Center: ${email}`, emailError);
+          // Don't fail the entire request if email fails
+        }
       }
     }
 

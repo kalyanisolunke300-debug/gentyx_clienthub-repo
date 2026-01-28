@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
 import { getDbPool } from "@/lib/db";
+import { sendClientWelcomeEmail } from "@/lib/email";
 
 type AssociatedUser = {
   name: string;
@@ -158,6 +159,20 @@ export async function POST(req: Request) {
             INSERT INTO dbo.Users (email, password, role)
             VALUES (@email, @password, @role)
           `);
+
+      // 📧 Send welcome email to the client
+      try {
+        await sendClientWelcomeEmail(
+          primaryContactEmail,
+          primaryContactName,
+          clientName,
+          code || undefined
+        );
+        console.log(`✅ Welcome email sent to client: ${primaryContactEmail}`);
+      } catch (emailError) {
+        console.error(`⚠️ Failed to send welcome email to client: ${primaryContactEmail}`, emailError);
+        // Don't fail the entire request if email fails
+      }
     }
 
     /* -------------------------------------------------

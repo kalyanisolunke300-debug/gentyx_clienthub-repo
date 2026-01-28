@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 import { logAudit, AuditActions } from "@/lib/audit";
+import { sendUpdateNotification } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -149,6 +150,26 @@ export async function POST(req: Request) {
         action: AuditActions.CPA_ASSIGNED,
         actorRole: "ADMIN",
       });
+    }
+
+    // 📧 Send profile update notification email to client
+    if (primary_contact_email) {
+      try {
+        await sendUpdateNotification({
+          recipientEmail: primary_contact_email,
+          recipientName: primary_contact_name || client_name,
+          updateType: 'profile_updated',
+          details: {
+            title: 'Your Profile Has Been Updated',
+            description: `Your client profile "${client_name}" has been updated by the administrator. If you did not expect this change, please contact support.`,
+            actionUrl: 'https://clienthub.hubonesystems.net/login',
+            actionLabel: 'View Your Profile',
+          },
+        });
+        console.log(`✅ Profile update notification sent to client: ${primary_contact_email}`);
+      } catch (emailError) {
+        console.error(`⚠️ Failed to send profile update notification to client: ${primary_contact_email}`, emailError);
+      }
     }
 
     return NextResponse.json({ success: true });

@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { User, Bell, Shield, Activity, Save, Eye, EyeOff, Check, Loader2, UserPlus, Lock, Plus, X } from "lucide-react"
+import { User, Bell, Shield, Activity, Save, Eye, EyeOff, Check, Loader2, UserPlus, Lock, Plus, X, BookOpen } from "lucide-react"
 import { updateAdminPassword, createAdminUser } from "@/lib/api"
+import { HelpContentManager } from "@/components/admin/help-content-manager"
 import {
   Dialog,
   DialogContent,
@@ -202,7 +203,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[625px]">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
@@ -218,6 +219,10 @@ export default function SettingsPage() {
           <TabsTrigger value="audit" className="gap-2">
             <Activity className="h-4 w-4" />
             <span className="hidden sm:inline">Audit Log</span>
+          </TabsTrigger>
+          <TabsTrigger value="help" className="gap-2">
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">Help Content</span>
           </TabsTrigger>
         </TabsList>
 
@@ -548,6 +553,11 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ============ HELP CONTENT TAB ============ */}
+        <TabsContent value="help">
+          <HelpContentManager />
         </TabsContent>
       </Tabs>
     </div >
