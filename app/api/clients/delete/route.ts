@@ -80,10 +80,22 @@ export async function POST(req: Request) {
                 console.log("  ⚠ No audit_logs table or already empty");
             }
 
-            // 7. Deassign client from CPA and Service Center - Update the client record first
-            // This is handled implicitly by deleting the client, but we should check for junction tables
+            // 7. Get the client email for user credentials deletion
+            const clientEmailResult = await transaction.request()
+                .input("clientId", clientId)
+                .query(`SELECT primary_contact_email FROM dbo.Clients WHERE client_id = @clientId`);
+            
+            const clientEmail = clientEmailResult.recordset[0]?.primary_contact_email;
 
-            // 8. Delete the client record itself
+            // 8. Delete user credentials from Users table
+            if (clientEmail) {
+                await transaction.request()
+                    .input("email", clientEmail)
+                    .query(`DELETE FROM dbo.Users WHERE email = @email`);
+                console.log("  ✓ Deleted user credentials");
+            }
+
+            // 9. Delete the client record itself
             await transaction.request()
                 .input("clientId", clientId)
                 .query(`DELETE FROM dbo.Clients WHERE client_id = @clientId`);

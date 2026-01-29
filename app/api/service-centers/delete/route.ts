@@ -17,17 +17,38 @@ export async function DELETE(req: Request) {
 
     const pool = await getDbPool();
 
-    // Delete the service center
+    // 1. Get service center email for user credentials deletion
+    const scResult = await pool.request()
+      .input("id", sql.Int, id)
+      .query(`SELECT email, center_name FROM dbo.service_centers WHERE service_center_id = @id`);
+
+    const scEmail = scResult.recordset[0]?.email;
+    const scName = scResult.recordset[0]?.center_name || "Unknown";
+
+    console.log(`🗑️ Starting deletion of Service Center: ${scName} (ID: ${id})`);
+
+    // 2. Delete user credentials from Users table
+    if (scEmail) {
+      await pool.request()
+        .input("email", sql.NVarChar(255), scEmail)
+        .query(`DELETE FROM dbo.Users WHERE email = @email`);
+      console.log("  ✓ Deleted user credentials");
+    }
+
+    // 3. Delete the service center record
     await pool.request()
       .input("id", sql.Int, id)
       .query(`
         DELETE FROM dbo.service_centers
         WHERE service_center_id = @id;
       `);
+    console.log("  ✓ Deleted service center record");
+
+    console.log(`✅ Successfully deleted Service Center: ${scName} (ID: ${id})`);
 
     return NextResponse.json({
       success: true,
-      message: "Service Center deleted successfully",
+      message: `Service Center "${scName}" and credentials deleted successfully`,
     });
 
   } catch (err: any) {
