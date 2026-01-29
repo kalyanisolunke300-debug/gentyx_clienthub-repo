@@ -116,18 +116,17 @@ export function AssignTaskDialog() {
         let emailSubject = "";
         let emailBody = "";
 
+        // Both template and custom modes now use the editable fields
+        // Templates are loaded into these fields when selected
         if (emailMode === "template" && selectedEmailTemplate) {
-          const template = emailTemplates?.find(
-            (t: any) => t.id.toString() === selectedEmailTemplate
-          );
-          if (template) {
-            emailSubject = template.subject;
-            emailBody = template.body;
-          }
+          // Use the edited template content from the editable fields
+          emailSubject = customEmailSubject;
+          emailBody = customEmailBody;
         } else if (emailMode === "custom") {
           emailSubject = customEmailSubject;
           emailBody = customEmailBody;
         }
+
 
         if (emailSubject && emailBody) {
           // Replace template variables
@@ -318,30 +317,95 @@ export function AssignTaskDialog() {
             </div>
 
             {emailMode === "template" ? (
-              <div className="space-y-2">
-                <Label className="text-sm">Select Email Template</Label>
-                <Select
-                  value={selectedEmailTemplate}
-                  onValueChange={setSelectedEmailTemplate}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a template..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {emailTemplates?.map((t: any) => (
-                      <SelectItem key={t.id} value={t.id.toString()}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Email Template</Label>
+                  <Select
+                    value={selectedEmailTemplate}
+                    onValueChange={(value) => {
+                      setSelectedEmailTemplate(value);
+                      // Load template content into editable fields
+                      const template = emailTemplates?.find((t: any) => t.id.toString() === value);
+                      if (template) {
+                        setCustomEmailSubject(template.subject || "");
+                        setCustomEmailBody(template.body || "");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {emailTemplates?.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id.toString()}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {selectedEmailTemplate && (
-                  <p className="text-xs text-muted-foreground">
-                    Subject:{" "}
-                    {emailTemplates?.find(
-                      (t: any) => t.id.toString() === selectedEmailTemplate
-                    )?.subject}
-                  </p>
+                  <>
+                    {/* Auto-fill Button */}
+                    <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                      <span className="text-blue-700 flex-1">
+                        <strong>Tip:</strong> Click Auto-Fill to replace variables
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="bg-white border-blue-300 text-blue-700 hover:bg-blue-100 h-7 text-xs"
+                        onClick={() => {
+                          setCustomEmailSubject((prev) =>
+                            prev
+                              .replace(/\{\{clientName\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{Client_Name\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{taskTitle\}\}/gi, title || "")
+                              .replace(/\{\{dueDate\}\}/gi, dueDate || "")
+                          );
+                          setCustomEmailBody((prev) =>
+                            prev
+                              .replace(/\{\{clientName\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{Client_Name\}\}/gi, selectedClient?.client_name || "")
+                              .replace(/\{\{taskTitle\}\}/gi, title || "")
+                              .replace(/\{\{dueDate\}\}/gi, dueDate || "")
+                              .replace(/\{\{assigneeRole\}\}/gi, assigneeRole || "")
+                              .replace(/\{\{Company_Name\}\}/gi, "Legacy ClientHub")
+                              .replace(/\{\{Support_Email\}\}/gi, "support@legacyclienthub.com")
+                              .replace(/\{\{LC\}\}/gi, "Legacy ClientHub Team")
+                              .replace(/\{\{Admin_Email\}\}/gi, "admin@legacyclienthub.com")
+                          );
+                        }}
+                      >
+                        Auto-Fill
+                      </Button>
+                    </div>
+
+                    {/* Editable Subject */}
+                    <div>
+                      <Label className="text-sm">Subject</Label>
+                      <Input
+                        value={customEmailSubject}
+                        onChange={(e) => setCustomEmailSubject(e.target.value)}
+                        placeholder="Email subject..."
+                        className="mt-1"
+                      />
+                    </div>
+
+                    {/* Editable Body */}
+                    <div>
+                      <Label className="text-sm">Email Body</Label>
+                      <Textarea
+                        value={customEmailBody}
+                        onChange={(e) => setCustomEmailBody(e.target.value)}
+                        placeholder="Email content..."
+                        rows={6}
+                        className="mt-1 text-sm font-mono"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             ) : (
@@ -372,10 +436,15 @@ export function AssignTaskDialog() {
             )}
 
             {selectedClient?.primary_contact_email && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <Send className="h-3 w-3" />
-                Email will be sent to: {selectedClient.primary_contact_email}
-              </p>
+              <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-xs text-green-700 flex items-center gap-1">
+                  <Send className="h-3 w-3" />
+                  Email will be sent to: <strong>{selectedClient.primary_contact_email}</strong>
+                </p>
+                <p className="text-xs text-green-600 mt-1">
+                  ✓ Email will include branded header &amp; © 2026 Legacy ClientHub footer
+                </p>
+              </div>
             )}
           </div>
         )}

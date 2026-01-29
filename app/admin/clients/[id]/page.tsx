@@ -30,6 +30,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import {
   Tabs,
@@ -51,7 +59,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark } from "lucide-react";
+import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle } from "lucide-react";
 import { formatPhone } from "@/lib/formatters";
 
 
@@ -111,6 +119,10 @@ export default function ClientProfilePage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+
+  // Delete Client State
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
 
   useEffect(() => {
@@ -694,13 +706,108 @@ export default function ClientProfilePage() {
             Edit Client
           </Button>
 
-          {/* <Button
-            variant="secondary"
-            onClick={() => openDrawer("uploadDoc", { clientId: id })}
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteDialog(true)}
           >
-            Upload Doc
-          </Button> */}
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Client
+          </Button>
         </div>
+
+        {/* Delete Client Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                Delete Client Permanently?
+              </DialogTitle>
+              <DialogDescription className="text-left pt-2">
+                <div className="space-y-3">
+                  <p className="font-medium text-gray-900">
+                    You are about to permanently delete <span className="text-red-600 font-bold">"{client?.client_name}"</span>
+                  </p>
+
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-red-700 mb-2">⚠️ This action will permanently remove:</p>
+                    <ul className="text-sm text-red-600 space-y-1 list-disc list-inside">
+                      <li>All tasks assigned to this client</li>
+                      <li>All messages and conversations</li>
+                      <li>All documents and files</li>
+                      <li>All stage progress and subtasks</li>
+                      <li>All audit logs and history</li>
+                      <li>Service Center and CPA assignments</li>
+                    </ul>
+                  </div>
+
+                  <p className="text-sm text-gray-600 font-medium">
+                    This action cannot be undone. Are you absolutely sure you want to proceed?
+                  </p>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    const res = await fetch("/api/clients/delete", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ clientId: Number(id) }),
+                    });
+                    const json = await res.json();
+
+                    if (json.success) {
+                      toast({
+                        title: "Client Deleted",
+                        description: json.message || `Client has been permanently deleted.`,
+                      });
+                      setShowDeleteDialog(false);
+                      router.push("/admin/clients");
+                    } else {
+                      toast({
+                        title: "Delete Failed",
+                        description: json.error || "Failed to delete client.",
+                        variant: "destructive",
+                      });
+                    }
+                  } catch (error: any) {
+                    toast({
+                      title: "Error",
+                      description: error.message || "An error occurred while deleting.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Yes, Delete Permanently
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
 
@@ -1521,9 +1628,9 @@ export default function ClientProfilePage() {
                           <div className="relative mb-3">
                             <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
                             <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' :
-                                folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
-                                  folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
-                                    'bg-blue-500'
+                              folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
+                                folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
+                                  'bg-blue-500'
                               }`}>
                               <FolderBadgeIcon className="w-3 h-3 text-white" />
                             </div>

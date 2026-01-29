@@ -1912,3 +1912,195 @@ export async function sendAdminMessageNotification({
   });
 }
 
+// ===== REUSABLE EMAIL TEMPLATE WRAPPER =====
+
+interface EmailWrapperOptions {
+  recipientName?: string;
+  headerTitle?: string;
+  headerIcon?: string;
+  headerColor?: string;
+  bodyContent: string;
+  showActionButton?: boolean;
+  actionButtonUrl?: string;
+  actionButtonLabel?: string;
+}
+
+/**
+ * Wrap any email content with the professional Legacy ClientHub HTML template
+ * This ensures consistent styling with header, footer, and copyright across all emails
+ */
+export function wrapEmailContent({
+  recipientName,
+  headerTitle = 'Notification',
+  headerIcon = '📧',
+  headerColor = '#6366f1',
+  bodyContent,
+  showActionButton = true,
+  actionButtonUrl = 'https://clienthub.hubonesystems.net',
+  actionButtonLabel = 'View in ClientHub',
+}: EmailWrapperOptions): string {
+  const currentYear = new Date().getFullYear();
+  const formattedDateTime = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  // Convert plain text or simple HTML to properly formatted HTML with line breaks
+  const formattedBody = bodyContent
+    .replace(/\n/g, '<br>')
+    .replace(/\r/g, '');
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${headerTitle}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f0f4f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f0f4f8;">
+        <tr>
+          <td style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
+              
+              <!-- Header with Logo -->
+              <tr>
+                <td style="background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 50%, #a855f7 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    <tr>
+                      <td style="text-align: center;">
+                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
+                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px;">Legacy</span>
+                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px; margin-left: 6px;">ClientHub</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="text-align: center; padding-top: 10px;">
+                        <span style="font-size: 50px;">${headerIcon}</span>
+                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">${headerTitle}</h1>
+                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Main Content -->
+              <tr>
+                <td style="background-color: #ffffff; padding: 40px;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    ${recipientName ? `
+                    <tr>
+                      <td>
+                        <p style="margin: 0 0 20px; font-size: 18px; color: #1e293b; font-weight: 500;">Hello ${recipientName},</p>
+                      </td>
+                    </tr>
+                    ` : ''}
+                    
+                    <!-- Email Body Content -->
+                    <tr>
+                      <td style="padding: 0 0 25px;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
+                          <tr>
+                            <td style="padding: 24px;">
+                              <div style="font-size: 15px; color: #374151; line-height: 1.7;">
+                                ${formattedBody}
+                              </div>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    
+                    ${showActionButton ? `
+                    <!-- CTA Button -->
+                    <tr>
+                      <td style="text-align: center; padding: 10px 0 0;">
+                        <a href="${actionButtonUrl}" 
+                           style="display: inline-block; background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                          ${actionButtonLabel} →
+                        </a>
+                      </td>
+                    </tr>
+                    ` : ''}
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    <tr>
+                      <td style="text-align: center;">
+                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">Need help? Contact our support team.</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">This is an automated notification from Legacy ClientHub.</p>
+                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 12px; color: #60a5fa; font-weight: 500;">© ${currentYear} Legacy ClientHub. All rights reserved.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Send a custom email using the professional template wrapper
+ */
+export async function sendCustomEmail({
+  to,
+  subject,
+  recipientName,
+  bodyContent,
+  headerTitle,
+  headerIcon,
+  headerColor,
+  showActionButton,
+  actionButtonUrl,
+  actionButtonLabel,
+}: {
+  to: string;
+  subject: string;
+  recipientName?: string;
+  bodyContent: string;
+  headerTitle?: string;
+  headerIcon?: string;
+  headerColor?: string;
+  showActionButton?: boolean;
+  actionButtonUrl?: string;
+  actionButtonLabel?: string;
+}) {
+  const html = wrapEmailContent({
+    recipientName,
+    headerTitle,
+    headerIcon,
+    headerColor,
+    bodyContent,
+    showActionButton,
+    actionButtonUrl,
+    actionButtonLabel,
+  });
+
+  return sendEmail({
+    to,
+    subject,
+    html,
+  });
+}
+
