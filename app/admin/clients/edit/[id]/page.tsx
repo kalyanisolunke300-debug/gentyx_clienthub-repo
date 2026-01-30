@@ -22,7 +22,8 @@ export default function EditClientPage() {
   const [form, setForm] = useState({
     client_name: "",
     code: "",
-    primary_contact_name: "",
+    primary_contact_first_name: "",
+    primary_contact_last_name: "",
     primary_contact_email: "",
     primary_contact_phone: "",
     service_center_id: "",
@@ -48,7 +49,8 @@ export default function EditClientPage() {
         setForm({
           client_name: clientRes.data.client_name || "",
           code: clientRes.data.code || "",
-          primary_contact_name: clientRes.data.primary_contact_name || "",
+          primary_contact_first_name: clientRes.data.primary_contact_first_name || "",
+          primary_contact_last_name: clientRes.data.primary_contact_last_name || "",
           primary_contact_email: clientRes.data.primary_contact_email || "",
           primary_contact_phone: clientRes.data.primary_contact_phone || "",
           service_center_id:
@@ -113,14 +115,25 @@ export default function EditClientPage() {
           />
         </div>
 
-        <div>
-          <label className="text-sm font-medium">Primary Contact Name</label>
-          <Input
-            value={form.primary_contact_name}
-            onChange={(e) =>
-              setForm({ ...form, primary_contact_name: e.target.value })
-            }
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium">First Name</label>
+            <Input
+              value={form.primary_contact_first_name}
+              onChange={(e) =>
+                setForm({ ...form, primary_contact_first_name: e.target.value })
+              }
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Last Name</label>
+            <Input
+              value={form.primary_contact_last_name}
+              onChange={(e) =>
+                setForm({ ...form, primary_contact_last_name: e.target.value })
+              }
+            />
+          </div>
         </div>
 
         <div>

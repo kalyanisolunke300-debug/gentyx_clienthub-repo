@@ -1125,6 +1125,18 @@ export default function StagesPage() {
                   </SortableContext>
                 </DndContext>
 
+                {/* ADD STAGE BUTTON (Bottom) */}
+                <div className="py-2">
+                  <Button
+                    variant="outline"
+                    className="w-full border-dashed text-muted-foreground hover:text-primary hover:border-primary hover:bg-primary/5 transition-all h-14"
+                    onClick={() => handleOpenDialog()}
+                  >
+                    <Plus className="mr-2 h-5 w-5" />
+                    Add Another Stage
+                  </Button>
+                </div>
+
                 {/* ACTION BAR */}
                 <div className="sticky bottom-4 mx-auto max-w-2xl bg-background/80 backdrop-blur-md border rounded-full shadow-lg p-2 flex items-center justify-center gap-3">
                   <div className="text-sm font-medium mr-2 pl-3 flex items-center gap-2">

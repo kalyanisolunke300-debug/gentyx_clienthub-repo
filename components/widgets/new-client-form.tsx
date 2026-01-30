@@ -28,7 +28,8 @@ const NewClientSchema = z.object({
   clientName: z.string().min(2, "Company name is required"),
   code: z.string().optional(),
   slaNumber: z.string().optional(),
-  primaryContactName: z.string().min(2, "Primary contact is required"),
+  primaryContactFirstName: z.string().min(1, "First name is required"),
+  primaryContactLastName: z.string().min(1, "Last name is required"),
   primaryContactEmail: z
     .string()
     .email("Valid email required")
@@ -86,7 +87,8 @@ export function NewClientForm() {
       clientName: "",
       code: "",
       slaNumber: "",
-      primaryContactName: "",
+      primaryContactFirstName: "",
+      primaryContactLastName: "",
       primaryContactEmail: "",
       primaryContactPhone: "",
       serviceCenterId: "",
@@ -105,11 +107,16 @@ export function NewClientForm() {
     try {
       setSubmitting(true);
 
+      // Combine first and last name for display/storage
+      const primaryContactName = `${values.primaryContactFirstName} ${values.primaryContactLastName}`.trim();
+
       const payload = {
         clientName: values.clientName,
         code: values.code,
         slaNumber: values.slaNumber,
-        primaryContactName: values.primaryContactName,
+        primaryContactFirstName: values.primaryContactFirstName,
+        primaryContactLastName: values.primaryContactLastName,
+        primaryContactName: primaryContactName,
         primaryContactEmail: values.primaryContactEmail,
         primaryContactPhone: values.primaryContactPhone,
         serviceCenterId: values.serviceCenterId
@@ -171,18 +178,32 @@ export function NewClientForm() {
         )}
       </div>
 
-      {/* Primary Contact */}
-      <div className="grid gap-2">
-        <Label>Primary Contact Name <span className="text-red-500">*</span></Label>
-        <Input
-          {...form.register("primaryContactName")}
-          placeholder="Jane Doe"
-        />
-        {form.formState.errors.primaryContactName && (
-          <p className="text-xs text-red-500">
-            {form.formState.errors.primaryContactName.message}
-          </p>
-        )}
+      {/* Primary Contact - First Name and Last Name */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label>First Name <span className="text-red-500">*</span></Label>
+          <Input
+            {...form.register("primaryContactFirstName")}
+            placeholder="Jane"
+          />
+          {form.formState.errors.primaryContactFirstName && (
+            <p className="text-xs text-red-500">
+              {form.formState.errors.primaryContactFirstName.message}
+            </p>
+          )}
+        </div>
+        <div className="grid gap-2">
+          <Label>Last Name <span className="text-red-500">*</span></Label>
+          <Input
+            {...form.register("primaryContactLastName")}
+            placeholder="Doe"
+          />
+          {form.formState.errors.primaryContactLastName && (
+            <p className="text-xs text-red-500">
+              {form.formState.errors.primaryContactLastName.message}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Email */}

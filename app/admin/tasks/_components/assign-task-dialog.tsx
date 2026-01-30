@@ -65,7 +65,7 @@ export function AssignTaskDialog() {
     if (!title.trim()) {
       toast({
         title: "Missing Field",
-        description: "Task title is required.",
+        description: "Task Name is required.",
         variant: "destructive",
       });
       return;
@@ -186,13 +186,13 @@ export function AssignTaskDialog() {
     <div className="p-4 space-y-4">
       <h2 className="text-lg font-semibold">Assign Task</h2>
 
-      {/* Task Title - Required */}
+      {/* Task Name - Required */}
       <div className="grid gap-2">
         <Label>
-          Title <span className="text-red-500">*</span>
+          Task Name <span className="text-red-500">*</span>
         </Label>
         <Input
-          placeholder="Enter task title"
+          placeholder="Enter task name"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />

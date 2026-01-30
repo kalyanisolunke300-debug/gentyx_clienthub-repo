@@ -47,7 +47,7 @@ import { mutate } from "swr";
 
 /* -------------------- ZOD SCHEMA -------------------- */
 const Schema = z.object({
-  title: z.string().min(2, "Title is required"),
+  title: z.string().min(2, "Task Name is required"),
   clientId: z.string().min(1, "Client is required"),
   assigneeRole: z.enum(["CLIENT", "SERVICE_CENTER", "CPA"]),
   dueDate: z.string().min(1, "Due date is required"), // Made mandatory
@@ -137,7 +137,7 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
       if (!values.title.trim()) {
         toast({
           title: "Error",
-          description: "Title is required",
+          description: "Task Name is required",
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -308,12 +308,12 @@ export function AssignTaskForm({ context }: { context?: Record<string, any> }) {
         {isEditMode ? "Update Task" : "Assign Task"}
       </h2>
 
-      {/* Title - Required */}
+      {/* Task Name - Required */}
       <div className="grid gap-2">
         <Label>
-          Title <span className="text-red-500">*</span>
+          Task Name <span className="text-red-500">*</span>
         </Label>
-        <Input {...form.register("title")} placeholder="Task title" />
+        <Input {...form.register("title")} placeholder="Task name" />
         {form.formState.errors.title && (
           <p className="text-xs text-red-500">{form.formState.errors.title.message}</p>
         )}

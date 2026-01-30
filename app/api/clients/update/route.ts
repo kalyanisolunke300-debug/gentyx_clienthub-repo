@@ -13,12 +13,18 @@ export async function POST(req: Request) {
       clientId,
       client_name,
       code,
+      primary_contact_first_name,
+      primary_contact_last_name,
       primary_contact_name,
       primary_contact_email,
       primary_contact_phone,
       service_center_id,
       cpa_id,
     } = body;
+
+    // Combine first and last name if not provided separately
+    const fullContactName = primary_contact_name ||
+      `${primary_contact_first_name || ''} ${primary_contact_last_name || ''}`.trim();
 
     if (!clientId) {
       return NextResponse.json(
@@ -93,7 +99,9 @@ export async function POST(req: Request) {
       .input("client_id", sql.Int, Number(clientId))
       .input("client_name", sql.NVarChar, client_name)
       .input("code", sql.NVarChar, code)
-      .input("primary_contact_name", sql.NVarChar, primary_contact_name)
+      .input("primary_contact_first_name", sql.NVarChar(100), primary_contact_first_name || null)
+      .input("primary_contact_last_name", sql.NVarChar(100), primary_contact_last_name || null)
+      .input("primary_contact_name", sql.NVarChar, fullContactName)
       .input("primary_contact_email", sql.NVarChar, primary_contact_email)
       .input("primary_contact_phone", sql.NVarChar, primary_contact_phone)
       .input("service_center_id", sql.Int, service_center_id || null)
@@ -103,6 +111,8 @@ export async function POST(req: Request) {
         SET
           client_name = @client_name,
           code = @code,
+          primary_contact_first_name = @primary_contact_first_name,
+          primary_contact_last_name = @primary_contact_last_name,
           primary_contact_name = @primary_contact_name,
           primary_contact_email = @primary_contact_email,
           primary_contact_phone = @primary_contact_phone,

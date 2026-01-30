@@ -149,24 +149,34 @@ export async function sendWelcomeEmail({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header with Logo -->
+              <!-- Header - Legacy Accounting Services Branding (Outlook Compatible) -->
               <tr>
-                <td style="background: linear-gradient(135deg, ${roleInfo.color} 0%, #8b5cf6 50%, #a855f7 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 35px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px;">Legacy</span>
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px; margin-left: 6px;">ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 8px;">
+                          <span style="font-size: 26px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
                         </div>
+                        <div style="margin-bottom: 20px;">
+                          <span style="font-size: 11px; color: #e8d5c4; letter-spacing: 3px; text-transform: uppercase;">ACCOUNTING SERVICES</span>
+                        </div>
+                        <!-- ClientHub Badge -->
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin: 0 auto 20px;">
+                          <tr>
+                            <td bgcolor="#7a3344" style="background-color: #7a3344; padding: 6px 14px; border-radius: 15px;">
+                              <span style="font-size: 11px; color: #ffffff; font-weight: 500; letter-spacing: 1px;">ClientHub Portal</span>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">${roleInfo.icon}</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">Welcome, ${recipientName}!</h1>
-                        <p style="color: rgba(255,255,255,0.85); margin: 10px 0 0; font-size: 16px;">Your ${roleInfo.title} profile has been created</p>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDate}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: #ffffff; margin: 0 0 8px; font-size: 24px; font-weight: 600;">Welcome, ${recipientName}!</h1>
+                        <p style="color: #d4a574; margin: 8px 0 0; font-size: 15px; font-weight: 500;">Your Account has been created</p>
+                        <p style="color: #cccccc; margin: 8px 0 0; font-size: 12px;">${formattedDate}</p>
                       </td>
                     </tr>
                   </table>
@@ -175,7 +185,7 @@ export async function sendWelcomeEmail({
               
               <!-- Main Content -->
               <tr>
-                <td style="background-color: #ffffff; padding: 40px;">
+                <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 40px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td>
@@ -190,8 +200,10 @@ export async function sendWelcomeEmail({
                     <!-- Credentials Box -->
                     <tr>
                       <td style="padding: 0 0 30px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${roleInfo.color};">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-left: 4px solid ${roleInfo.color};">
                           <tr>
+                            <td bgcolor="#f8fafc" style="background-color: #f8fafc; border-radius: 12px; padding: 0;">
+                              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                             <td style="padding: 24px;">
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                 <tr>
@@ -210,21 +222,11 @@ export async function sendWelcomeEmail({
                                   </td>
                                 </tr>
                                 <tr>
-                                  <td style="padding-bottom: 12px;">
+                                  <td style="padding-bottom: 0;">
                                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                       <tr>
                                         <td style="width: 100px; font-size: 14px; color: #64748b; font-weight: 500;">Password:</td>
                                         <td style="font-size: 15px; color: #1e293b; font-weight: 600; font-family: 'Courier New', monospace; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; display: inline-block;">${password}</td>
-                                      </tr>
-                                    </table>
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td style="padding-bottom: 0;">
-                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                      <tr>
-                                        <td style="width: 100px; font-size: 14px; color: #64748b; font-weight: 500;">Role:</td>
-                                        <td style="font-size: 15px; color: ${roleInfo.color}; font-weight: 600;">${roleInfo.title}</td>
                                       </tr>
                                     </table>
                                   </td>
@@ -259,7 +261,7 @@ export async function sendWelcomeEmail({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 30px;">
                         <a href="${loginUrl}" 
-                           style="display: inline-block; background: linear-gradient(135deg, ${roleInfo.color} 0%, #8b5cf6 100%); color: white; font-size: 16px; font-weight: 600; padding: 16px 40px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                           style="display: inline-block; background-color: ${roleInfo.color}; background: linear-gradient(135deg, ${roleInfo.color} 0%, #8b5cf6 100%); color: white; font-size: 16px; font-weight: 600; padding: 16px 40px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
                           Login to Your Account →
                         </a>
                       </td>
@@ -327,17 +329,22 @@ export async function sendWelcomeEmail({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding (Outlook Compatible) -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">Need help? Contact our support team.</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">This is an automated notification from Legacy ClientHub.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
-                        </div>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: #cccccc;">ClientHub Portal</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: #999999;">Need help? Contact our support team.</p>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                          <tr>
+                            <td style="border-top: 1px solid #7a3344; padding-top: 15px; text-align: center;">
+                              <p style="margin: 0; font-size: 11px; color: #999999;">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
@@ -472,22 +479,25 @@ export async function sendUpdateNotification({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Header - Legacy Accounting Services Branding (Outlook Compatible) -->
               <tr>
-                <td style="background: linear-gradient(135deg, ${config.color} 0%, #8b5cf6 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700;">Legacy ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: #e8d5c4; letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">${config.icon}</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600;">${config.label}</h1>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: #ffffff; margin: 0 0 5px; font-size: 20px; font-weight: 600;">${config.label}</h1>
+                        <p style="color: #cccccc; margin: 0; font-size: 12px;">${formattedDateTime}</p>
                       </td>
                     </tr>
                   </table>
@@ -496,7 +506,7 @@ export async function sendUpdateNotification({
               
               <!-- Content -->
               <tr>
-                <td style="background-color: #ffffff; padding: 40px;">
+                <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 40px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td>
@@ -506,9 +516,9 @@ export async function sendUpdateNotification({
                     
                     <tr>
                       <td style="padding: 0 0 25px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${config.color};">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-left: 4px solid ${config.color};">
                           <tr>
-                            <td style="padding: 24px;">
+                            <td bgcolor="#f8fafc" style="background-color: #f8fafc; border-radius: 12px; padding: 24px;">
                               <h3 style="margin: 0 0 12px; font-size: 18px; color: #1e293b;">${details.title}</h3>
                               <p style="margin: 0; font-size: 15px; color: #475569; line-height: 1.6;">${details.description}</p>
                             </td>
@@ -520,10 +530,15 @@ export async function sendUpdateNotification({
                     ${details.actionUrl ? `
                     <tr>
                       <td style="text-align: center; padding: 10px 0 20px;">
-                        <a href="${details.actionUrl}" 
-                           style="display: inline-block; background: linear-gradient(135deg, ${config.color} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
-                          ${details.actionLabel || 'View Details'} →
-                        </a>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
+                          <tr>
+                            <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; border-radius: 10px; padding: 14px 36px;">
+                              <a href="${details.actionUrl}" style="color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none;">
+                                ${details.actionLabel || 'View Details'} →
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                     ` : ''}
@@ -531,16 +546,21 @@ export async function sendUpdateNotification({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding (Outlook Compatible) -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
-                        </div>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: #999999;">ClientHub Portal - Automated Notification</p>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                          <tr>
+                            <td style="border-top: 1px solid #7a3344; padding-top: 15px; text-align: center;">
+                              <p style="margin: 0; font-size: 11px; color: #999999;">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
@@ -598,23 +618,25 @@ export async function sendMessageNotification({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header with Logo -->
+              <!-- Header - Legacy Accounting Services Branding (Outlook Compatible) -->
               <tr>
-                <td style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px;">Legacy</span>
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px; margin-left: 6px;">ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: #e8d5c4; letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 40px;">💬</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">New Message Received</h1>
-                        <p style="color: rgba(255,255,255,0.85); margin: 10px 0 0; font-size: 14px;">${formattedDateTime}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: #ffffff; margin: 0 0 5px; font-size: 20px; font-weight: 600;">New Message Received</h1>
+                        <p style="color: #cccccc; margin: 0; font-size: 12px;">${formattedDateTime}</p>
                       </td>
                     </tr>
                   </table>
@@ -623,25 +645,31 @@ export async function sendMessageNotification({
               
               <!-- Main Content -->
               <tr>
-                <td style="background-color: #ffffff; padding: 40px;">
+                <td bgcolor="#ffffff" style="background-color: #ffffff; padding: 40px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td>
                         <p style="margin: 0 0 20px; font-size: 18px; color: #1e293b; font-weight: 500;">Hello ${recipientName},</p>
-                        <p style="margin: 0 0 25px; font-size: 15px; color: #475569; line-height: 1.6;">You have received a new message from <strong style="color: #6366f1;">${senderName}</strong>:</p>
+                        <p style="margin: 0 0 25px; font-size: 15px; color: #475569; line-height: 1.6;">You have received a new message from <strong style="color: #5a1f2d;">${senderName}</strong>:</p>
                       </td>
                     </tr>
                     
                     <!-- Message Box -->
                     <tr>
                       <td style="padding: 0 0 30px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid #8b5cf6;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-left: 4px solid #5a1f2d;">
                           <tr>
-                            <td style="padding: 24px;">
+                            <td bgcolor="#f8fafc" style="background-color: #f8fafc; border-radius: 12px; padding: 24px;">
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                 <tr>
                                   <td style="padding-bottom: 12px;">
-                                    <span style="display: inline-block; background: #8b5cf6; color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;">Message Preview</span>
+                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                                      <tr>
+                                        <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 4px 10px; border-radius: 20px;">
+                                          <span style="font-size: 11px; color: #ffffff; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Message Preview</span>
+                                        </td>
+                                      </tr>
+                                    </table>
                                   </td>
                                 </tr>
                                 <tr>
@@ -660,27 +688,37 @@ export async function sendMessageNotification({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 20px;">
                         <p style="margin: 0 0 20px; font-size: 14px; color: #64748b;">Log in to your account to view the full message and reply.</p>
-                        <a href="${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://clienthub.mysage.com'}" 
-                           style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
-                          View Message →
-                        </a>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
+                          <tr>
+                            <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; border-radius: 10px; padding: 14px 36px;">
+                              <a href="${process.env.NEXT_PUBLIC_API_BASE_URL || 'https://clienthub.mysage.com'}" style="color: #ffffff; font-size: 15px; font-weight: 600; text-decoration: none;">
+                                View Message →
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding (Outlook Compatible) -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">Please do not reply directly to this email.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
-                        </div>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: #cccccc;">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 11px; color: #999999;">Please do not reply directly to this email.</p>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                          <tr>
+                            <td style="border-top: 1px solid #7a3344; padding-top: 15px; text-align: center;">
+                              <p style="margin: 0; font-size: 11px; color: #999999;">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
@@ -825,22 +863,25 @@ export async function sendTaskNotificationEmail({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Header - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #722f3e 50%, #8b3d4d 100%); padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700;">Legacy ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: rgba(255,255,255,0.85); letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">${headerIcon}</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600;">${headerTitle}</h1>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: white; margin: 0 0 5px; font-size: 20px; font-weight: 600;">${headerTitle}</h1>
+                        <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${formattedDateTime}</p>
                       </td>
                     </tr>
                   </table>
@@ -866,7 +907,7 @@ export async function sendTaskNotificationEmail({
                     <!-- Task Details Box -->
                     <tr>
                       <td style="padding: 0 0 25px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
                           <tr>
                             <td style="padding: 24px;">
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
@@ -960,7 +1001,7 @@ export async function sendTaskNotificationEmail({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 25px;">
                         <a href="${roleConfig.dashboardUrl}" 
-                           style="display: inline-block; background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                           style="display: inline-block; background-color: ${headerColor}; background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
                           View My Tasks →
                         </a>
                       </td>
@@ -985,16 +1026,17 @@ export async function sendTaskNotificationEmail({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">Please do not reply directly to this email.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.7);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 11px; color: rgba(255,255,255,0.5);">Please do not reply directly to this email.</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
                       </td>
                     </tr>
@@ -1071,7 +1113,7 @@ export async function sendOnboardingTaskNotificationEmail({
     headerColor = '#10b981';
   }
 
-  const subject = `${headerIcon} ${headerTitle}: ${subtaskTitle} - Legacy ClientHub`;
+  const subject = `${headerIcon} ${headerTitle}: ${subtaskTitle} - Legacy Accounting Services`;
 
   const formattedDueDate = dueDate
     ? new Date(dueDate).toLocaleDateString('en-US', {
@@ -1096,22 +1138,25 @@ export async function sendOnboardingTaskNotificationEmail({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Header - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #722f3e 50%, #8b3d4d 100%); padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700;">Legacy ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: rgba(255,255,255,0.85); letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">${headerIcon}</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600;">${headerTitle}</h1>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: white; margin: 0 0 5px; font-size: 20px; font-weight: 600;">${headerTitle}</h1>
+                        <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${formattedDateTime}</p>
                       </td>
                     </tr>
                   </table>
@@ -1139,7 +1184,7 @@ export async function sendOnboardingTaskNotificationEmail({
                     <!-- Task Details Box -->
                     <tr>
                       <td style="padding: 0 0 25px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
                           <tr>
                             <td style="padding: 24px;">
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
@@ -1215,7 +1260,7 @@ export async function sendOnboardingTaskNotificationEmail({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 25px;">
                         <a href="${roleConfig.dashboardUrl}" 
-                           style="display: inline-block; background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                           style="display: inline-block; background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #8b3d4d 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(90, 31, 45, 0.4);">
                           View My Dashboard →
                         </a>
                       </td>
@@ -1224,15 +1269,16 @@ export async function sendOnboardingTaskNotificationEmail({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
                       </td>
                     </tr>
@@ -1314,6 +1360,9 @@ export async function sendOnboardingOverviewEmail({
           ? new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           : '';
 
+        const taskBgColor = taskStatus === 'Completed' ? '#ecfdf5' :
+          taskStatus === 'In Progress' ? '#fffbeb' : '#f3f4f6';
+
         return `
             <tr>
               <td style="padding: 8px 0 8px 24px; border-bottom: 1px solid #e5e7eb;">
@@ -1323,7 +1372,7 @@ export async function sendOnboardingOverviewEmail({
                     <td style="font-size: 14px; color: #374151;">${task.title}</td>
                     <td style="text-align: right; width: 100px; font-size: 12px; color: #9ca3af;">${dueDate}</td>
                     <td style="text-align: right; width: 85px;">
-                      <span style="display: inline-block; background: rgba(${taskStatus === 'Completed' ? '16,185,129' : taskStatus === 'In Progress' ? '245,158,11' : '107,114,128'}, 0.1); color: ${taskStatusColor}; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px;">${taskStatus}</span>
+                      <span style="display: inline-block; background-color: ${taskBgColor}; color: ${taskStatusColor}; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px;">${taskStatus}</span>
                     </td>
                   </tr>
                 </table>
@@ -1340,7 +1389,7 @@ export async function sendOnboardingOverviewEmail({
     return `
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
         <tr>
-          <td style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 16px 20px; border-bottom: 1px solid #e5e7eb;">
+          <td bgcolor="#f8fafc" style="background-color: #f8fafc; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 16px 20px; border-bottom: 1px solid #e5e7eb;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
               <tr>
                 <td style="font-size: 12px; color: #6b7280; font-weight: 500;">STAGE ${index + 1}</td>
@@ -1359,7 +1408,7 @@ export async function sendOnboardingOverviewEmail({
     `;
   }).join('');
 
-  const subject = `📋 Your Onboarding Journey Overview - ${clientName} - Legacy ClientHub`;
+  const subject = `📋 Your Onboarding Journey Overview - ${clientName} - Legacy Accounting Services`;
 
   const html = `
     <!DOCTYPE html>
@@ -1375,22 +1424,25 @@ export async function sendOnboardingOverviewEmail({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Header - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #722f3e 50%, #8b3d4d 100%); padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700;">Legacy ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: rgba(255,255,255,0.85); letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">🗂️</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600;">Your Onboarding Overview</h1>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDate}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: white; margin: 0 0 5px; font-size: 20px; font-weight: 600;">Your Onboarding Overview</h1>
+                        <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${formattedDate}</p>
                       </td>
                     </tr>
                   </table>
@@ -1405,7 +1457,7 @@ export async function sendOnboardingOverviewEmail({
                       <td>
                         <p style="margin: 0 0 20px; font-size: 18px; color: #1e293b; font-weight: 500;">Hello ${recipientName},</p>
                         <p style="margin: 0 0 25px; font-size: 15px; color: #475569; line-height: 1.6;">
-                          Below is a summary of your onboarding journey for <strong style="color: #6366f1;">${clientName}</strong>. 
+                          Below is a summary of your onboarding journey for <strong style="color: #5a1f2d;">${clientName}</strong>. 
                           This shows all the stages and tasks you need to complete for a successful onboarding.
                         </p>
                       </td>
@@ -1453,7 +1505,7 @@ export async function sendOnboardingOverviewEmail({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 0;">
                         <a href="${loginUrl}" 
-                           style="display: inline-block; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                           style="display: inline-block; background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #8b3d4d 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(90, 31, 45, 0.4);">
                           View My Dashboard →
                         </a>
                       </td>
@@ -1462,16 +1514,17 @@ export async function sendOnboardingOverviewEmail({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">Please do not reply directly to this email.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.7);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 11px; color: rgba(255,255,255,0.5);">Please do not reply directly to this email.</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
                       </td>
                     </tr>
@@ -1559,19 +1612,23 @@ export async function sendAdminTaskCompletionEmail({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Header - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #722f3e 50%, #8b3d4d 100%); padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700;">Legacy ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: rgba(255,255,255,0.85); letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
+                      <td style="text-align: center;">
                         <span style="font-size: 50px;">✅</span>
                         <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600;">Task Completed</h1>
                         <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
@@ -1597,7 +1654,7 @@ export async function sendAdminTaskCompletionEmail({
                     <!-- Task Details Box -->
                     <tr>
                       <td style="padding: 0 0 25px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; border-left: 4px solid #10b981;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #ecfdf5; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; border-left: 4px solid #10b981;">
                           <tr>
                             <td style="padding: 24px;">
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
@@ -1671,7 +1728,7 @@ export async function sendAdminTaskCompletionEmail({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 0;">
                         <a href="https://clienthub.hubonesystems.net/admin" 
-                           style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
+                           style="display: inline-block; background-color: #10b981; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
                           View Dashboard →
                         </a>
                       </td>
@@ -1680,15 +1737,16 @@ export async function sendAdminTaskCompletionEmail({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
                       </td>
                     </tr>
@@ -1774,22 +1832,25 @@ export async function sendAdminMessageNotification({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header -->
+              <!-- Header - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #722f3e 50%, #8b3d4d 100%); padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700;">Legacy ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: rgba(255,255,255,0.85); letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">💬</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600;">New Message Received</h1>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: white; margin: 0 0 5px; font-size: 20px; font-weight: 600;">New Message Received</h1>
+                        <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${formattedDateTime}</p>
                       </td>
                     </tr>
                   </table>
@@ -1812,7 +1873,7 @@ export async function sendAdminMessageNotification({
                     <!-- Message Details Box -->
                     <tr>
                       <td style="padding: 0 0 25px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid #3b82f6;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid #3b82f6;">
                           <tr>
                             <td style="padding: 24px;">
                               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
@@ -1872,7 +1933,7 @@ export async function sendAdminMessageNotification({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 0;">
                         <a href="https://clienthub.hubonesystems.net/admin" 
-                           style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
+                           style="display: inline-block; background-color: #3b82f6; background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
                           Reply Now →
                         </a>
                       </td>
@@ -1881,15 +1942,16 @@ export async function sendAdminMessageNotification({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">This is an automated notification from Legacy ClientHub.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 11px; color: #475569;">© ${currentYear} HubOne Systems Inc. – All Rights Reserved.</p>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
                       </td>
                     </tr>
@@ -1969,23 +2031,25 @@ export function wrapEmailContent({
           <td style="padding: 40px 20px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="margin: 0 auto; max-width: 600px;">
               
-              <!-- Header with Logo -->
+              <!-- Header - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 50%, #a855f7 100%); padding: 40px 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                <td bgcolor="#5a1f2d" style="background-color: #5a1f2d; background: linear-gradient(135deg, #5a1f2d 0%, #722f3e 50%, #8b3d4d 100%); padding: 30px 40px 25px; border-radius: 16px 16px 0 0; text-align: center;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <div style="display: inline-block; background: rgba(255,255,255,0.2); padding: 12px 20px; border-radius: 12px; margin-bottom: 20px;">
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px;">Legacy</span>
-                          <span style="font-size: 28px; color: white; font-weight: 700; letter-spacing: -0.5px; margin-left: 6px;">ClientHub</span>
+                        <!-- Company Name - Clean Text Branding -->
+                        <div style="margin-bottom: 5px;">
+                          <span style="font-size: 22px; color: #d4a574; font-weight: 700; letter-spacing: 2px; font-family: Georgia, 'Times New Roman', serif;">LEGACY</span>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                          <span style="font-size: 10px; color: rgba(255,255,255,0.85); letter-spacing: 2px;">ACCOUNTING SERVICES</span>
                         </div>
                       </td>
                     </tr>
                     <tr>
-                      <td style="text-align: center; padding-top: 10px;">
-                        <span style="font-size: 50px;">${headerIcon}</span>
-                        <h1 style="color: white; margin: 15px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -0.5px;">${headerTitle}</h1>
-                        <p style="color: rgba(255,255,255,0.7); margin: 8px 0 0; font-size: 13px;">${formattedDateTime}</p>
+                      <td style="text-align: center;">
+                        <h1 style="color: white; margin: 0 0 5px; font-size: 20px; font-weight: 600;">${headerTitle}</h1>
+                        <p style="color: rgba(255,255,255,0.7); margin: 0; font-size: 12px;">${formattedDateTime}</p>
                       </td>
                     </tr>
                   </table>
@@ -2007,7 +2071,7 @@ export function wrapEmailContent({
                     <!-- Email Body Content -->
                     <tr>
                       <td style="padding: 0 0 25px;">
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f8fafc; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; border-left: 4px solid ${headerColor};">
                           <tr>
                             <td style="padding: 24px;">
                               <div style="font-size: 15px; color: #374151; line-height: 1.7;">
@@ -2024,7 +2088,7 @@ export function wrapEmailContent({
                     <tr>
                       <td style="text-align: center; padding: 10px 0 0;">
                         <a href="${actionButtonUrl}" 
-                           style="display: inline-block; background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+                           style="display: inline-block; background-color: ${headerColor}; background: linear-gradient(135deg, ${headerColor} 0%, #8b5cf6 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
                           ${actionButtonLabel} →
                         </a>
                       </td>
@@ -2034,16 +2098,16 @@ export function wrapEmailContent({
                 </td>
               </tr>
               
-              <!-- Footer -->
+              <!-- Footer - Legacy Accounting Services Branding -->
               <tr>
-                <td style="background-color: #1e293b; padding: 30px 40px; border-radius: 0 0 16px 16px;">
+                <td style="background-color: #5a1f2d; padding: 30px 40px; border-radius: 0 0 16px 16px;">
                   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                     <tr>
                       <td style="text-align: center;">
-                        <p style="margin: 0 0 10px; font-size: 13px; color: #94a3b8;">Need help? Contact our support team.</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: #64748b;">This is an automated notification from Legacy ClientHub.</p>
-                        <div style="border-top: 1px solid #334155; padding-top: 15px; margin-top: 10px;">
-                          <p style="margin: 0; font-size: 12px; color: #60a5fa; font-weight: 500;">© ${currentYear} Legacy ClientHub. All rights reserved.</p>
+                        <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
+                          <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
                       </td>
                     </tr>

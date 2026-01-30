@@ -33,6 +33,7 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  FileText,
 } from "lucide-react";
 import { TaskCompleteModal } from "@/components/widgets/task-complete-modal";
 import { useRouter } from "next/navigation";
@@ -74,6 +75,7 @@ type SubtaskItem = {
   order_number: number;
   due_date?: string | null;
   created_at?: string;
+  document_required?: number | boolean;
 };
 
 export default function ClientTasks() {
@@ -212,6 +214,7 @@ export default function ClientTasks() {
           taskType: "ONBOARDING",
           stageName: stage.stage_name, // For folder paths
           createdAt: sub.created_at, // ✅ Mapped from API
+          documentRequired: sub.document_required === 1 || sub.document_required === true, // ✅ Map actual requirement
           originalObject: sub,
         });
       });
@@ -477,7 +480,21 @@ export default function ClientTasks() {
   const end = Math.min(page * pageSize, total);
 
   const cols: Column<TaskRow>[] = [
-    { key: "title", header: "Task" },
+    {
+      key: "title",
+      header: "Task",
+      render: (row) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{row.title}</span>
+          {row.documentRequired && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 font-medium mt-0.5 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 w-fit">
+              <FileText className="h-3 w-3" />
+              Document Required
+            </span>
+          )}
+        </div>
+      )
+    },
     {
       key: "taskType",
       header: "Type",

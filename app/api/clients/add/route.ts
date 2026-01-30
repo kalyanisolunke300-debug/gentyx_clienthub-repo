@@ -22,6 +22,8 @@ export async function POST(req: Request) {
       clientName,
       code,
       slaNumber,
+      primaryContactFirstName,
+      primaryContactLastName,
       primaryContactName,
       primaryContactEmail,
       primaryContactPhone,
@@ -31,7 +33,10 @@ export async function POST(req: Request) {
       associatedUsers,
     } = body;
 
-    if (!clientName || !primaryContactName || !primaryContactEmail) {
+    // Combine first and last name if not provided
+    const fullContactName = primaryContactName || `${primaryContactFirstName || ''} ${primaryContactLastName || ''}`.trim();
+
+    if (!clientName || !fullContactName || !primaryContactEmail) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -94,7 +99,9 @@ export async function POST(req: Request) {
       .input("clientName", sql.NVarChar(255), clientName)
       .input("code", sql.NVarChar(50), code || null)
       .input("slaNumber", sql.NVarChar(50), slaNumber || null)
-      .input("primaryContactName", sql.NVarChar(255), primaryContactName)
+      .input("primaryContactFirstName", sql.NVarChar(100), primaryContactFirstName || null)
+      .input("primaryContactLastName", sql.NVarChar(100), primaryContactLastName || null)
+      .input("primaryContactName", sql.NVarChar(255), fullContactName)
       .input("primaryContactEmail", sql.NVarChar(255), primaryContactEmail)
       .input("primaryContactPhone", sql.NVarChar(50), primaryContactPhone)
       .input("service_center_id", sql.Int, serviceCenterId || null)
@@ -106,6 +113,8 @@ export async function POST(req: Request) {
           code,
           client_status,
           sla_number,
+          primary_contact_first_name,
+          primary_contact_last_name,
           primary_contact_name,
           primary_contact_email,
           primary_contact_phone,
@@ -123,6 +132,8 @@ export async function POST(req: Request) {
           @code,
           'Active',
           @slaNumber,
+          @primaryContactFirstName,
+          @primaryContactLastName,
           @primaryContactName,
           @primaryContactEmail,
           @primaryContactPhone,
@@ -164,7 +175,7 @@ export async function POST(req: Request) {
       try {
         await sendClientWelcomeEmail(
           primaryContactEmail,
-          primaryContactName,
+          fullContactName,
           clientName,
           code || undefined
         );

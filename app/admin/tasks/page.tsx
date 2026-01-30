@@ -20,7 +20,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ClientTaskModal } from "@/components/widgets/client-task-modal";
 import { TaskCompleteModal } from "@/components/widgets/task-complete-modal";
 import { useState, useMemo, useEffect } from "react";
-import { AlertCircle, Eye } from "lucide-react";
+import { AlertCircle, Eye, FileText } from "lucide-react";
 
 
 const STATUS_OPTIONS = ["Not Started", "In Progress", "Completed"] as const;
@@ -73,6 +73,7 @@ export default function AdminTasksPage() {
     title: string;
     clientId: number;
     clientName: string;
+    taskType: "ASSIGNED" | "ONBOARDING";
   } | null>(null);
 
   // Initialize filters from URL on mount
@@ -120,8 +121,14 @@ export default function AdminTasksPage() {
       key: "title",
       header: "Task",
       render: (row) => (
-        <div className="max-w-[400px] truncate" title={row.title}>
-          {row.title}
+        <div className="flex flex-col max-w-[400px]">
+          <span className="truncate" title={row.title}>{row.title}</span>
+          {(row.documentRequired === 1 || row.documentRequired === true) && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-medium mt-0.5 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 w-fit">
+              <FileText className="h-3 w-3" />
+              Document Required
+            </span>
+          )}
         </div>
       ),
     },
@@ -191,6 +198,7 @@ export default function AdminTasksPage() {
                   title: row.title,
                   clientId: row.clientId,
                   clientName: getClientName(row.clientId),
+                  taskType: row.taskType as "ASSIGNED" | "ONBOARDING",
                 });
                 setCompleteModalOpen(true);
                 return; // Don't update status yet - wait for document upload
@@ -199,14 +207,29 @@ export default function AdminTasksPage() {
             }
 
             // For non-Completed status changes, proceed normally
-            await fetch("/api/tasks/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                taskId: row.id,
-                status: value,
-              }),
-            });
+            // For non-Completed status changes, proceed normally
+
+            if (row.taskType === "ONBOARDING") {
+              // Update Subtask Status
+              await fetch("/api/stages/subtask/update-status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  subtaskId: row.id,
+                  status: value,
+                }),
+              });
+            } else {
+              // Update Assigned Task Status
+              await fetch("/api/tasks/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  taskId: row.id,
+                  status: value,
+                }),
+              });
+            }
 
             mutate(["tasks"]); // ✅ refresh table
           }}
@@ -651,14 +674,25 @@ export default function AdminTasksPage() {
             if (!pendingTask) return;
 
             // Update task status to Completed after document upload
-            await fetch("/api/tasks/update", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                taskId: pendingTask.id,
-                status: "Completed",
-              }),
-            });
+            if (pendingTask.taskType === "ONBOARDING") {
+              await fetch("/api/stages/subtask/update-status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  subtaskId: pendingTask.id,
+                  status: "Completed",
+                }),
+              });
+            } else {
+              await fetch("/api/tasks/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  taskId: pendingTask.id,
+                  status: "Completed",
+                }),
+              });
+            }
 
             mutate(["tasks"]); // ✅ refresh table
             toast({
@@ -671,7 +705,7 @@ export default function AdminTasksPage() {
           taskId={pendingTask.id}
           clientId={String(pendingTask.clientId)}
           clientName={pendingTask.clientName}
-          taskType="assigned"
+          taskType={pendingTask.taskType.toLowerCase() as "assigned" | "onboarding"}
         />
       )}
     </div>

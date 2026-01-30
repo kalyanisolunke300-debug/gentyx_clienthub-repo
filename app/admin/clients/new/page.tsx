@@ -30,8 +30,9 @@ import useSWR from "swr";
 import { Plus, X } from "lucide-react";
 
 const Schema = z.object({
-  client_name: z.string().min(2, "Company name is required"),
-  primary_contact_name: z.string().min(2, "Primary contact name is required"),
+  client_name: z.string().optional(),
+  primary_contact_first_name: z.string().min(1, "First name is required"),
+  primary_contact_last_name: z.string().min(1, "Last name is required"),
   primary_contact_email: z.string().min(1, "Email is required").email("Valid email required"),
   primary_contact_phone: z.string().min(1, "Phone number is required"),
   service_center_id: z.string().optional(),
@@ -77,7 +78,8 @@ export default function NewClientPage() {
     resolver: zodResolver(Schema),
     defaultValues: {
       client_name: "",
-      primary_contact_name: "",
+      primary_contact_first_name: "",
+      primary_contact_last_name: "",
       primary_contact_email: "",
       primary_contact_phone: "",
       service_center_id: "",
@@ -111,9 +113,14 @@ export default function NewClientPage() {
     try {
       setIsSubmitting(true);
 
+      // Combine first and last name for display/storage
+      const primaryContactName = `${values.primary_contact_first_name} ${values.primary_contact_last_name}`.trim();
+
       const res = await createClient({
         clientName: values.client_name,
-        primaryContactName: values.primary_contact_name,
+        primaryContactFirstName: values.primary_contact_first_name,
+        primaryContactLastName: values.primary_contact_last_name,
+        primaryContactName: primaryContactName,
         primaryContactEmail: values.primary_contact_email,
         primaryContactPhone: values.primary_contact_phone,
         serviceCenterId: Number(values.service_center_id) || null,
@@ -160,22 +167,29 @@ export default function NewClientPage() {
 
         <CardContent className="grid gap-3">
 
-          {/* Company Name */}
+
+          {/* Company Name (Optional) */}
           <div className="grid gap-2">
-            <Label>Company Name <span className="text-red-500">*</span></Label>
+            <Label>Company Name</Label>
             <Input {...form.register("client_name")} placeholder="Acme LLC" />
-            {form.formState.errors.client_name && (
-              <p className="text-xs text-red-500">{form.formState.errors.client_name.message}</p>
-            )}
           </div>
 
-          {/* Primary Contact */}
-          <div className="grid gap-2">
-            <Label>Primary Contact <span className="text-red-500">*</span></Label>
-            <Input {...form.register("primary_contact_name")} placeholder="John Doe" />
-            {form.formState.errors.primary_contact_name && (
-              <p className="text-xs text-red-500">{form.formState.errors.primary_contact_name.message}</p>
-            )}
+          {/* Primary Contact - First Name and Last Name */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>First Name <span className="text-red-500">*</span></Label>
+              <Input {...form.register("primary_contact_first_name")} placeholder="John" />
+              {form.formState.errors.primary_contact_first_name && (
+                <p className="text-xs text-red-500">{form.formState.errors.primary_contact_first_name.message}</p>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label>Last Name <span className="text-red-500">*</span></Label>
+              <Input {...form.register("primary_contact_last_name")} placeholder="Doe" />
+              {form.formState.errors.primary_contact_last_name && (
+                <p className="text-xs text-red-500">{form.formState.errors.primary_contact_last_name.message}</p>
+              )}
+            </div>
           </div>
 
           {/* Email */}

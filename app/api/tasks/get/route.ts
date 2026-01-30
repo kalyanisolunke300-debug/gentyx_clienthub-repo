@@ -45,7 +45,7 @@ export async function GET(req: Request) {
             css.due_date      AS dueDate,
             s.stage_name      AS sourceStage,
             css.created_at    AS createdAt,
-            1                 AS documentRequired  -- Subtasks always require documents
+            ISNULL(css.document_required, 0) AS documentRequired
           FROM dbo.client_stage_subtasks css
           LEFT JOIN dbo.client_stages cs
             ON cs.client_stage_id = css.client_stage_id
