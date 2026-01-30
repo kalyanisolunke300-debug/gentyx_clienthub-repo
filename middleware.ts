@@ -43,9 +43,17 @@ export function middleware(req: NextRequest) {
   };
 
   const baseRoute = "/" + pathname.split("/")[1];
+  const currentRole = role ? role.toUpperCase() : "";
+  const targetRoute = roleRoutes[currentRole];
 
-  if (baseRoute !== roleRoutes[role]) {
-    return NextResponse.redirect(new URL(roleRoutes[role], req.url));
+  if (!targetRoute) {
+    // If role is invalid or not found in map, force back to login
+    // This prevents the /undefined 404 error
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  if (baseRoute !== targetRoute) {
+    return NextResponse.redirect(new URL(targetRoute, req.url));
   }
 
   return NextResponse.next();

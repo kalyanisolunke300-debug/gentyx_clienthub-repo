@@ -27,7 +27,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed = false }: SidebarProps) {
-  const role = useUIStore((s) => s.role);
+  const rawRole = useUIStore((s) => s.role);
+  const role = rawRole?.toUpperCase();
   const hasHydrated = useUIStore((s) => s._hasHydrated);
   const pathname = usePathname();
   const router = useRouter();

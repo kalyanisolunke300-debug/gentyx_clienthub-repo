@@ -108,8 +108,11 @@ export default function LoginPage() {
       // Small delay to ensure Zustand persists to localStorage
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      console.log("🔍 LOGIN - Navigating to:", dashboardMap[role] || "/admin");
-      router.push(dashboardMap[role] || "/admin");
+      const normalizedRole = role ? role.toUpperCase() : "ADMIN";
+      const targetPath = dashboardMap[normalizedRole] || "/admin";
+
+      console.log("🔍 LOGIN - Navigating to:", targetPath);
+      router.push(targetPath);
     } catch (error) {
       setErrorMsg("Something went wrong. Try again later.");
       toast({
