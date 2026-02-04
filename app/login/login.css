@@ -310,3 +310,158 @@ why there is too much space from bottom on welcome to workhub and less space fro
 when manager add new employee in this form also add the email and password option for this new employee so he can login into workhub with that credentials and when he logged in then on profile page there should be option to change password for employee and also for manager okay now work on those points and create the updated prompt to do this all in one master prompt :
 Also work on all alignments okay 
 and profile and setting pages should be fully funtional and working and rest all also okay now create the prompt   */
+
+/* ---------------------------------------------------- */
+/* NEW LOGIN PAGE STYLES (Redesign) */
+/* ---------------------------------------------------- */
+
+.login-page-new {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  color: white;
+  /* Dark red gradient background */
+  background: radial-gradient(circle at center, #5a1f2d 0%, #1a0508 100%);
+  font-family: "Inter", sans-serif;
+  padding: 20px;
+}
+
+.logo-container {
+  margin-bottom: 2rem;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.logo-img {
+  width: 180px;
+  max-width: 80%;
+  height: auto;
+}
+
+.portal-title {
+  font-family: "Georgia", "Times New Roman", serif;
+  /* Match the serif font in image */
+  font-size: 3rem;
+  font-weight: 400;
+  margin-bottom: 1.5rem;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+.login-form-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.input-group {
+  margin-bottom: 1.5rem;
+}
+
+.input-label {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: white;
+  /* Ensure label is white */
+  text-align: left;
+}
+
+.input-field {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 4px;
+  border: none;
+  /* Remove border */
+  font-size: 1rem;
+  color: #333;
+  background-color: white;
+  outline: none;
+}
+
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.eye-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.login-button-new {
+  background-color: white;
+  color: black;
+  border: none;
+  border-radius: 50px;
+  /* Pill shape */
+  padding: 12px 50px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 2rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  transition: opacity 0.2s;
+}
+
+.login-button-new:hover {
+  opacity: 0.9;
+}
+
+.login-button-new:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.error-text {
+  color: #ffcccc;
+  /* Light red for visibility on dark background */
+  text-align: center;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.footer-container {
+  margin-top: 4rem;
+  text-align: center;
+  font-size: 0.7rem;
+  opacity: 1;
+  color: white;
+}
+
+.powered-by {
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  letter-spacing: 1px;
+  font-size: 9px;
+}
+
+/* Mobile Responsiveness */
+@media screen and (max-width: 480px) {
+  .portal-title {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .login-form-container {
+    padding: 0 10px;
+  }
+}

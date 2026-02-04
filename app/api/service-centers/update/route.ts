@@ -115,7 +115,7 @@ export async function PUT(req: Request) {
           details: {
             title: 'Your Service Center Profile Has Been Updated',
             description: `Your Service Center profile "${center_name}" has been updated by the administrator. If you did not expect this change, please contact support.`,
-            actionUrl: 'https://clienthub.hubonesystems.net/login',
+            actionUrl: 'https://legacy.hubonesystems.net/login',
             actionLabel: 'View Your Profile',
           },
         });
@@ -123,6 +123,48 @@ export async function PUT(req: Request) {
       } catch (emailError) {
         console.error(`⚠️ Failed to send profile update notification to Service Center: ${email}`, emailError);
       }
+    }
+
+    // 5️⃣ Update Associated Users (if provided)
+    const users = body.users;
+    if (Array.isArray(users)) {
+      // Delete existing associated users for this service center
+      await pool
+        .request()
+        .input("centerId", sql.Int, center_id)
+        .query(`DELETE FROM dbo.service_center_users WHERE service_center_id = @centerId`);
+
+      // Insert new associated users
+      for (const user of users) {
+        if (!user.name || !user.email) continue;
+
+        await pool
+          .request()
+          .input("serviceCenterId", sql.Int, center_id)
+          .input("userName", sql.NVarChar(255), user.name)
+          .input("userEmail", sql.NVarChar(255), user.email)
+          .input("userRole", sql.NVarChar(100), user.role || "User")
+          .input("phone", sql.NVarChar(50), user.phone || null)
+          .query(`
+            INSERT INTO dbo.service_center_users (
+              service_center_id,
+              user_name,
+              email,
+              role,
+              phone,
+              created_at
+            )
+            VALUES (
+              @serviceCenterId,
+              @userName,
+              @userEmail,
+              @userRole,
+              @phone,
+              GETDATE()
+            )
+          `);
+      }
+      console.log(`✅ Updated associated users for Service Center ID: ${center_id}`);
     }
 
     return NextResponse.json({

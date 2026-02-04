@@ -43,9 +43,10 @@ const NewClientSchema = z.object({
   associatedUsers: z
     .array(
       z.object({
-        name: z.string().min(1, "Name required"),
-        email: z.string().email("Valid email required"),
-        role: z.string().min(1, "Role required"),
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+        email: z.string().optional(), // not mandatory
+        phone: z.string().optional(), // not mandatory (we will format if user types)
       })
     )
     .optional(),
@@ -124,11 +125,27 @@ export function NewClientForm() {
           : null,
         cpaId: values.cpaId ? Number(values.cpaId) : null,
         // stageId: values.stageId ? Number(values.stageId) : null,
-        associatedUsers: (values.associatedUsers || []).map((u) => ({
-          name: u.name,
-          email: u.email,
-          role: u.role,
-        })),
+        associatedUsers: (values.associatedUsers || [])
+          // ✅ If user added a row but left everything empty, ignore it
+          .filter((u) => {
+            const first = (u.firstName ?? "").trim();
+            const last = (u.lastName ?? "").trim();
+            const email = (u.email ?? "").trim();
+            const phone = (u.phone ?? "").trim();
+            return first || last || email || phone;
+          })
+          .map((u) => {
+            const first = (u.firstName ?? "").trim();
+            const last = (u.lastName ?? "").trim();
+
+            // ✅ API expects "name/email/role" - keep compatible
+            return {
+              name: `${first} ${last}`.trim() || "",  // if empty it's fine
+              email: (u.email ?? "").trim() || "",
+              role: "Client User", // default role (since UI no longer asks role)
+              phone: (u.phone ?? "").trim() || "",   // safe extra field (API can ignore if not used)
+            };
+          }),
       };
 
       const res = await createClient(payload);
@@ -353,7 +370,7 @@ export function NewClientForm() {
             variant="outline"
             size="sm"
             onClick={() =>
-              append({ name: "", email: "", role: "Client User" })
+              append({ firstName: "", lastName: "", email: "", phone: "" })
             }
           >
             + Add another user
@@ -364,42 +381,64 @@ export function NewClientForm() {
           {fields.map((field, index) => (
             <div
               key={field.id}
-              className="grid grid-cols-1 md:grid-cols-[1fr,1fr,150px,auto] gap-2 items-end"
+              className="grid grid-cols-1 md:grid-cols-[1fr,1fr,1fr,1fr,auto] gap-2 items-end"
             >
               <div className="grid gap-1">
-                <Label className="text-xs">Name</Label>
+                <Label className="text-xs">First Name</Label>
                 <Input
-                  {...form.register(`associatedUsers.${index}.name` as const)}
-                  placeholder="User name"
+                  {...form.register(`associatedUsers.${index}.firstName` as const)}
+                  placeholder="John"
                 />
               </div>
+
+              <div className="grid gap-1">
+                <Label className="text-xs">Last Name</Label>
+                <Input
+                  {...form.register(`associatedUsers.${index}.lastName` as const)}
+                  placeholder="Doe"
+                />
+              </div>
+
               <div className="grid gap-1">
                 <Label className="text-xs">Email</Label>
                 <Input
-                  {...form.register(
-                    `associatedUsers.${index}.email` as const
-                  )}
-                  placeholder="user@example.com"
+                  type="email"
+                  {...form.register(`associatedUsers.${index}.email` as const)}
+                  placeholder="john@example.com"
                 />
               </div>
+
               <div className="grid gap-1">
-                <Label className="text-xs">Role</Label>
-                <Input
-                  {...form.register(`associatedUsers.${index}.role` as const)}
-                  placeholder="Client User"
+                <Label className="text-xs">Phone</Label>
+                <Controller
+                  control={form.control}
+                  name={`associatedUsers.${index}.phone` as const}
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      placeholder="555-888-3333"
+                      inputMode="numeric"
+                      maxLength={12}
+                      onChange={(e) => {
+                        const formatted = formatPhoneInput(e.target.value);
+                        field.onChange(formatted);
+                      }}
+                    />
+                  )}
                 />
               </div>
+
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => remove(index)}
+                aria-label="Remove associated user"
               >
                 ✕
               </Button>
             </div>
           ))}
-
           {fields.length === 0 && (
             <p className="text-xs text-muted-foreground">
               No associated users yet. You can add them later.

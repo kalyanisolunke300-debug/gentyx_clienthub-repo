@@ -36,10 +36,12 @@ export const AuditActions = {
 
 export type AuditAction = typeof AuditActions[keyof typeof AuditActions];
 
+export type AuditActorRole = "ADMIN" | "CLIENT" | "SYSTEM" | "CPA" | "SERVICE_CENTER";
+
 interface LogAuditParams {
     clientId: number | string;
     action: string;
-    actorRole: "ADMIN" | "CLIENT" | "SYSTEM";
+    actorRole: AuditActorRole;
     details?: string;
 }
 

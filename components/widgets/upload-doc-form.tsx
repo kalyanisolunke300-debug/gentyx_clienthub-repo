@@ -8,6 +8,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -18,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useUIStore } from "@/store/ui-store";
-import { Upload, File, X } from "lucide-react";
+import { Upload, File, X, Lock, Eye } from "lucide-react";
 
 const Schema = z.object({
   clientId: z.string().min(1),
@@ -31,12 +39,33 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
 
   const { toast } = useToast();
   const closeDrawer = useUIStore((s) => s.closeDrawer);
+  const role = useUIStore((s) => s.role);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFiles, setSelectedFiles] = useState<{ file: File; folderPath: string | null }[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ name: string; success: boolean; error?: string }[]>([]);
+  const [uploadMode, setUploadMode] = useState<"files" | "folder">("files");
+  const [visibility, setVisibility] = useState<"shared" | "private">("shared");
+
+  // ✅ Duplicate popup control using a Promise resolver
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [dupDisplayName, setDupDisplayName] = useState("");
+
+  // We only allow two actions from the popup:
+  // - "replace" (overwrite existing)
+  // - "cancel"  (do nothing, do not treat as failure)
+  const [dupResolver, setDupResolver] = useState<null | ((action: "replace" | "cancel") => void)>(null);
+
+  function askDuplicate(displayName: string) {
+    setDupDisplayName(displayName);
+    setDuplicateOpen(true);
+
+    return new Promise<"replace" | "cancel">((resolve) => {
+      setDupResolver(() => resolve);
+    });
+  }
 
   const form = useForm<z.infer<typeof Schema>>({
     resolver: zodResolver(Schema),
@@ -203,6 +232,22 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
     }
   }
 
+  async function uploadSingle(formData: FormData) {
+    const res = await fetch("/api/documents/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+
+    // Duplicate case
+    if (res.status === 409 && data?.duplicate) {
+      return { type: "DUPLICATE" as const, data };
+    }
+
+    return { type: "DONE" as const, data };
+  }
+
   /* --------------------------------
         FINAL SUBMIT → CALL API
   --------------------------------*/
@@ -258,59 +303,143 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
       formData.append("file", file);
       formData.append("clientId", values.clientId);
       formData.append("fileType", fileType);
+      if (role) formData.append("role", role);
       if (uploadFolderPath) {
         formData.append("folderName", uploadFolderPath);
       }
+      formData.append("visibility", visibility);
+
+      // ✅ NEW: handle duplicate using backend 409 + centered popup
+      formData.append("duplicateAction", "ask");
+
+      const displayName = fileFolderPath ? `${fileFolderPath}/${file.name}` : file.name;
+
+
 
       try {
-        const res = await fetch("/api/documents/upload", {
-          method: "POST",
-          body: formData,
-        });
+        // 1) First attempt: ask
+        const uploadResult = await uploadSingle(formData);
 
-        const data = await res.json();
+        // 2) If duplicate → ask user via popup, then retry (replace) or cancel
+        if (uploadResult.type === "DUPLICATE") {
+          const decision = await askDuplicate(displayName);
 
-        const displayName = fileFolderPath ? `${fileFolderPath}/${file.name}` : file.name;
+          // ✅ Cancel means: do nothing, do NOT mark as failed
+          if (decision === "cancel") {
+            results.push({
+              name: displayName,
+              success: false,
+              error: "Cancelled",
+            });
+            continue;
+          }
 
-        if (!data.success) {
-          results.push({ name: displayName, success: false, error: data.error || "Upload failed" });
+          // decision === "replace" → retry with duplicateAction=replace
+          const retryFormData = new FormData();
+          retryFormData.append("file", file);
+          retryFormData.append("clientId", values.clientId);
+          retryFormData.append("fileType", fileType);
+          if (role) retryFormData.append("role", role);
+          if (uploadFolderPath) retryFormData.append("folderName", uploadFolderPath);
+          retryFormData.append("visibility", visibility);
+          retryFormData.append("duplicateAction", "replace");
+
+          const retryResult = await uploadSingle(retryFormData);
+
+          if (!retryResult.data?.success) {
+            results.push({
+              name: displayName,
+              success: false,
+              error: retryResult.data?.error || "Replace failed",
+            });
+          } else {
+            results.push({ name: displayName, success: true });
+
+            // ✅ Force list refresh wherever the docs list is displayed
+            window.dispatchEvent(
+              new CustomEvent("clienthub:docs-updated", {
+                detail: {
+                  clientId: values.clientId,
+                  folderName: uploadFolderPath ?? null,
+                },
+              })
+            );
+          }
+
+          continue;
+        }
+
+        // 3) Normal success/fail
+        if (!uploadResult.data?.success) {
+          results.push({
+            name: displayName,
+            success: false,
+            error: uploadResult.data?.error || "Upload failed",
+          });
         } else {
           results.push({ name: displayName, success: true });
+
+          window.dispatchEvent(
+            new CustomEvent("clienthub:docs-updated", {
+              detail: {
+                clientId: values.clientId,
+                folderName: uploadFolderPath ?? null,
+              },
+            })
+          );
         }
       } catch (error: any) {
-        const displayName = fileFolderPath ? `${fileFolderPath}/${file.name}` : file.name;
-        results.push({ name: displayName, success: false, error: error.message || "Upload failed" });
+        results.push({
+          name: displayName,
+          success: false,
+          error: error?.message || "Upload failed",
+        });
       }
     }
 
     setUploadProgress(100);
     setUploadResults(results);
 
-    const successCount = results.filter(r => r.success).length;
-    const failCount = results.filter(r => !r.success).length;
+    const successCount = results.filter((r) => r.success).length;
 
-    if (failCount === 0) {
+    // ✅ Cancelled should NOT be treated as a failed upload
+    const cancelledCount = results.filter((r) => !r.success && r.error === "Cancelled").length;
+
+    // ✅ Only real failures count as failures
+    const failCount = results.filter((r) => !r.success && r.error !== "Cancelled").length;
+
+    if (failCount === 0 && successCount > 0) {
       toast({
         title: "Success",
-        description: `${successCount} file(s) uploaded successfully.`,
+        description:
+          cancelledCount > 0
+            ? `${successCount} file(s) uploaded. ${cancelledCount} cancelled.`
+            : `${successCount} file(s) uploaded successfully.`,
       });
       setSelectedFiles([]);
       form.reset();
       closeDrawer();
-    } else if (successCount === 0) {
+    } else if (successCount === 0 && failCount > 0) {
       toast({
         title: "Error",
         description: `All ${failCount} file(s) failed to upload.`,
         variant: "destructive",
       });
+    } else if (successCount === 0 && cancelledCount > 0 && failCount === 0) {
+      toast({
+        title: "Cancelled",
+        description: `${cancelledCount} file(s) cancelled.`,
+      });
     } else {
       toast({
         title: "Partial Success",
-        description: `${successCount} file(s) uploaded, ${failCount} failed.`,
+        description:
+          cancelledCount > 0
+            ? `${successCount} uploaded, ${failCount} failed, ${cancelledCount} cancelled.`
+            : `${successCount} uploaded, ${failCount} failed.`,
         variant: "destructive",
       });
     }
-
     setUploading(false);
   }
 
@@ -329,64 +458,107 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
         {context?.clientName || "Client"}
       </div>
 
-
       {/* Upload Box */}
-      <div className="grid gap-2">
-        <Label>Files or Folder</Label>
-        <div
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"
-            }`}
-        >
-          <input
-            type="file"
-            multiple
-            onChange={handleFileInputChange}
-            className="absolute inset-0 cursor-pointer opacity-0"
-            accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.gif"
-          />
+      <div className="grid gap-3">
+        <div className="space-y-3">
+          {/* Title + helper text */}
+          <div>
+            <Label className="text-base">Upload</Label>
+            <p className="text-xs text-muted-foreground">
+              Multiple files supported
+            </p>
+          </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <Upload className="size-6 text-muted-foreground" />
-            <div className="text-sm">
-              <span className="font-medium">Click to upload files</span> or drag and drop
-            </div>
-            <div className="text-xs text-muted-foreground">
-              PDF, XLSX, DOCX, IMG up to 10MB (multiple files supported)
-            </div>
+          {/* Mode Switch (full width, new line) */}
+          <div className="w-full inline-flex rounded-lg border bg-background p-1">
+            <button
+              type="button"
+              onClick={() => setUploadMode("files")}
+              className={`flex-1 px-3 py-2 text-sm rounded-md transition ${uploadMode === "files"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              Upload Files
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadMode("folder")}
+              className={`flex-1 px-3 py-2 text-sm rounded-md transition ${uploadMode === "folder"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              Upload Folder
+            </button>
           </div>
         </div>
 
-        {/* Folder Upload Button */}
-        <div className="relative">
-          <input
-            type="file"
-            // @ts-ignore - webkitdirectory is a non-standard attribute
-            webkitdirectory=""
-            // @ts-ignore
-            directory=""
-            multiple
-            onChange={handleFolderInputChange}
-            className="absolute inset-0 cursor-pointer opacity-0 w-full h-full"
-            id="folder-upload"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full gap-2 pointer-events-none"
+        {/* FILES MODE */}
+        {uploadMode === "files" && (
+          <div
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"
+              }`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-              <path d="M12 10v6" />
-              <path d="m9 13 3-3 3 3" />
-            </svg>
-            Upload Folder
-          </Button>
-        </div>
+            <input
+              type="file"
+              multiple
+              onChange={handleFileInputChange}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.gif,.webp,.svg"
+            />
+
+            <div className="flex flex-col items-center gap-2">
+              <Upload className="size-6 text-muted-foreground" />
+              <div className="text-sm">
+                <span className="font-medium">Click to upload</span> or drag and drop
+              </div>
+              <div className="text-xs text-muted-foreground">
+                PDFs, Word, Excel, Images
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FOLDER MODE */}
+        {uploadMode === "folder" && (
+          <div className="rounded-lg border p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 text-muted-foreground">📁</div>
+              <div className="flex-1">
+                <div className="text-sm font-medium">Upload an entire folder</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Keeps subfolders structure (useful when you have many files organized in folders).
+                </div>
+
+                <label
+                  htmlFor="folder-upload"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border bg-background px-3 py-2 text-sm font-medium hover:bg-muted cursor-pointer"
+                >
+                  Select Folder
+                </label>
+
+                <input
+                  id="folder-upload"
+                  type="file"
+                  // @ts-ignore
+                  webkitdirectory=""
+                  // @ts-ignore
+                  directory=""
+                  multiple
+                  onChange={handleFolderInputChange}
+                  className="hidden"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
 
       {/* Preview */}
       {selectedFiles.length > 0 && (
@@ -418,6 +590,48 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
         </div>
       )}
 
+      {/* Visibility Toggle - Only show for CLIENT role */}
+      {role === "CLIENT" && selectedFiles.length > 0 && (
+        <div className="grid gap-2 p-4 border rounded-lg bg-muted/30">
+          <Label className="text-sm font-semibold">Document Visibility</Label>
+          <p className="text-xs text-muted-foreground mb-2">
+            Choose who can see these documents
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setVisibility("shared")}
+              className={`flex items-center gap-2 p-3 rounded-md border-2 transition-all ${visibility === "shared"
+                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  : "border-border bg-background hover:border-blue-300"
+                }`}
+            >
+              <Eye className="size-4 flex-shrink-0" />
+              <div className="text-left flex-1">
+                <div className="text-sm font-medium">Shared</div>
+                <div className="text-xs opacity-80">Visible to you and admin</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setVisibility("private")}
+              className={`flex items-center gap-2 p-3 rounded-md border-2 transition-all ${visibility === "private"
+                  ? "border-purple-500 bg-purple-50 text-purple-700"
+                  : "border-border bg-background hover:border-purple-300"
+                }`}
+            >
+              <Lock className="size-4 flex-shrink-0" />
+              <div className="text-left flex-1">
+                <div className="text-sm font-medium">Private</div>
+                <div className="text-xs opacity-80">Only visible to you</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
 
 
       {/* Upload Progress */}
@@ -444,6 +658,58 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
           {uploading ? "Uploading..." : "Upload"}
         </Button>
       </div>
+      {/* ✅ Step D: Duplicate popup (centered) */}
+      {/* ✅ Duplicate popup (centered) */}
+      <Dialog
+        open={duplicateOpen}
+        onOpenChange={(open) => {
+          setDuplicateOpen(open);
+
+          // If user closes via X / outside click → treat as Cancel
+          if (!open) {
+            dupResolver?.("cancel");
+            setDupResolver(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-amber-600">⚠️</span> File already exists
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              <span className="font-medium">{dupDisplayName}</span> already exists in this folder.
+              <br />
+              Do you want to replace it?
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                setDuplicateOpen(false);
+                dupResolver?.("cancel");
+                setDupResolver(null);
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => {
+                setDuplicateOpen(false);
+                dupResolver?.("replace");
+                setDupResolver(null);
+              }}
+            >
+              Replace
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

@@ -123,7 +123,7 @@ async function handleUpdate(req: Request) {
           details: {
             title: 'Your CPA Profile Has Been Updated',
             description: `Your CPA profile "${actualName}" has been updated by the administrator. If you did not expect this change, please contact support.`,
-            actionUrl: 'https://clienthub.hubonesystems.net/login',
+            actionUrl: 'https://legacy.hubonesystems.net/login',
             actionLabel: 'View Your Profile',
           },
         });

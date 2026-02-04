@@ -40,7 +40,8 @@ export async function GET(
           c.created_at,
           c.updated_at,
           c.service_center_id,
-          c.cpa_id
+          c.cpa_id,
+          ISNULL(c.is_archived, 0) AS is_archived
         FROM dbo.Clients c
         WHERE c.client_id = @clientId
       ),
@@ -126,7 +127,9 @@ export async function GET(
       CASE 
         WHEN ctp.total_stages = 0 THEN 0
         ELSE (ctp.completed_stages * 100.0) / ctp.total_stages
-      END
+      END,
+
+    ctp.is_archived
 
   FROM ClientStageProgress ctp
   LEFT JOIN dbo.service_centers sc
@@ -145,7 +148,32 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: row });
+    // Fetch associated users for this client
+    const usersResult = await pool
+      .request()
+      .input("clientId", sql.Int, clientId)
+      .query(`
+        SELECT 
+          id,
+          user_name AS name,
+          email,
+          role,
+          phone,
+          created_at
+        FROM dbo.client_users
+        WHERE client_id = @clientId
+        ORDER BY id ASC
+      `);
+
+    const associatedUsers = usersResult.recordset;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...row,
+        associated_users: associatedUsers,
+      }
+    });
 
   } catch (err) {
     console.error("GET client error:", err);

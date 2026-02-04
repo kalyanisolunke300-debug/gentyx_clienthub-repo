@@ -14,10 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Building2, Mail, Users, Plus, Pencil, Trash2, Search,
-  ExternalLink, MoreVertical, Briefcase, FileText, X
+  Building2, Mail, Pencil, Trash2, Search,
+  ExternalLink, MoreVertical, Briefcase, FileText, Plus
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,19 +24,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type AssociatedUser = {
-  id?: number;
-  name: string;
-  email: string;
-  role: string;
-};
-
 type ServiceCenter = {
   center_id: number;
   center_code: string;
   center_name: string;
   email: string;
-  users: AssociatedUser[];
   clients_assigned: number;
 };
 
@@ -51,12 +42,7 @@ export default function ServiceCentersPage() {
     email: "",
   });
 
-  const [users, setUsers] = useState<AssociatedUser[]>([]);
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    role: "User",
-  });
+
 
   const [isSaving, setIsSaving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -97,7 +83,6 @@ export default function ServiceCentersPage() {
         center_name: c.center_name ?? c.name,
         center_code: c.center_code ?? c.code ?? "",
         email: c.email,
-        users: c.users ?? [],
         clients_assigned: Number(c.clients_assigned || 0),
       }));
 
@@ -129,41 +114,16 @@ export default function ServiceCentersPage() {
         email: center.email ?? "",
       });
 
-      setUsers(center.users || []);
-
     } else {
       setEditing(null);
 
       setFormData({ center_name: "", center_code: "", email: "" });
-
-      setUsers([]);
     }
 
     setFormErrors({});
     setOpen(true);
   }
 
-
-  // ------------------------------
-  // USERS
-  // ------------------------------
-  function addUser() {
-    if (!newUser.name || !newUser.email) {
-      toast({
-        title: "Error",
-        description: "Name & Email are required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUsers([...users, { ...newUser }]);
-    setNewUser({ name: "", email: "", role: "User" });
-  }
-
-  function removeUser(index: number) {
-    setUsers(users.filter((_, i) => i !== index));
-  }
 
   // ------------------------------
   // CREATE / UPDATE
@@ -197,11 +157,6 @@ export default function ServiceCentersPage() {
         payload = {
           name: formData.center_name,
           email: formData.email,
-          users: users.map(u => ({
-            name: u.name,
-            email: u.email,
-            role: u.role,
-          })),
         };
       } else {
         payload = {
@@ -209,11 +164,6 @@ export default function ServiceCentersPage() {
           center_name: formData.center_name,
           center_code: formData.center_code,
           email: formData.email,
-          users: users.map(u => ({
-            name: u.name,
-            email: u.email,
-            role: u.role,
-          })),
         };
       }
 
@@ -382,71 +332,6 @@ export default function ServiceCentersPage() {
                   </div>
                 </div>
 
-                {/* Users Section */}
-                <div className="border rounded-lg p-4 bg-muted/30">
-                  <div className="flex items-center justify-between mb-4">
-                    <Label className="text-base font-semibold flex items-center gap-2">
-                      <Users className="h-4 w-4" /> Associated Users
-                    </Label>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-                    <Input
-                      placeholder="Name"
-                      value={newUser.name}
-                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                      className="md:col-span-1"
-                    />
-                    <Input
-                      placeholder="Email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      className="md:col-span-1"
-                    />
-                    <div className="flex gap-2 md:col-span-1">
-                      <Input
-                        placeholder="Role"
-                        value={newUser.role}
-                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                      />
-                      <Button type="button" size="icon" onClick={addUser}>
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {users.length > 0 ? (
-                    <div className="space-y-2 mt-4">
-                      {users.map((user, i) => (
-                        <div
-                          key={i}
-                          className="flex justify-between items-center bg-background border p-3 rounded-md shadow-sm"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                              {user.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="font-medium text-sm">{user.name}</div>
-                              <div className="text-xs text-muted-foreground">{user.email}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-[10px]">{user.role}</Badge>
-                            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeUser(i)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-sm text-muted-foreground border-2 border-dashed rounded-md">
-                      No users added yet.
-                    </div>
-                  )}
-                </div>
-
                 <div className="flex justify-end gap-3 mt-2">
                   <Button variant="outline" type="button" onClick={() => setOpen(false)}>
                     Cancel
@@ -524,12 +409,8 @@ export default function ServiceCentersPage() {
                     <Briefcase className="h-4 w-4 mr-2.5 opacity-70 shrink-0" />
                     <span>{center.clients_assigned} Clients Assigned</span>
                   </div>
-
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Users className="h-4 w-4 mr-2.5 opacity-70 shrink-0" />
-                    <span>{(center.users || []).length} Associated Users</span>
-                  </div>
                 </div>
+
 
 
               </CardContent>

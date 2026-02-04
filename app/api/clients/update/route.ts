@@ -172,7 +172,7 @@ export async function POST(req: Request) {
           details: {
             title: 'Your Profile Has Been Updated',
             description: `Your client profile "${client_name}" has been updated by the administrator. If you did not expect this change, please contact support.`,
-            actionUrl: 'https://clienthub.hubonesystems.net/login',
+            actionUrl: 'https://legacy.hubonesystems.net/login',
             actionLabel: 'View Your Profile',
           },
         });
@@ -180,6 +180,48 @@ export async function POST(req: Request) {
       } catch (emailError) {
         console.error(`⚠️ Failed to send profile update notification to client: ${primary_contact_email}`, emailError);
       }
+    }
+
+    // 5️⃣ Update Associated Users (if provided)
+    const associatedUsers = body.associatedUsers;
+    if (Array.isArray(associatedUsers)) {
+      // Delete existing associated users for this client
+      await pool
+        .request()
+        .input("clientId", sql.Int, Number(clientId))
+        .query(`DELETE FROM dbo.client_users WHERE client_id = @clientId`);
+
+      // Insert new associated users
+      for (const user of associatedUsers) {
+        if (!user.name || !user.email) continue;
+
+        await pool
+          .request()
+          .input("clientId", sql.Int, Number(clientId))
+          .input("userName", sql.NVarChar(255), user.name)
+          .input("userEmail", sql.NVarChar(255), user.email)
+          .input("userRole", sql.NVarChar(50), user.role || "Client User")
+          .input("phone", sql.NVarChar(50), user.phone || null)
+          .query(`
+            INSERT INTO dbo.client_users (
+              client_id,
+              user_name,
+              email,
+              role,
+              phone,
+              created_at
+            )
+            VALUES (
+              @clientId,
+              @userName,
+              @userEmail,
+              @userRole,
+              @phone,
+              GETDATE()
+            )
+          `);
+      }
+      console.log(`✅ Updated associated users for client ID: ${clientId}`);
     }
 
     return NextResponse.json({ success: true });

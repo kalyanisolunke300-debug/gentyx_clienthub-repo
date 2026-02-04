@@ -164,6 +164,7 @@ export function DataTable<T>({
   columns,
   rows,
   onRowAction,
+  onRowClick,
   actionsLabel,
   page,
   pageSize,
@@ -173,6 +174,7 @@ export function DataTable<T>({
   columns: Column<T>[]
   rows: T[]
   onRowAction?: (row: T) => React.ReactNode
+  onRowClick?: (row: T, e: React.MouseEvent) => void
   actionsLabel?: string
   page?: number
   pageSize?: number
@@ -200,7 +202,11 @@ export function DataTable<T>({
 
           <TableBody>
             {rows.map((row, i) => (
-              <TableRow key={i}>
+              <TableRow
+                key={i}
+                className={onRowClick ? "cursor-pointer hover:bg-muted/40" : undefined}
+                onClick={(e) => onRowClick?.(row, e)}
+              >
                 {columns.map((c) => (
                   <TableCell key={String(c.key)} className={c.className}>
                     {c.render ? c.render(row) : (row as any)[c.key]}

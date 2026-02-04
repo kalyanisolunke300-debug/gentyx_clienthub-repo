@@ -32,6 +32,19 @@ export type ClientProfile = {
   total_stages?: number;
   completed_stages?: number;
   progress?: number;
+
+  // Archive status
+  is_archived?: boolean;
+
+  // Associated users for this client
+  associated_users?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+    phone?: string;
+    created_at?: string;
+  }[];
 };
 
 

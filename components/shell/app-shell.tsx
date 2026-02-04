@@ -164,7 +164,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <footer className="mt-10 border-t pt-4 text-sm text-muted-foreground">
               <div className="flex items-center justify-between">
                 <span>
-                  © {new Date().getFullYear()} HubOne Systems – ClientHub
+                  © 2014–{new Date().getFullYear()} HubOne Systems Inc. – All Rights Reserved
                 </span>
                 <RoleBadge />
               </div>

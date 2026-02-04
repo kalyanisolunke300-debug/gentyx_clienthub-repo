@@ -236,12 +236,14 @@ export async function POST(req: Request) {
           .input("name", sql.NVarChar(255), user.name)
           .input("email", sql.NVarChar(255), user.email)
           .input("role", sql.NVarChar(50), user.role || "Client User")
+          .input("phone", sql.NVarChar(50), user.phone || null)
           .query(`
             INSERT INTO dbo.client_users (
               client_id,
               user_name,
               email,
               role,
+              phone,
               created_at
             )
             VALUES (
@@ -249,10 +251,12 @@ export async function POST(req: Request) {
               @name,
               @email,
               @role,
+              @phone,
               GETDATE()
             );
           `);
       }
+      console.log(`✅ Added ${associatedUsers.length} associated users for client ID: ${clientId}`);
     }
 
     return NextResponse.json({ success: true, clientId });

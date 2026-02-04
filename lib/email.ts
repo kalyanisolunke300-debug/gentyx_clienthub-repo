@@ -94,7 +94,7 @@ interface WelcomeEmailOptions {
  * Get login URL for the application
  */
 function getLoginUrl(): string {
-  return 'https://clienthub.hubonesystems.net/login';
+  return 'https://legacy.hubonesystems.net/login';
 }
 
 /**
@@ -553,7 +553,7 @@ export async function sendUpdateNotification({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: #999999;">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: #999999;">Client Portal - Automated Notification</p>
                         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                           <tr>
                             <td style="border-top: 1px solid #7a3344; padding-top: 15px; text-align: center;">
@@ -710,7 +710,7 @@ export async function sendMessageNotification({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 10px; font-size: 12px; color: #cccccc;">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: #cccccc;">Client Portal - Automated Notification</p>
                         <p style="margin: 0 0 15px; font-size: 11px; color: #999999;">Please do not reply directly to this email.</p>
                         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                           <tr>
@@ -764,7 +764,7 @@ function getTaskNotificationRoleConfig(role: TaskNotificationOptions['recipientR
   title: string;
   dashboardUrl: string;
 } {
-  const baseUrl = 'https://clienthub.hubonesystems.net';
+  const baseUrl = 'https://legacy.hubonesystems.net';
 
   switch (role) {
     case 'CLIENT':
@@ -1033,7 +1033,7 @@ export async function sendTaskNotificationEmail({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.7);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.7);">Client Portal - Automated Notification</p>
                         <p style="margin: 0 0 15px; font-size: 11px; color: rgba(255,255,255,0.5);">Please do not reply directly to this email.</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
                           <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
@@ -1276,7 +1276,7 @@ export async function sendOnboardingTaskNotificationEmail({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">Client Portal - Automated Notification</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
                           <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
@@ -1330,7 +1330,7 @@ export async function sendOnboardingOverviewEmail({
   recipientName,
   clientName,
   stages,
-  loginUrl = 'https://clienthub.hubonesystems.net/login',
+  loginUrl = 'https://legacy.hubonesystems.net/login',
 }: OnboardingOverviewOptions) {
   console.log(`📧 sendOnboardingOverviewEmail called for ${recipientEmail}`);
 
@@ -1521,7 +1521,7 @@ export async function sendOnboardingOverviewEmail({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.7);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.7);">Client Portal - Automated Notification</p>
                         <p style="margin: 0 0 15px; font-size: 11px; color: rgba(255,255,255,0.5);">Please do not reply directly to this email.</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
                           <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
@@ -1727,7 +1727,7 @@ export async function sendAdminTaskCompletionEmail({
                     <!-- CTA Button -->
                     <tr>
                       <td style="text-align: center; padding: 10px 0 0;">
-                        <a href="https://clienthub.hubonesystems.net/admin" 
+                        <a href="https://legacy.hubonesystems.net/admin" 
                            style="display: inline-block; background-color: #10b981; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
                           View Dashboard →
                         </a>
@@ -1744,7 +1744,7 @@ export async function sendAdminTaskCompletionEmail({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">Client Portal - Automated Notification</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
                           <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
@@ -1932,7 +1932,7 @@ export async function sendAdminMessageNotification({
                     <!-- CTA Button -->
                     <tr>
                       <td style="text-align: center; padding: 10px 0 0;">
-                        <a href="https://clienthub.hubonesystems.net/admin" 
+                        <a href="https://legacy.hubonesystems.net/admin" 
                            style="display: inline-block; background-color: #3b82f6; background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); color: white; font-size: 15px; font-weight: 600; padding: 14px 36px; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
                           Reply Now →
                         </a>
@@ -1949,7 +1949,7 @@ export async function sendAdminMessageNotification({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">Client Portal - Automated Notification</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
                           <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
@@ -1998,7 +1998,7 @@ export function wrapEmailContent({
   headerColor = '#6366f1',
   bodyContent,
   showActionButton = true,
-  actionButtonUrl = 'https://clienthub.hubonesystems.net',
+  actionButtonUrl = 'https://legacy.hubonesystems.net',
   actionButtonLabel = 'View in ClientHub',
 }: EmailWrapperOptions): string {
   const currentYear = new Date().getFullYear();
@@ -2105,7 +2105,7 @@ export function wrapEmailContent({
                     <tr>
                       <td style="text-align: center;">
                         <p style="margin: 0 0 8px; font-size: 14px; color: #d4a574; font-weight: 600;">Legacy Accounting Services</p>
-                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">ClientHub Portal - Automated Notification</p>
+                        <p style="margin: 0 0 15px; font-size: 12px; color: rgba(255,255,255,0.5);">Client Portal - Automated Notification</p>
                         <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;">
                           <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.5);">© ${currentYear} Legacy Accounting Services – All Rights Reserved.</p>
                         </div>
@@ -2166,5 +2166,510 @@ export async function sendCustomEmail({
     subject,
     html,
   });
+}
+
+// ===== ADMIN NOTIFICATION FUNCTIONS =====
+
+interface AdminDocumentNotificationOptions {
+  adminEmail: string;
+  adminName: string;
+  uploaderName: string;
+  uploaderRole: 'CLIENT' | 'CPA' | 'SERVICE_CENTER';
+  documentName: string;
+  clientName: string;
+  clientId: number | string;
+  folderPath?: string;
+}
+
+/**
+ * Send notification to admin when a document is uploaded
+ */
+export async function sendAdminDocumentUploadNotification({
+  adminEmail,
+  adminName,
+  uploaderName,
+  uploaderRole,
+  documentName,
+  clientName,
+  clientId,
+  folderPath,
+}: AdminDocumentNotificationOptions) {
+  console.log(`📧 sendAdminDocumentUploadNotification called for ${adminEmail}`);
+
+  const roleLabels: Record<string, string> = {
+    'CLIENT': 'Client',
+    'CPA': 'CPA',
+    'SERVICE_CENTER': 'Service Center',
+  };
+
+  const roleLabel = roleLabels[uploaderRole] || uploaderRole;
+
+  const locationInfo = folderPath
+    ? `<strong>Folder:</strong> ${folderPath}`
+    : '<strong>Location:</strong> Root folder';
+
+  const bodyContent = `
+    <p style="margin: 0 0 20px; font-size: 15px; color: #475569; line-height: 1.6;">
+      A new document has been uploaded by <strong style="color: #10b981;">${uploaderName}</strong> (${roleLabel}).
+    </p>
+    
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f0fdf4; border-radius: 12px; border-left: 4px solid #10b981; margin-bottom: 20px;">
+      <tr>
+        <td style="padding: 20px;">
+          <p style="margin: 0 0 10px; font-size: 14px; color: #166534;"><strong>📄 Document:</strong> ${documentName}</p>
+          <p style="margin: 0 0 10px; font-size: 14px; color: #166534;"><strong>👤 Client:</strong> ${clientName}</p>
+          <p style="margin: 0; font-size: 14px; color: #166534;">${locationInfo}</p>
+        </td>
+      </tr>
+    </table>
+  `;
+
+  return sendCustomEmail({
+    to: adminEmail,
+    subject: `📄 New Document: "${documentName}" uploaded by ${uploaderName}`,
+    recipientName: adminName,
+    bodyContent,
+    headerTitle: 'Document Uploaded',
+    headerIcon: '📄',
+    headerColor: '#10b981',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/admin/clients/${clientId}`,
+    actionButtonLabel: 'View Client Documents',
+  });
+}
+
+interface AdminFolderNotificationOptions {
+  adminEmail: string;
+  adminName: string;
+  creatorName: string;
+  creatorRole: 'CLIENT' | 'CPA' | 'SERVICE_CENTER';
+  folderName: string;
+  clientName: string;
+  clientId: number | string;
+  parentPath?: string;
+}
+
+/**
+ * Send notification to admin when a folder is created
+ */
+export async function sendAdminFolderCreatedNotification({
+  adminEmail,
+  adminName,
+  creatorName,
+  creatorRole,
+  folderName,
+  clientName,
+  clientId,
+  parentPath,
+}: AdminFolderNotificationOptions) {
+  console.log(`📧 sendAdminFolderCreatedNotification called for ${adminEmail}`);
+
+  const roleLabels: Record<string, string> = {
+    'CLIENT': 'Client',
+    'CPA': 'CPA',
+    'SERVICE_CENTER': 'Service Center',
+  };
+
+  const roleLabel = roleLabels[creatorRole] || creatorRole;
+
+  const locationInfo = parentPath
+    ? `<strong>Parent Folder:</strong> ${parentPath}`
+    : '<strong>Location:</strong> Root level';
+
+  const bodyContent = `
+    <p style="margin: 0 0 20px; font-size: 15px; color: #475569; line-height: 1.6;">
+      A new folder has been created by <strong style="color: #f59e0b;">${creatorName}</strong> (${roleLabel}).
+    </p>
+    
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #fef3c7; border-radius: 12px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+      <tr>
+        <td style="padding: 20px;">
+          <p style="margin: 0 0 10px; font-size: 14px; color: #92400e;"><strong>📁 Folder Name:</strong> ${folderName}</p>
+          <p style="margin: 0 0 10px; font-size: 14px; color: #92400e;"><strong>👤 Client:</strong> ${clientName}</p>
+          <p style="margin: 0; font-size: 14px; color: #92400e;">${locationInfo}</p>
+        </td>
+      </tr>
+    </table>
+  `;
+
+  return sendCustomEmail({
+    to: adminEmail,
+    subject: `📁 New Folder: "${folderName}" created by ${creatorName}`,
+    recipientName: adminName,
+    bodyContent,
+    headerTitle: 'Folder Created',
+    headerIcon: '📁',
+    headerColor: '#f59e0b',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/admin/clients/${clientId}`,
+    actionButtonLabel: 'View Client Documents',
+  });
+}
+
+// ===== BATCH NOTIFICATION FUNCTIONS =====
+
+interface AdminBatchDocumentNotificationOptions {
+  adminEmail: string;
+  adminName: string;
+  uploaderName: string;
+  uploaderRole: 'CLIENT' | 'CPA' | 'SERVICE_CENTER';
+  documents: { name: string; folder?: string }[];
+  clientName: string;
+  clientId: number | string;
+}
+
+/**
+ * Send notification to admin when multiple documents are uploaded (batched)
+ */
+export async function sendAdminBatchDocumentUploadNotification({
+  adminEmail,
+  adminName,
+  uploaderName,
+  uploaderRole,
+  documents,
+  clientName,
+  clientId,
+}: AdminBatchDocumentNotificationOptions) {
+  console.log(`📧 sendAdminBatchDocumentUploadNotification called for ${adminEmail} (${documents.length} documents)`);
+
+  const roleLabels: Record<string, string> = {
+    'CLIENT': 'Client',
+    'CPA': 'CPA',
+    'SERVICE_CENTER': 'Service Center',
+  };
+
+  const roleLabel = roleLabels[uploaderRole] || uploaderRole;
+  const docCount = documents.length;
+  const docWord = docCount === 1 ? 'document' : 'documents';
+
+  // Build document list HTML
+  const documentListHtml = documents.map((doc, index) => {
+    const folderInfo = doc.folder ? ` <span style="color: #64748b;">(in ${doc.folder})</span>` : '';
+    return `<li style="margin: 0 0 8px; font-size: 14px; color: #166534;">📄 ${doc.name}${folderInfo}</li>`;
+  }).join('');
+
+  const bodyContent = `
+    <p style="margin: 0 0 15px; font-size: 15px; color: #166534; line-height: 1.6;">
+      <strong style="color: #10b981;">${uploaderName}</strong> (${roleLabel}) has uploaded <strong>${docCount} ${docWord}</strong>.
+    </p>
+    <p style="margin: 0 0 12px; font-size: 14px; color: #166534;"><strong>👤 Client:</strong> ${clientName}</p>
+    <p style="margin: 0 0 12px; font-size: 14px; color: #166534; font-weight: 600;">📂 Uploaded Documents:</p>
+    <ul style="margin: 0; padding-left: 20px; list-style: none;">
+      ${documentListHtml}
+    </ul>
+  `;
+
+  return sendCustomEmail({
+    to: adminEmail,
+    subject: `📄 ${docCount} ${docWord} uploaded by ${uploaderName}`,
+    recipientName: adminName,
+    bodyContent,
+    headerTitle: 'Documents Uploaded',
+    headerIcon: '📄',
+    headerColor: '#10b981',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/admin/clients/${clientId}`,
+    actionButtonLabel: 'View Client Documents',
+  });
+}
+
+interface AdminBatchFolderNotificationOptions {
+  adminEmail: string;
+  adminName: string;
+  creatorName: string;
+  creatorRole: 'CLIENT' | 'CPA' | 'SERVICE_CENTER';
+  folders: { name: string; parentPath?: string }[];
+  clientName: string;
+  clientId: number | string;
+}
+
+/**
+ * Send notification to admin when multiple folders are created (batched)
+ */
+export async function sendAdminBatchFolderCreatedNotification({
+  adminEmail,
+  adminName,
+  creatorName,
+  creatorRole,
+  folders,
+  clientName,
+  clientId,
+}: AdminBatchFolderNotificationOptions) {
+  console.log(`📧 sendAdminBatchFolderCreatedNotification called for ${adminEmail} (${folders.length} folders)`);
+
+  const roleLabels: Record<string, string> = {
+    'CLIENT': 'Client',
+    'CPA': 'CPA',
+    'SERVICE_CENTER': 'Service Center',
+  };
+
+  const roleLabel = roleLabels[creatorRole] || creatorRole;
+  const folderCount = folders.length;
+  const folderWord = folderCount === 1 ? 'folder' : 'folders';
+
+  // Build folder list HTML
+  const folderListHtml = folders.map((folder) => {
+    const parentInfo = folder.parentPath ? ` <span style="color: #64748b;">(in ${folder.parentPath})</span>` : '';
+    return `<li style="margin: 0 0 8px; font-size: 14px; color: #92400e;">📁 ${folder.name}${parentInfo}</li>`;
+  }).join('');
+
+  const bodyContent = `
+    <p style="margin: 0 0 15px; font-size: 15px; color: #92400e; line-height: 1.6;">
+      <strong style="color: #f59e0b;">${creatorName}</strong> (${roleLabel}) has created <strong>${folderCount} ${folderWord}</strong>.
+    </p>
+    <p style="margin: 0 0 12px; font-size: 14px; color: #92400e;"><strong>👤 Client:</strong> ${clientName}</p>
+    <p style="margin: 0 0 12px; font-size: 14px; color: #92400e; font-weight: 600;">📂 Created Folders:</p>
+    <ul style="margin: 0; padding-left: 20px; list-style: none;">
+      ${folderListHtml}
+    </ul>
+  `;
+
+  return sendCustomEmail({
+    to: adminEmail,
+    subject: `📁 ${folderCount} ${folderWord} created by ${creatorName}`,
+    recipientName: adminName,
+    bodyContent,
+    headerTitle: 'Folders Created',
+    headerIcon: '📁',
+    headerColor: '#f59e0b',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/admin/clients/${clientId}`,
+    actionButtonLabel: 'View Client Documents',
+  });
+}
+
+interface AdminTaskCompletedNotificationOptions {
+  adminEmail: string;
+  adminName: string;
+  completedByName: string;
+  completedByRole: 'CLIENT' | 'CPA' | 'SERVICE_CENTER';
+  taskTitle: string;
+  stageName?: string;
+  clientName: string;
+  clientId: number | string;
+}
+
+/**
+ * Send notification to admin when a task is completed
+ */
+export async function sendAdminTaskCompletedNotification({
+  adminEmail,
+  adminName,
+  completedByName,
+  completedByRole,
+  taskTitle,
+  stageName,
+  clientName,
+  clientId,
+}: AdminTaskCompletedNotificationOptions) {
+  console.log(`📧 sendAdminTaskCompletedNotification called for ${adminEmail}`);
+
+  const roleLabels: Record<string, string> = {
+    'CLIENT': 'Client',
+    'CPA': 'CPA',
+    'SERVICE_CENTER': 'Service Center',
+  };
+
+  const roleLabel = roleLabels[completedByRole] || completedByRole;
+
+  const stageInfo = stageName
+    ? `<p style="margin: 0 0 10px; font-size: 14px; color: #065f46;"><strong>🚀 Stage:</strong> ${stageName}</p>`
+    : '';
+
+  const bodyContent = `
+    <p style="margin: 0 0 20px; font-size: 15px; color: #475569; line-height: 1.6;">
+      A task has been marked as completed by <strong style="color: #059669;">${completedByName}</strong> (${roleLabel}).
+    </p>
+    
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #d1fae5; border-radius: 12px; border-left: 4px solid #059669; margin-bottom: 20px;">
+      <tr>
+        <td style="padding: 20px;">
+          <p style="margin: 0 0 10px; font-size: 14px; color: #065f46;"><strong>✅ Task:</strong> ${taskTitle}</p>
+          ${stageInfo}
+          <p style="margin: 0; font-size: 14px; color: #065f46;"><strong>👤 Client:</strong> ${clientName}</p>
+        </td>
+      </tr>
+    </table>
+    
+    <p style="margin: 0; font-size: 14px; color: #64748b;">
+      You may want to review the completed task and proceed with the next steps.
+    </p>
+  `;
+
+  return sendCustomEmail({
+    to: adminEmail,
+    subject: `✅ Task Completed: "${taskTitle}" by ${completedByName}`,
+    recipientName: adminName,
+    bodyContent,
+    headerTitle: 'Task Completed',
+    headerIcon: '✅',
+    headerColor: '#059669',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/admin/clients/${clientId}`,
+    actionButtonLabel: 'View Client Details',
+  });
+}
+
+/**
+ * Get admin email from database
+ */
+export interface ClientBatchDocumentNotificationOptions {
+  clientEmail: string;
+  clientName: string;
+  uploaderName: string;
+  documents: { name: string; folder?: string }[];
+}
+
+/**
+ * Send notification to CLIENT when documents are uploaded by Admin
+ */
+export async function sendClientBatchDocumentUploadNotification({
+  clientEmail,
+  clientName,
+  uploaderName,
+  documents,
+}: ClientBatchDocumentNotificationOptions) {
+  console.log(`📧 sendClientBatchDocumentUploadNotification called for ${clientEmail} (${documents.length} documents)`);
+
+  const docCount = documents.length;
+  const docWord = docCount === 1 ? 'document' : 'documents';
+
+  // Build document list HTML
+  const documentListHtml = documents.map((doc) => {
+    const folderInfo = doc.folder ? ` <span style="color: #64748b;">(in ${doc.folder})</span>` : '';
+    return `<li style="margin: 0 0 8px; font-size: 14px; color: #166534;">📄 ${doc.name}${folderInfo}</li>`;
+  }).join('');
+
+  const bodyContent = `
+    <p style="margin: 0 0 15px; font-size: 15px; color: #166534; line-height: 1.6;">
+      <strong style="color: #10b981;">${uploaderName}</strong> (Admin) has uploaded <strong>${docCount} ${docWord}</strong> to your documents.
+    </p>
+    <p style="margin: 0 0 12px; font-size: 14px; color: #166534; font-weight: 600;">📂 Uploaded Documents:</p>
+    <ul style="margin: 0; padding-left: 20px; list-style: none;">
+      ${documentListHtml}
+    </ul>
+  `;
+
+  return sendCustomEmail({
+    to: clientEmail,
+    subject: `📄 ${docCount} New ${docWord} Uploaded`,
+    recipientName: clientName,
+    bodyContent,
+    headerTitle: 'New Documents Available',
+    headerIcon: '📄',
+    headerColor: '#10b981',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/client/documents`,
+    actionButtonLabel: 'View My Documents',
+  });
+}
+
+export interface ClientBatchFolderNotificationOptions {
+  clientEmail: string;
+  clientName: string;
+  creatorName: string;
+  folders: { name: string; parentPath?: string }[];
+}
+
+/**
+ * Send notification to CLIENT when folders are created by Admin
+ */
+export async function sendClientBatchFolderCreatedNotification({
+  clientEmail,
+  clientName,
+  creatorName,
+  folders,
+}: ClientBatchFolderNotificationOptions) {
+  console.log(`📧 sendClientBatchFolderCreatedNotification called for ${clientEmail} (${folders.length} folders)`);
+
+  const folderCount = folders.length;
+  const folderWord = folderCount === 1 ? 'folder' : 'folders';
+
+  // Build folder list HTML
+  const folderListHtml = folders.map((folder) => {
+    const parentInfo = folder.parentPath ? ` <span style="color: #64748b;">(in ${folder.parentPath})</span>` : '';
+    return `<li style="margin: 0 0 8px; font-size: 14px; color: #92400e;">📁 ${folder.name}${parentInfo}</li>`;
+  }).join('');
+
+  const bodyContent = `
+    <p style="margin: 0 0 15px; font-size: 15px; color: #92400e; line-height: 1.6;">
+      <strong style="color: #f59e0b;">${creatorName}</strong> (Admin) has created <strong>${folderCount} ${folderWord}</strong> in your documents.
+    </p>
+    <p style="margin: 0 0 12px; font-size: 14px; color: #92400e; font-weight: 600;">📂 Created Folders:</p>
+    <ul style="margin: 0; padding-left: 20px; list-style: none;">
+      ${folderListHtml}
+    </ul>
+  `;
+
+  return sendCustomEmail({
+    to: clientEmail,
+    subject: `📁 ${folderCount} New ${folderWord} Created`,
+    recipientName: clientName,
+    bodyContent,
+    headerTitle: 'New Folders Created',
+    headerIcon: '📁',
+    headerColor: '#f59e0b',
+    showActionButton: true,
+    actionButtonUrl: `https://legacy.hubonesystems.net/client/documents`,
+    actionButtonLabel: 'View My Documents',
+  });
+}
+
+export async function getAdminEmail(): Promise<{ email: string; name: string } | null> {
+  try {
+    const { getDbPool } = await import("@/lib/db");
+
+    const pool = await getDbPool();
+    const result = await pool.request().query(`
+      SELECT TOP 1 email, full_name as name
+      FROM AdminSettings 
+      WHERE email IS NOT NULL
+    `);
+
+    if (result.recordset.length > 0) {
+      console.log("📧 Found admin email:", result.recordset[0].email);
+      return {
+        email: result.recordset[0].email,
+        name: result.recordset[0].name || 'Admin',
+      };
+    }
+    console.warn("⚠️ No admin email found in AdminSettings table");
+    return null;
+  } catch (error) {
+    console.error("❌ Failed to get admin email:", error);
+    return null;
+  }
+}
+
+/**
+ * Get client email and name from Clients table
+ */
+export async function getClientEmail(clientId: number | string): Promise<{ email: string; name: string } | null> {
+  try {
+    const { getDbPool } = await import("@/lib/db");
+    const sql = await import("mssql");
+
+    const pool = await getDbPool();
+    const result = await pool.request()
+      .input("clientId", sql.Int, Number(clientId))
+      .query(`
+        SELECT TOP 1 primary_contact_email as email, client_name as name
+        FROM Clients 
+        WHERE client_id = @clientId AND primary_contact_email IS NOT NULL
+      `);
+
+    if (result.recordset.length > 0) {
+      console.log(`📧 Found client email for ID ${clientId}:`, result.recordset[0].email);
+      return {
+        email: result.recordset[0].email,
+        name: result.recordset[0].name || 'Client',
+      };
+    }
+    console.warn(`⚠️ No client email found for ID ${clientId}`);
+    return null;
+  } catch (error) {
+    console.error(`❌ Failed to get client email for ID ${clientId}:`, error);
+    return null;
+  }
 }
 

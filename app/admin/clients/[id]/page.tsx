@@ -53,13 +53,15 @@ import { StatusPill } from "@/components/widgets/status-pill";
 import { ProgressRing } from "@/components/widgets/progress-ring";
 import { FlexibleChat } from "@/components/widgets/flexible-chat";
 import { DataTable, type Column } from "@/components/data-table";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 import { useUIStore } from "@/store/ui-store";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle } from "lucide-react";
+import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle, Users, Plus, Mail, Phone } from "lucide-react";
 import { formatPhone } from "@/lib/formatters";
 
 
@@ -120,10 +122,44 @@ export default function ClientProfilePage() {
   const [newFolderName, setNewFolderName] = useState("");
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
-  // Delete Client State
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Delete/Archive Client State
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
+  // Associated Users State
+  const [associatedUsers, setAssociatedUsers] = useState<any[]>([]);
+  const [userSuggestions, setUserSuggestions] = useState<any[]>([]);
+  const [isEditingUsers, setIsEditingUsers] = useState(false);
+  const [isSavingUsers, setIsSavingUsers] = useState(false);
+  const [newUser, setNewUser] = useState({ name: "", email: "", role: "Client User", phone: "" });
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<any[]>([]);
+
+  // ✅ Revalidate docs list (fixes "need refresh after upload/delete")
+  const revalidateDocs = (clientId?: string | null, folder?: string | null) => {
+    const cid = clientId ?? id;
+    const f = folder ?? selectedFolder;
+
+    if (!cid) return;
+
+    // Revalidate both keys: root + current folder
+    mutate(["docs", cid, null]);
+    mutate(["docs", cid, f ?? null]);
+  };
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      revalidateDocs(detail.clientId, detail.folderName ?? null);
+    };
+
+    window.addEventListener("clienthub:docs-updated", handler as EventListener);
+
+    return () => {
+      window.removeEventListener("clienthub:docs-updated", handler as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, selectedFolder]);
 
   useEffect(() => {
     fetchServiceCenters().then((res) => {
@@ -133,11 +169,26 @@ export default function ClientProfilePage() {
     fetchCPAs().then((res) => {
       if (res?.success) setCpas(res.data || []);
     });
+
+    // Fetch user suggestions for autocomplete
+    fetch("/api/users/suggestions")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setUserSuggestions(data.data || []);
+      })
+      .catch(err => console.error("Failed to fetch user suggestions:", err));
   }, []);
 
 
   // ----------------- FETCHING ------------------
   const { data: client } = useSWR(["client", id], () => fetchClient(id));
+
+  // Populate associated users when client data loads
+  useEffect(() => {
+    if (client?.associated_users) {
+      setAssociatedUsers(client.associated_users);
+    }
+  }, [client]);
 
 
   const { data: clientTasksResponse } = useSWR(
@@ -171,14 +222,20 @@ export default function ClientProfilePage() {
 
   const { data: docsResponse } = useSWR(
     ["docs", id, selectedFolder],
-    () =>
-      selectedFolder
-        ? fetch(`/api/documents/get-by-client?id=${id}&folder=${selectedFolder}`).then(r => r.json())
-        : fetch(`/api/documents/get-by-client?id=${id}`).then(r => r.json())
+    () => {
+      const folderPath = selectedFolder ? selectedFolder : "";
+      const qs = new URLSearchParams({
+        clientId: String(id),
+        folderPath: folderPath,
+      });
+
+      return fetch(`/api/documents/list?${qs.toString()}`, { cache: "no-store" }).then((r) =>
+        r.json()
+      );
+    }
   );
 
-
-  const docs = docsResponse?.data || [];
+  const docs = docsResponse?.items || [];
 
   const { data: msgsResponse } = useSWR(["msgs", id], () =>
     fetchMessages({ clientId: id })
@@ -459,73 +516,107 @@ export default function ClientProfilePage() {
     }
   ];
 
+  // const getPreviewUrl = (fileUrl: string, fileName: string) => {
+  //   const lower = fileName.toLowerCase();
 
-  // const docCols: Column<any>[] = [
-  //   { key: "name", header: "Name" },
-  //   { key: "type", header: "Type" },
-  //   {
-  //     key: "size",
-  //     header: "Size",
-  //     render: (r) => `${(r.size / 1024).toFixed(1)} KB`,
-  //   },
-  // ];
-  //   async function handleDeleteDocument(doc: any) {
-  //   if (!confirm(`Delete document "${doc.name}"?`)) return;
+  //   // Direct preview types
+  //   if (lower.endsWith(".pdf")) return fileUrl;
+  //   if (lower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) return fileUrl;
 
-  //   const res = await fetch("/api/documents/delete", {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify({
-  //       clientId: id,
-  //       fileName: doc.name,
-  //       fileType: doc.type,       // IMG, PDF, XLSX...
-  //       // documentId: doc.id,       // DB ID
-  //     }),
-  //   });
-
-  //   if (!res.ok) {
-  //     alert("Failed to delete");
-  //     return;
+  //   // Office / other docs -> Office viewer
+  //   if (lower.match(/\.(doc|docx|ppt|pptx|xls|xlsx|csv)$/)) {
+  //     return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
   //   }
 
-  //   mutate(["docs", id]); // Refresh table
-  // }
+  //   // Fallback: open the file itself (download/open by browser)
+  //   return fileUrl;
+  // };
+  const getPreviewUrl = (fileUrl: string, fileName: string) => {
+    const lower = fileName.toLowerCase();
 
+    // Direct open types
+    if (lower.endsWith(".pdf")) return fileUrl;
+    if (lower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) return fileUrl;
+
+    // ✅ CSV should open directly (NOT Office viewer)
+    if (lower.endsWith(".csv")) return fileUrl;
+
+    // Office docs -> Office viewer
+    if (lower.match(/\.(doc|docx|ppt|pptx|xls|xlsx)$/)) {
+      return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
+    }
+
+    return fileUrl;
+  };
 
   const docCols: Column<any>[] = [
     {
       key: "name",
       header: "Name",
       render: (row: any) => {
+        const isFolder = row.type === "folder";
+
         let Icon = FileIcon;
-        const lowerName = row.name.toLowerCase();
-        if (lowerName.endsWith(".pdf")) Icon = FileText;
-        else if (lowerName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) Icon = FileImage;
-        else if (lowerName.match(/\.(xls|xlsx|csv)$/)) Icon = FileSpreadsheet;
+        if (isFolder) Icon = Folder;
+        else {
+          const lowerName = (row.name || "").toLowerCase();
+          if (lowerName.endsWith(".pdf")) Icon = FileText;
+          else if (lowerName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) Icon = FileImage;
+          else if (lowerName.match(/\.(xls|xlsx|csv)$/)) Icon = FileSpreadsheet;
+        }
 
         return (
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-1.5 rounded-md text-primary">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-left w-full hover:underline"
+            onClick={() => {
+              if (!isFolder) return;
+              const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+              setSelectedFolder(fullPath);
+            }}
+          >
+            {/* const isFolder = row.type === "folder"; */}
+            <div
+              className={`p-1.5 rounded-md
+                ${isFolder
+                  ? "bg-amber-50 text-amber-500"
+                  : "bg-blue-50 text-blue-500"
+                }
+              `}
+            >
               <Icon className="size-4" />
             </div>
+
             <span className="font-medium text-gray-700">{row.name}</span>
-          </div>
+          </button>
         );
       },
     },
     {
       key: "type",
       header: "Type",
-      render: (row: any) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 uppercase tracking-wide">
-          {row.name.split(".").pop() || "FILE"}
-        </span>
-      ),
+      render: (row: any) => {
+        if (row.type === "folder") {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 uppercase tracking-wide">
+              Folder
+            </span>
+          );
+        }
+
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 uppercase tracking-wide">
+            {row.name.split(".").pop() || "FILE"}
+          </span>
+        );
+      },
     },
     {
       key: "size",
       header: "Size",
       render: (row: any) => {
+        if (row.type === "folder") return <span className="text-muted-foreground text-xs">—</span>;
+
         const bytes = row.size || 0;
         if (bytes === 0) return <span className="text-muted-foreground text-xs">0 B</span>;
 
@@ -543,26 +634,115 @@ export default function ClientProfilePage() {
     },
     {
       key: "actions",
-      header: "Actions",
-      render: (row: any) => (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => window.open(row.url, "_blank")}
-          >
-            Preview
-          </Button>
+      header: "",
+      className: "text-right w-[240px]",
+      render: (row: any) => {
+        const isFolder = row.type === "folder";
 
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => handleDeleteDocument(row)}
-          >
-            <Trash2 className="w-4 h-4 text-white" />
-          </Button>
-        </div>
-      ),
+        return (
+          <div className="flex items-center w-full">
+            {!isFolder ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  try {
+                    const lower = (row.name || "").toLowerCase();
+                    const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx)$/i.test(lower);
+                    const isCsv = /\.csv$/i.test(lower);
+
+                    // ✅ Ensure we have a fullPath (needed by public-url API)
+                    // Your list API should already provide row.fullPath.
+                    // If it doesn't, we fallback-build it from current folder + filename.
+                    const fullPath =
+                      row.fullPath ||
+                      (selectedFolder ? `${selectedFolder}/${row.name}` : row.name);
+
+                    const res = await fetch(
+                      `/api/documents/public-url?clientId=${encodeURIComponent(
+                        String(id)
+                      )}&fullPath=${encodeURIComponent(fullPath)}`,
+                      { cache: "no-store" }
+                    );
+
+                    const json = await res.json();
+
+                    if (!res.ok || !json?.success || !json?.url) {
+                      toast({
+                        title: "Preview failed",
+                        description: json?.error || "Could not generate preview link",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    // ✅ Office files must go through Office viewer
+                    // ✅ Office formats -> Office viewer (DOC/DOCX/XLS/XLSX/PPT/PPTX only)
+                    if (isOffice) {
+                      const viewer = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+                        json.url
+                      )}`;
+                      window.open(viewer, "_blank", "noopener,noreferrer");
+                      return;
+                    }
+
+                    // ✅ CSV (and any non-office file) -> open SAS directly (browser will show or download)
+                    window.open(json.url, "_blank", "noopener,noreferrer");
+                    return;
+
+                    // ✅ PDFs, images, everything else → open SAS directly
+                    window.open(json.url, "_blank", "noopener,noreferrer");
+                  } catch (err: any) {
+                    toast({
+                      title: "Preview failed",
+                      description: err?.message || "Something went wrong while previewing",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                View
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+                  setSelectedFolder(fullPath);
+                }}
+              >
+                Open
+              </Button>
+            )}
+
+            <div className="flex-1" />
+
+            <Button
+              size="icon"
+              variant="destructive"
+              className="ml-4"
+              onClick={() => {
+                if (isFolder) {
+                  const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+                  if (!confirm(`Delete folder "${row.name}"?`)) return;
+
+                  fetch("/api/documents/delete-folder", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ clientId: id, folderPath: fullPath }),
+                  }).then(() => mutate(["docs", id, selectedFolder]));
+                } else {
+                  handleDeleteDocument(row);
+                }
+              }}
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -572,12 +752,13 @@ export default function ClientProfilePage() {
     console.log("🔥 Deleting document:", doc);
 
     // The backend expects: fullPath = "client-2/folder/file.png"
+    // The list API returns this as "path" not "fullPath"
     const res = await fetch("/api/documents/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: id,
-        fullPath: doc.fullPath, // ✅ VERY IMPORTANT
+        fullPath: doc.path, // ✅ FIXED: Use doc.path (returned by list API)
       }),
     });
 
@@ -595,7 +776,12 @@ export default function ClientProfilePage() {
     alert("Document deleted successfully!");
   }
 
-
+  const items = [...docs].sort((a: any, b: any) => {
+    // folders first
+    if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+    // then alphabetical
+    return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+  });
 
 
   // ----------------- CLIENT META ------------------
@@ -645,6 +831,92 @@ export default function ClientProfilePage() {
     }
   }
 
+  // ========== ASSOCIATED USERS HANDLERS ==========
+  const handleNameInputChange = (value: string) => {
+    setNewUser({ ...newUser, name: value });
+
+    if (value.trim().length > 0) {
+      const filtered = userSuggestions.filter((s) =>
+        s.name.toLowerCase().includes(value.toLowerCase())
+      );
+      setFilteredSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion: any) => {
+    setNewUser({
+      name: suggestion.name,
+      email: suggestion.email || "",
+      role: suggestion.role || "Client User",
+      phone: suggestion.phone || "",
+    });
+    setShowSuggestions(false);
+  };
+
+  const handleAddUser = () => {
+    if (!newUser.name.trim() || !newUser.email.trim()) {
+      toast({ title: "Name and email are required", variant: "destructive" });
+      return;
+    }
+
+    // Check for duplicate email
+    const exists = associatedUsers.some(
+      (u) => u.email.toLowerCase() === newUser.email.toLowerCase()
+    );
+    if (exists) {
+      toast({ title: "User with this email already exists", variant: "destructive" });
+      return;
+    }
+
+    setAssociatedUsers([...associatedUsers, { ...newUser }]);
+    setNewUser({ name: "", email: "", role: "Client User", phone: "" });
+  };
+
+  const handleRemoveUser = (index: number) => {
+    setAssociatedUsers(associatedUsers.filter((_, i) => i !== index));
+  };
+
+  const handleSaveAssociatedUsers = async () => {
+    setIsSavingUsers(true);
+    try {
+      const res = await fetch("/api/clients/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: Number(id),
+          associatedUsers: associatedUsers,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!json.success) {
+        throw new Error(json.error || "Update failed");
+      }
+
+      toast({ title: "Associated users saved successfully" });
+      setIsEditingUsers(false);
+      mutate(["client", id]);
+
+    } catch (err) {
+      console.error("SAVE ASSOCIATED USERS ERROR:", err);
+      toast({
+        title: "Failed to save associated users",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingUsers(false);
+    }
+  };
+
+  const handleCancelEditUsers = () => {
+    // Reset to original data
+    setAssociatedUsers(client?.associated_users || []);
+    setIsEditingUsers(false);
+  };
 
   return (
     <div className="grid gap-4">
@@ -706,43 +978,81 @@ export default function ClientProfilePage() {
             Edit Client
           </Button>
 
-          <Button
-            variant="destructive"
-            onClick={() => setShowDeleteDialog(true)}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Client
-          </Button>
+          {/* Archive/Restore Button */}
+          {client?.is_archived ? (
+            <Button
+              variant="outline"
+              onClick={() => setShowArchiveDialog(true)}
+              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+            >
+              <ArchiveRestore className="mr-2 h-4 w-4" />
+              Restore Client
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setShowArchiveDialog(true)}
+              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+            >
+              <Archive className="mr-2 h-4 w-4" />
+              Archive Client
+            </Button>
+          )}
         </div>
 
-        {/* Delete Client Confirmation Dialog */}
-        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        {/* Archive Client Confirmation Dialog */}
+        <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-600">
-                <AlertTriangle className="h-5 w-5" />
-                Delete Client Permanently?
+              <DialogTitle className="flex items-center gap-2 text-orange-600">
+                {client?.is_archived ? (
+                  <>
+                    <ArchiveRestore className="h-5 w-5 text-green-600" />
+                    <span className="text-green-600">Restore Client?</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="h-5 w-5" />
+                    Archive Client?
+                  </>
+                )}
               </DialogTitle>
               <DialogDescription className="text-left pt-2">
                 <div className="space-y-3">
                   <p className="font-medium text-gray-900">
-                    You are about to permanently delete <span className="text-red-600 font-bold">"{client?.client_name}"</span>
+                    {client?.is_archived ? (
+                      <>You are about to restore <span className="text-green-600 font-bold">"{client?.client_name}"</span></>
+                    ) : (
+                      <>You are about to archive <span className="text-orange-600 font-bold">"{client?.client_name}"</span></>
+                    )}
                   </p>
 
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm font-semibold text-red-700 mb-2">⚠️ This action will permanently remove:</p>
-                    <ul className="text-sm text-red-600 space-y-1 list-disc list-inside">
-                      <li>All tasks assigned to this client</li>
-                      <li>All messages and conversations</li>
-                      <li>All documents and files</li>
-                      <li>All stage progress and subtasks</li>
-                      <li>All audit logs and history</li>
-                      <li>Service Center and CPA assignments</li>
-                    </ul>
-                  </div>
+                  {client?.is_archived ? (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm font-semibold text-green-700 mb-2">✅ Restoring this client will:</p>
+                      <ul className="text-sm text-green-600 space-y-1 list-disc list-inside">
+                        <li>Set the client status back to Active</li>
+                        <li>Make the client visible in the Active Clients list</li>
+                        <li>All data and history will be preserved</li>
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <p className="text-sm font-semibold text-orange-700 mb-2">📦 Archiving this client will:</p>
+                      <ul className="text-sm text-orange-600 space-y-1 list-disc list-inside">
+                        <li>Set the client status to Inactive</li>
+                        <li>Move the client to the Archived Clients list</li>
+                        <li>All data and history will be preserved</li>
+                        <li>You can restore the client at any time</li>
+                      </ul>
+                    </div>
+                  )}
 
                   <p className="text-sm text-gray-600 font-medium">
-                    This action cannot be undone. Are you absolutely sure you want to proceed?
+                    {client?.is_archived
+                      ? "Are you sure you want to restore this client?"
+                      : "Are you sure you want to archive this client?"
+                    }
                   </p>
                 </div>
               </DialogDescription>
@@ -750,58 +1060,74 @@ export default function ClientProfilePage() {
             <DialogFooter className="flex gap-2 sm:gap-0">
               <Button
                 variant="outline"
-                onClick={() => setShowDeleteDialog(false)}
-                disabled={isDeleting}
+                onClick={() => setShowArchiveDialog(false)}
+                disabled={isArchiving}
               >
                 Cancel
               </Button>
               <Button
-                variant="destructive"
+                variant={client?.is_archived ? "default" : "outline"}
+                className={client?.is_archived
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-orange-600 hover:bg-orange-700 text-white"
+                }
                 onClick={async () => {
-                  setIsDeleting(true);
+                  setIsArchiving(true);
                   try {
-                    const res = await fetch("/api/clients/delete", {
+                    const res = await fetch("/api/clients/archive", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ clientId: Number(id) }),
+                      body: JSON.stringify({
+                        clientId: Number(id),
+                        archive: !client?.is_archived
+                      }),
                     });
                     const json = await res.json();
 
                     if (json.success) {
                       toast({
-                        title: "Client Deleted",
-                        description: json.message || `Client has been permanently deleted.`,
+                        title: client?.is_archived ? "Client Restored" : "Client Archived",
+                        description: json.message,
                       });
-                      setShowDeleteDialog(false);
-                      router.push("/admin/clients");
+                      setShowArchiveDialog(false);
+                      mutate(["client", id]);
                     } else {
                       toast({
-                        title: "Delete Failed",
-                        description: json.error || "Failed to delete client.",
+                        title: "Action Failed",
+                        description: json.error || "Failed to update client status.",
                         variant: "destructive",
                       });
                     }
                   } catch (error: any) {
                     toast({
                       title: "Error",
-                      description: error.message || "An error occurred while deleting.",
+                      description: error.message || "An error occurred.",
                       variant: "destructive",
                     });
                   } finally {
-                    setIsDeleting(false);
+                    setIsArchiving(false);
                   }
                 }}
-                disabled={isDeleting}
+                disabled={isArchiving}
               >
-                {isDeleting ? (
+                {isArchiving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deleting...
+                    {client?.is_archived ? "Restoring..." : "Archiving..."}
                   </>
                 ) : (
                   <>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Yes, Delete Permanently
+                    {client?.is_archived ? (
+                      <>
+                        <ArchiveRestore className="mr-2 h-4 w-4" />
+                        Yes, Restore Client
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="mr-2 h-4 w-4" />
+                        Yes, Archive Client
+                      </>
+                    )}
                   </>
                 )}
               </Button>
@@ -1116,6 +1442,207 @@ export default function ClientProfilePage() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* ASSOCIATED USERS SECTION */}
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Associated Users
+                  <Badge variant="secondary" className="ml-2">
+                    {associatedUsers.length}
+                  </Badge>
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {isEditingUsers ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCancelEditUsers}
+                        disabled={isSavingUsers}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveAssociatedUsers}
+                        disabled={isSavingUsers}
+                      >
+                        {isSavingUsers ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Users"
+                        )}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsEditingUsers(true)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit Users
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Current Users List */}
+              {associatedUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p>No associated users yet</p>
+                  <p className="text-sm mt-1">
+                    {isEditingUsers
+                      ? "Add users using the form below"
+                      : "Click 'Edit Users' to add team members"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 mb-6">
+                  {associatedUsers.map((u, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between bg-gradient-to-r from-slate-50 to-gray-50 border border-slate-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="bg-primary/10 rounded-full p-2.5">
+                          <Users className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">{u.name}</p>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-3.5 w-3.5" />
+                              {u.email}
+                            </span>
+                            {u.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3.5 w-3.5" />
+                                {formatPhone(u.phone)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant="secondary">{u.role}</Badge>
+                        {isEditingUsers && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveUser(idx)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add New User Form - Only visible in edit mode */}
+              {isEditingUsers && (
+                <div className="border-t pt-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add New User
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Name with autocomplete */}
+                    <div className="relative">
+                      <Label htmlFor="newUserName" className="text-xs text-muted-foreground">
+                        Name *
+                      </Label>
+                      <Input
+                        id="newUserName"
+                        placeholder="Enter name"
+                        value={newUser.name}
+                        onChange={(e) => handleNameInputChange(e.target.value)}
+                        onFocus={() => {
+                          if (newUser.name.trim().length > 0) {
+                            const filtered = userSuggestions.filter((s) =>
+                              s.name.toLowerCase().includes(newUser.name.toLowerCase())
+                            );
+                            setFilteredSuggestions(filtered);
+                            setShowSuggestions(filtered.length > 0);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay hiding to allow click on suggestion
+                          setTimeout(() => setShowSuggestions(false), 200);
+                        }}
+                      />
+                      {/* Autocomplete dropdown */}
+                      {showSuggestions && filteredSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                          {filteredSuggestions.map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="w-full px-3 py-2 text-left hover:bg-gray-100 flex flex-col"
+                              onMouseDown={() => handleSelectSuggestion(s)}
+                            >
+                              <span className="font-medium text-sm">{s.name}</span>
+                              <span className="text-xs text-muted-foreground">{s.email}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <Label htmlFor="newUserEmail" className="text-xs text-muted-foreground">
+                        Email *
+                      </Label>
+                      <Input
+                        id="newUserEmail"
+                        type="email"
+                        placeholder="email@example.com"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                      <Label htmlFor="newUserPhone" className="text-xs text-muted-foreground">
+                        Phone
+                      </Label>
+                      <Input
+                        id="newUserPhone"
+                        placeholder="(555) 555-5555"
+                        value={newUser.phone}
+                        onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Add Button */}
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        onClick={handleAddUser}
+                        className="w-full"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add User
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1503,6 +2030,7 @@ export default function ClientProfilePage() {
                               clientId: id,
                               folderName: newFolderName,
                               parentFolder: selectedFolder,
+                              role: "ADMIN",
                             }),
                           });
 
@@ -1549,146 +2077,11 @@ export default function ClientProfilePage() {
                 </div>
               )}
 
-              {/* ✅ FOLDERS GRID */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
-                {docs
-                  .filter((i: any) => i.type === "folder")
-                  .map((folder: any) => {
-                    const fullPath = selectedFolder
-                      ? `${selectedFolder}/${folder.name}`
-                      : folder.name;
-
-                    // Special folder names for task completion documents
-                    const ASSIGNED_TASK_FOLDER = "Assigned Task Completion Documents";
-                    const ASSIGNED_TASK_CPA_FOLDER = "Assigned Task Completion Documents - CPA";
-                    const ASSIGNED_TASK_SC_FOLDER = "Assigned Task Completion Documents - Service Center";
-                    const ONBOARDING_FOLDER = "Onboarding Stage Completion Documents";
-
-                    // Special styling for completion document folders
-                    const isAssignedTaskFolder = folder.name === ASSIGNED_TASK_FOLDER ||
-                      folder.name === ASSIGNED_TASK_CPA_FOLDER ||
-                      folder.name === ASSIGNED_TASK_SC_FOLDER ||
-                      (selectedFolder && (
-                        selectedFolder.startsWith(ASSIGNED_TASK_FOLDER) ||
-                        selectedFolder.startsWith(ASSIGNED_TASK_CPA_FOLDER) ||
-                        selectedFolder.startsWith(ASSIGNED_TASK_SC_FOLDER)
-                      ));
-
-                    const isOnboardingFolder = folder.name === ONBOARDING_FOLDER ||
-                      (selectedFolder && selectedFolder.startsWith(ONBOARDING_FOLDER));
-
-                    // Determine styling based on folder type
-                    let folderBgClass = "bg-amber-50/30 hover:bg-amber-50 border-gray-100 hover:border-amber-200";
-                    let folderIconClass = "text-amber-400 fill-amber-100 group-hover:fill-amber-200";
-                    let FolderBadgeIcon = Folder;
-
-                    if (folder.name === ASSIGNED_TASK_FOLDER) {
-                      folderBgClass = "bg-green-50/50 hover:bg-green-50 border-green-200 hover:border-green-300";
-                      folderIconClass = "text-green-500 fill-green-100 group-hover:fill-green-200";
-                      FolderBadgeIcon = CheckCircle2;
-                    } else if (folder.name === ASSIGNED_TASK_CPA_FOLDER) {
-                      folderBgClass = "bg-purple-50/50 hover:bg-purple-50 border-purple-200 hover:border-purple-300";
-                      folderIconClass = "text-purple-500 fill-purple-100 group-hover:fill-purple-200";
-                      FolderBadgeIcon = Landmark;
-                    } else if (folder.name === ASSIGNED_TASK_SC_FOLDER) {
-                      folderBgClass = "bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200 hover:border-indigo-300";
-                      folderIconClass = "text-indigo-500 fill-indigo-100 group-hover:fill-indigo-200";
-                      FolderBadgeIcon = Building2;
-                    } else if (folder.name === ONBOARDING_FOLDER) {
-                      folderBgClass = "bg-blue-50/50 hover:bg-blue-50 border-blue-200 hover:border-blue-300";
-                      folderIconClass = "text-blue-500 fill-blue-100 group-hover:fill-blue-200";
-                      FolderBadgeIcon = Layers;
-                    } else if (isAssignedTaskFolder) {
-                      // Check which specific assigned folder we are in to color code subfolders accordingly
-                      if (selectedFolder?.startsWith(ASSIGNED_TASK_CPA_FOLDER)) {
-                        folderBgClass = "bg-purple-50/30 hover:bg-purple-50 border-purple-100 hover:border-purple-200";
-                        folderIconClass = "text-purple-400 fill-purple-100 group-hover:fill-purple-200";
-                      } else if (selectedFolder?.startsWith(ASSIGNED_TASK_SC_FOLDER)) {
-                        folderBgClass = "bg-indigo-50/30 hover:bg-indigo-50 border-indigo-100 hover:border-indigo-200";
-                        folderIconClass = "text-indigo-400 fill-indigo-100 group-hover:fill-indigo-200";
-                      } else {
-                        folderBgClass = "bg-green-50/30 hover:bg-green-50 border-green-100 hover:border-green-200";
-                        folderIconClass = "text-green-400 fill-green-100 group-hover:fill-green-200";
-                      }
-                    } else if (isOnboardingFolder) {
-                      folderBgClass = "bg-blue-50/30 hover:bg-blue-50 border-blue-100 hover:border-blue-200";
-                      folderIconClass = "text-blue-400 fill-blue-100 group-hover:fill-blue-200";
-                    }
-
-                    return (
-                      <div
-                        key={folder.name}
-                        onClick={() => setSelectedFolder(fullPath)}
-                        className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl 
-                          ${folderBgClass}
-                          cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md`}
-                      >
-                        {/* Show special icon or folder icon */}
-                        {folder.name === ASSIGNED_TASK_FOLDER || folder.name === ONBOARDING_FOLDER || folder.name === ASSIGNED_TASK_CPA_FOLDER || folder.name === ASSIGNED_TASK_SC_FOLDER ? (
-                          <div className="relative mb-3">
-                            <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
-                            <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' :
-                              folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
-                                folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
-                                  'bg-blue-500'
-                              }`}>
-                              <FolderBadgeIcon className="w-3 h-3 text-white" />
-                            </div>
-                          </div>
-                        ) : (
-                          <Folder className={`w-12 h-12 ${folderIconClass} mb-3 transition-colors`} />
-                        )}
-                        <span
-                          className="text-sm font-medium text-gray-700 text-center truncate w-full px-2"
-                          title={folder.name}
-                        >
-                          {folder.name}
-                        </span>
-
-                        {/* Subtitle for special folders */}
-                        {folder.name === ASSIGNED_TASK_FOLDER && (
-                          <span className="text-xs text-green-600 mt-1">Task Completions</span>
-                        )}
-                        {folder.name === ASSIGNED_TASK_CPA_FOLDER && (
-                          <span className="text-xs text-purple-600 mt-1">CPA Completions</span>
-                        )}
-                        {folder.name === ASSIGNED_TASK_SC_FOLDER && (
-                          <span className="text-xs text-indigo-600 mt-1">Center Completions</span>
-                        )}
-                        {folder.name === ONBOARDING_FOLDER && (
-                          <span className="text-xs text-blue-600 mt-1">Stage Completions</span>
-                        )}
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!confirm(`Delete folder "${folder.name}"?`)) return;
-
-                            fetch("/api/documents/delete-folder", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                clientId: id,
-                                folderPath: fullPath,
-                              }),
-                            }).then(() => mutate(["docs", id, selectedFolder]));
-                          }}
-                          className="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 text-gray-400 hover:text-red-600 hover:bg-red-50 
-                            opacity-0 group-hover:opacity-100 transition-all shadow-sm border border-transparent hover:border-red-100"
-                          title="Delete folder"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-              </div>
-
               {/* ✅ FILES TABLE */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                    Files ({docs.filter((i: any) => i.type === "file").length})
+                    Files ({items.filter((i: any) => i.type === "file").length})
                   </h3>
                 </div>
 
@@ -1702,10 +2095,9 @@ export default function ClientProfilePage() {
                   </div>
                 ) : (
                   <div className="border rounded-lg overflow-hidden shadow-sm">
-                    <DataTable
-                      columns={docCols}
-                      rows={docs.filter((i: any) => i.type === "file")}
-                    />
+                    <div className="border rounded-lg overflow-hidden shadow-sm">
+                      <DataTable columns={docCols} rows={items} />
+                    </div>
                   </div>
                 )}
               </div>

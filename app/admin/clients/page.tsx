@@ -1,7 +1,7 @@
 // app/admin/clients/page.tsx
 "use client";
 
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import { fetchClients } from "@/lib/api";
 import {
   DataTable,
@@ -24,15 +24,22 @@ import {
 
 import { StatusPill } from "@/components/widgets/status-pill";
 import { ProgressRing } from "@/components/widgets/progress-ring";
+import { Badge } from "@/components/ui/badge";
 import type { ClientProfile } from "@/types";
+import { Archive, ArchiveRestore } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminClientsList() {
   const { page, setPage, pageSize, q, setQ } = useServerTableState();
   const [clientPageSize, setClientPageSize] = useState(5);
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
   // Read status filter from URL, default to "ALL"
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  // Archive filter tab: "ALL" = all clients, "active" = only active, "archived" = only archived
+  const [archiveFilter, setArchiveFilter] = useState<string>("ALL");
 
   // Initialize filter from URL on mount
   useEffect(() => {
@@ -51,11 +58,29 @@ export default function AdminClientsList() {
 
   const router = useRouter();
   const openDrawer = useUIStore((s) => s.openDrawer);
+  const handleRowClick = (row: ClientProfile, e: React.MouseEvent) => {
+    // 1) If user is selecting text (copying), do NOT navigate
+    const selection = window.getSelection?.()?.toString();
+    if (selection && selection.trim().length > 0) return;
 
-  // ---------- FETCH CLIENTS (with server-side search and status filter) ----------
+    // 2) If click came from an interactive element, do NOT navigate
+    const target = e.target as HTMLElement;
+    if (
+      target.closest(
+        'button, a, input, textarea, select, [role="button"], [data-no-row-click="true"]'
+      )
+    ) {
+      return;
+    }
+
+    // 3) Navigate to client details
+    router.push(`/admin/clients/${row.client_id}`);
+  };
+
+  // ---------- FETCH CLIENTS (with server-side search, status filter, and archive filter) ----------
   const { data } = useSWR(
-    ["clients", page, clientPageSize, q, statusFilter],
-    () => fetchClients({ page, pageSize: clientPageSize, q, status: statusFilter }),
+    ["clients", page, clientPageSize, q, statusFilter, archiveFilter],
+    () => fetchClients({ page, pageSize: clientPageSize, q, status: statusFilter, archiveFilter }),
     { keepPreviousData: true }
   );
 
@@ -74,15 +99,66 @@ export default function AdminClientsList() {
   // Rows are already paginated by the server
   const paginatedRows = clientRows;
 
+  // ---------- ARCHIVE/UNARCHIVE HANDLER ----------
+  const handleArchiveClient = async (client: ClientProfile, archive: boolean) => {
+    try {
+      const res = await fetch("/api/clients/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.client_id,
+          archive,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        toast({
+          title: archive ? "Client Archived" : "Client Restored",
+          description: json.message,
+        });
+        // Refresh the clients list
+        mutate(["clients", page, clientPageSize, q, statusFilter, archiveFilter]);
+      } else {
+        toast({
+          title: "Error",
+          description: json.error || "Failed to update client status",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    }
+  };
+
   // ---------- TABLE COLUMNS ----------
   const cols: Column<ClientProfile>[] = [
     { key: "client_name", header: "Client" },
 
-    // 🔥 SHOW SERVICE CENTER NAME INSTEAD OF ID
-    { key: "service_center_name", header: "Service Center" },
+    // ✅ SERVICE CENTER: show "Not Assigned" if missing
+    {
+      key: "service_center_name",
+      header: "Service Center",
+      render: (row) => {
+        const name = (row.service_center_name ?? "").toString().trim();
+        return name.length > 0 ? name : "Not Assigned";
+      },
+    },
 
-    // 🔥 SHOW CPA NAME INSTEAD OF ID
-    { key: "cpa_name", header: "CPA" },
+    // ✅ CPA: show "Not Assigned" if missing
+    {
+      key: "cpa_name",
+      header: "CPA",
+      render: (row) => {
+        const name = (row.cpa_name ?? "").toString().trim();
+        return name.length > 0 ? name : "Not Assigned";
+      },
+    },
 
     { key: "stage_name", header: "Current Stage" },
 
@@ -96,7 +172,6 @@ export default function AdminClientsList() {
             completedStages={row.completed_stages}
             totalStages={row.total_stages}
           />
-
         </div>
       ),
     },
@@ -105,6 +180,23 @@ export default function AdminClientsList() {
       key: "status",
       header: "Current Status",
       render: (row) => <StatusPill status={row.status || "Not Started"} />,
+    },
+
+    // ✅ NEW: Archive Status Column
+    {
+      key: "is_archived",
+      header: "Status",
+      render: (row) => (
+        <Badge
+          variant={row.is_archived ? "secondary" : "default"}
+          className={row.is_archived
+            ? "bg-gray-100 text-gray-600 border-gray-300"
+            : "bg-green-50 text-green-700 border-green-300"
+          }
+        >
+          {row.is_archived ? "Inactive" : "Active"}
+        </Badge>
+      ),
     },
   ];
 
@@ -115,17 +207,59 @@ export default function AdminClientsList() {
         <h1 className="text-xl font-semibold">Clients</h1>
 
         <div className="flex items-center gap-2">
-          {/* <Button
-            variant="secondary"
-            onClick={() => openDrawer("assignTask", {})}
-          >
-            Bulk Assign
-          </Button> */}
-
           <Button onClick={() => router.push("/admin/clients/new")}>
             New Client
           </Button>
         </div>
+      </div>
+
+      {/* ---------- ARCHIVE TABS ---------- */}
+      <div className="flex items-center gap-1 border-b border-gray-200">
+        <button
+          onClick={() => {
+            setArchiveFilter("ALL");
+            setPage(1);
+          }}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${archiveFilter === "ALL"
+              ? "text-gray-900"
+              : "text-gray-500 hover:text-gray-700"
+            }`}
+        >
+          All Clients
+          {archiveFilter === "ALL" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-t-full" />
+          )}
+        </button>
+        <button
+          onClick={() => {
+            setArchiveFilter("active");
+            setPage(1);
+          }}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${archiveFilter === "active"
+              ? "text-gray-900"
+              : "text-gray-500 hover:text-gray-700"
+            }`}
+        >
+          Active Clients
+          {archiveFilter === "active" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-t-full" />
+          )}
+        </button>
+        <button
+          onClick={() => {
+            setArchiveFilter("archived");
+            setPage(1);
+          }}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${archiveFilter === "archived"
+              ? "text-gray-900"
+              : "text-gray-500 hover:text-gray-700"
+            }`}
+        >
+          Archived Clients
+          {archiveFilter === "archived" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-t-full" />
+          )}
+        </button>
       </div>
 
       {/* ---------- SEARCH & FILTERS ---------- */}
@@ -169,29 +303,42 @@ export default function AdminClientsList() {
       <DataTable
         columns={cols}
         rows={paginatedRows}
+        onRowClick={handleRowClick}
         onRowAction={(row: ClientProfile) => (
           <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
+              data-no-row-click="true"
               onClick={() => router.push(`/admin/clients/${row.client_id}`)}
             >
               Open
             </Button>
 
-            {/* <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                openDrawer("assignTask", {
-                  clientId: row.client_id,
-                  clientName: row.client_name,
-                  prefilledClient: true,
-                })
-              }
-            >
-              Assign
-            </Button> */}
+            {/* Archive/Restore Button */}
+            {row.is_archived ? (
+              <Button
+                size="sm"
+                variant="outline"
+                data-no-row-click="true"
+                onClick={() => handleArchiveClient(row, false)}
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+              >
+                <ArchiveRestore className="h-4 w-4 mr-1" />
+                Restore
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                data-no-row-click="true"
+                onClick={() => handleArchiveClient(row, true)}
+                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                <Archive className="h-4 w-4 mr-1" />
+                Archive
+              </Button>
+            )}
           </div>
         )}
       />

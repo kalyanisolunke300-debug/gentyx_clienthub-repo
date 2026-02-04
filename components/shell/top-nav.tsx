@@ -72,7 +72,8 @@ export function TopNav() {
           </Button>
 
           <div className="ml-2 text-sm text-muted-foreground">
-            Role: {role}
+            {/* Role: {role} */}
+            {role}
           </div>
         </div>
 

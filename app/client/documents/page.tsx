@@ -20,11 +20,44 @@ import {
   Upload,
   CheckCircle2,
   Layers,
+  Lock,
+  Eye,
 } from "lucide-react";
 
 // Special folder names for task completion documents
 const ASSIGNED_TASK_FOLDER = "Assigned Task Completion Documents";
 const ONBOARDING_FOLDER = "Onboarding Stage Completion Documents";
+
+function getPreviewUrl(fileUrl: string, fileName?: string) {
+  if (!fileUrl) return "";
+
+  const name = (fileName || "").toLowerCase();
+
+  // Direct preview types
+  const isPdf = name.endsWith(".pdf");
+  const isImage = /\.(jpg|jpeg|png|gif|svg|webp)$/i.test(name);
+
+  // ✅ Office viewer formats (CSV REMOVED on purpose)
+  const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx)$/i.test(name);
+
+  // ✅ CSV should open directly (browser download/open), not Office viewer
+  const isCsv = name.endsWith(".csv");
+
+  if (isPdf || isImage) return fileUrl;
+
+  if (isOffice) {
+    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+      fileUrl
+    )}`;
+  }
+
+  if (isCsv) {
+    return fileUrl;
+  }
+
+  // Fallback
+  return fileUrl;
+}
 
 export default function ClientDocuments() {
   const role = useUIStore((s) => s.role);
@@ -57,10 +90,20 @@ export default function ClientDocuments() {
     clientId ? ["docs", clientId, selectedFolder] : null,
     () =>
       selectedFolder
-        ? fetch(`/api/documents/get-by-client?id=${clientId}&folder=${selectedFolder}`).then((r) => r.json())
-        : fetch(`/api/documents/get-by-client?id=${clientId}`).then((r) => r.json()),
+        ? fetch(`/api/documents/get-by-client?id=${clientId}&folder=${encodeURIComponent(selectedFolder)}&role=CLIENT`).then((r) => r.json())
+        : fetch(`/api/documents/get-by-client?id=${clientId}&role=CLIENT`).then((r) => r.json()),
     { revalidateOnFocus: false }
   );
+
+  useEffect(() => {
+    const refreshDocs = () => {
+      mutate(["docs", clientId, null]);                // root
+      mutate(["docs", clientId, selectedFolder]);      // current folder
+    };
+
+    window.addEventListener("clienthub:docs-updated", refreshDocs);
+    return () => window.removeEventListener("clienthub:docs-updated", refreshDocs);
+  }, [clientId, selectedFolder]);
 
   const docs = docsResponse?.data || [];
 
@@ -70,35 +113,64 @@ export default function ClientDocuments() {
       key: "name",
       header: "Name",
       render: (row: any) => {
+        const isFolder = row.type === "folder";
+
         let Icon = FileIcon;
-        const lowerName = row.name.toLowerCase();
-        if (lowerName.endsWith(".pdf")) Icon = FileText;
-        else if (lowerName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) Icon = FileImage;
-        else if (lowerName.match(/\.(xls|xlsx|csv)$/)) Icon = FileSpreadsheet;
+        if (isFolder) Icon = Folder;
+        else {
+          const lowerName = (row.name || "").toLowerCase();
+          if (lowerName.endsWith(".pdf")) Icon = FileText;
+          else if (lowerName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) Icon = FileImage;
+          else if (lowerName.match(/\.(xls|xlsx|csv)$/)) Icon = FileSpreadsheet;
+        }
 
         return (
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-1.5 rounded-md text-primary">
+          <button
+            type="button"
+            className="flex items-center gap-2 text-left w-full hover:underline"
+            onClick={() => {
+              if (!isFolder) return;
+              const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+              setSelectedFolder(fullPath);
+            }}
+          >
+            <div
+              className={`p-1.5 rounded-md ${isFolder ? "bg-amber-50 text-amber-500" : "bg-blue-50 text-blue-500"
+                }`}
+            >
               <Icon className="size-4" />
             </div>
+
             <span className="font-medium text-gray-700">{row.name}</span>
-          </div>
+          </button>
         );
       },
     },
     {
       key: "type",
       header: "Type",
-      render: (row: any) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 uppercase tracking-wide">
-          {row.name.split(".").pop() || "FILE"}
-        </span>
-      ),
+      render: (row: any) => {
+        if (row.type === "folder") {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 uppercase tracking-wide">
+              Folder
+            </span>
+          );
+        }
+
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 uppercase tracking-wide">
+            {row.name?.split(".").pop() || "FILE"}
+          </span>
+        );
+      },
     },
     {
       key: "size",
       header: "Size",
       render: (row: any) => {
+        if (row.type === "folder") return <span className="text-muted-foreground text-xs">—</span>;
+
         const bytes = row.size || 0;
         if (bytes === 0) return <span className="text-muted-foreground text-xs">0 B</span>;
 
@@ -115,27 +187,91 @@ export default function ClientDocuments() {
       },
     },
     {
-      key: "actions",
-      header: "Actions",
-      render: (row: any) => (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => window.open(row.url, "_blank")}
-          >
-            Preview
-          </Button>
+      key: "visibility",
+      header: "Visibility",
+      render: (row: any) => {
+        if (row.type === "folder") return <span className="text-muted-foreground text-xs">—</span>;
 
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => handleDeleteDocument(row)}
-          >
-            <Trash2 className="w-4 h-4 text-white" />
-          </Button>
-        </div>
-      ),
+        const isPrivate = row.visibility === "private";
+
+        return (
+          <div className="flex items-center gap-1.5">
+            {isPrivate ? (
+              <>
+                <Lock className="size-3.5 text-purple-600" />
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
+                  Private
+                </span>
+              </>
+            ) : (
+              <>
+                <Eye className="size-3.5 text-blue-600" />
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                  Shared
+                </span>
+              </>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right w-[240px]",
+      render: (row: any) => {
+        const isFolder = row.type === "folder";
+
+        return (
+          <div className="flex items-center w-full">
+            {!isFolder ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => window.open(getPreviewUrl(row.url, row.name), "_blank")}
+              >
+                View
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+                  setSelectedFolder(fullPath);
+                }}
+              >
+                Open
+              </Button>
+            )}
+
+            <div className="flex-1" />
+
+            <Button
+              size="icon"
+              variant="destructive"
+              className="ml-4"
+              onClick={() => {
+                if (isFolder) {
+                  const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+                  if (!confirm(`Delete folder "${row.name}"?`)) return;
+
+                  fetch("/api/documents/delete-folder", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ clientId, folderPath: fullPath }),
+                  }).then(() => mutate(["docs", clientId, selectedFolder]));
+                } else {
+                  handleDeleteDocument(row);
+                }
+              }}
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -251,6 +387,7 @@ export default function ClientDocuments() {
                           clientId: clientId,
                           folderName: newFolderName,
                           parentFolder: selectedFolder,
+                          role: role,
                         }),
                       });
 
@@ -304,135 +441,53 @@ export default function ClientDocuments() {
           ) : (
             <>
               {/* FOLDERS GRID */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
-                {docs
-                  .filter((i: any) => i.type === "folder")
-                  .map((folder: any) => {
-                    const fullPath = selectedFolder
-                      ? `${selectedFolder}/${folder.name}`
-                      : folder.name;
-
-                    // Special styling for completion document folders
-                    const isAssignedTaskFolder = folder.name === ASSIGNED_TASK_FOLDER ||
-                      (selectedFolder && selectedFolder.startsWith(ASSIGNED_TASK_FOLDER));
-                    const isOnboardingFolder = folder.name === ONBOARDING_FOLDER ||
-                      (selectedFolder && selectedFolder.startsWith(ONBOARDING_FOLDER));
-
-                    // Determine styling based on folder type
-                    let folderBgClass = "bg-amber-50/30 hover:bg-amber-50 border-gray-100 hover:border-amber-200";
-                    let folderIconClass = "text-amber-400 fill-amber-100 group-hover:fill-amber-200";
-                    let FolderIcon = Folder;
-
-                    if (folder.name === ASSIGNED_TASK_FOLDER) {
-                      folderBgClass = "bg-green-50/50 hover:bg-green-50 border-green-200 hover:border-green-300";
-                      folderIconClass = "text-green-500 fill-green-100 group-hover:fill-green-200";
-                      FolderIcon = CheckCircle2;
-                    } else if (folder.name === ONBOARDING_FOLDER) {
-                      folderBgClass = "bg-blue-50/50 hover:bg-blue-50 border-blue-200 hover:border-blue-300";
-                      folderIconClass = "text-blue-500 fill-blue-100 group-hover:fill-blue-200";
-                      FolderIcon = Layers;
-                    } else if (isAssignedTaskFolder) {
-                      folderBgClass = "bg-green-50/30 hover:bg-green-50 border-green-100 hover:border-green-200";
-                      folderIconClass = "text-green-400 fill-green-100 group-hover:fill-green-200";
-                    } else if (isOnboardingFolder) {
-                      folderBgClass = "bg-blue-50/30 hover:bg-blue-50 border-blue-100 hover:border-blue-200";
-                      folderIconClass = "text-blue-400 fill-blue-100 group-hover:fill-blue-200";
-                    }
-
-                    return (
-                      <div
-                        key={folder.name}
-                        onClick={() => setSelectedFolder(fullPath)}
-                        className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl 
-                          ${folderBgClass}
-                          cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md`}
-                      >
-                        {/* Show special icon or folder icon */}
-                        {folder.name === ASSIGNED_TASK_FOLDER || folder.name === ONBOARDING_FOLDER ? (
-                          <div className="relative mb-3">
-                            <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
-                            <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' : 'bg-blue-500'}`}>
-                              <FolderIcon className="w-3 h-3 text-white" />
-                            </div>
-                          </div>
-                        ) : (
-                          <Folder className={`w-12 h-12 ${folderIconClass} mb-3 transition-colors`} />
-                        )}
-                        <span className="text-sm font-medium text-gray-700 text-center truncate w-full px-2">
-                          {folder.name}
-                        </span>
-
-                        {/* Subtitle for special folders */}
-                        {folder.name === ASSIGNED_TASK_FOLDER && (
-                          <span className="text-xs text-green-600 mt-1">Task Completions</span>
-                        )}
-                        {folder.name === ONBOARDING_FOLDER && (
-                          <span className="text-xs text-blue-600 mt-1">Stage Completions</span>
-                        )}
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!confirm(`Delete folder "${folder.name}"?`)) return;
-
-                            fetch("/api/documents/delete-folder", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                clientId: clientId,
-                                folderPath: fullPath,
-                              }),
-                            }).then(() => mutate(["docs", clientId, selectedFolder]));
-                          }}
-                          className="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 text-gray-400 hover:text-red-600 hover:bg-red-50 
-                            opacity-0 group-hover:opacity-100 transition-all shadow-sm border border-transparent hover:border-red-100"
-                          title="Delete folder"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-              </div>
-
               {/* FILES TABLE */}
+              {/* FILES TABLE (folders + files like Admin) */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                    Files ({docs.filter((i: any) => i.type === "file").length})
+                    Files ({docs.length})
                   </h3>
                 </div>
 
-                {docs.filter((i: any) => i.type === "file").length === 0 ? (
+                {docs.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed rounded-xl bg-gray-50/50">
                     <div className="flex flex-col items-center gap-2">
                       <FileIcon className="size-8 text-gray-300" />
-                      <p className="text-gray-500 font-medium">No files in this folder</p>
-                      <p className="text-sm text-gray-400">Upload a document to get started</p>
-                      <Button
-                        size="sm"
-                        className="mt-2"
-                        onClick={() =>
-                          useUIStore.getState().openDrawer("uploadDoc", {
-                            clientId: clientId,
-                            folderName: selectedFolder,
-                          })
-                        }
-                      >
-                        <Upload className="mr-2 size-4" />
-                        Upload Document
-                      </Button>
+                      <p className="text-gray-500 font-medium">No files or folders</p>
+                      <p className="text-sm text-gray-400">Upload a document or create a folder to get started</p>
+
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowCreateFolder(true)}
+                        >
+                          ➕ Create Folder
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            useUIStore.getState().openDrawer("uploadDoc", {
+                              clientId: clientId,
+                              folderName: selectedFolder,
+                            })
+                          }
+                        >
+                          <Upload className="mr-2 size-4" />
+                          Upload Document
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ) : (
                   <div className="border rounded-lg overflow-hidden shadow-sm">
-                    <DataTable
-                      columns={docCols}
-                      rows={docs.filter((i: any) => i.type === "file")}
-                    />
+                    <DataTable columns={docCols} rows={docs} />
                   </div>
                 )}
               </div>
+
             </>
           )}
         </CardContent>

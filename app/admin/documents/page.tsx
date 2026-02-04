@@ -68,6 +68,95 @@ export default function AdminDocumentsPage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [clientOpen, setClientOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingClientId, setPendingClientId] = useState<string>("");
+  const [pendingFolderName, setPendingFolderName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const doUpload = async (action: "ask" | "replace" | "skip") => {
+    if (!pendingClientId || !pendingFile) return;
+
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("clientId", pendingClientId);
+      if (pendingFolderName) fd.append("folderName", pendingFolderName);
+      fd.append("file", pendingFile);
+      fd.append("duplicateAction", action);
+
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: fd,
+      });
+
+      const json = await res.json();
+
+      // ✅ Duplicate → show centered popup (Replace/Cancel)
+      if (res.status === 409 && json?.duplicate) {
+        setDuplicateOpen(true);
+        return;
+      }
+
+      if (!json?.success) {
+        // show toast or error
+        // toast({ title: "Upload failed", description: json?.error || "Upload failed", variant: "destructive" });
+        return;
+      }
+
+      // ✅ SUCCESS: close duplicate dialog (if open)
+      setDuplicateOpen(false);
+
+      // ✅ IMPORTANT: trigger refresh on both pages
+      window.dispatchEvent(
+        new CustomEvent("clienthub:docs-updated", {
+          detail: {
+            clientId: pendingClientId,
+            folderName: pendingFolderName ?? null,
+          },
+        })
+      );
+
+      // ✅ optional: clear file
+      setPendingFile(null);
+
+      // ✅ optional: show toast
+      // toast({ title: json.message || "File uploaded" });
+
+    } catch (e: any) {
+      // toast({ title: "Upload error", description: e?.message || "Upload failed", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+
+  // Revalidate docs list (fixes "need refresh after upload/delete")
+  const revalidateDocs = (clientId?: string | null, folder?: string | null) => {
+    const cid = clientId ?? selectedClientId;
+    const f = folder ?? selectedFolder;
+
+    if (!cid) return;
+
+    // Revalidate both keys: root + current folder
+    mutate(["docs", cid, null]);
+    mutate(["docs", cid, f ?? null]);
+  };
+
+  // Listen for upload success event from Upload Drawer
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      revalidateDocs(detail.clientId, detail.folderName ?? null);
+    };
+
+    window.addEventListener("clienthub:docs-updated", handler as EventListener);
+
+    return () => {
+      window.removeEventListener("clienthub:docs-updated", handler as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClientId, selectedFolder]);
 
   // Initialize from URL on mount
   useEffect(() => {
@@ -90,7 +179,7 @@ export default function AdminDocumentsPage() {
     selectedClientId ? ["docs", selectedClientId, selectedFolder] : null,
     () =>
       selectedFolder
-        ? fetch(`/api/documents/get-by-client?id=${selectedClientId}&folder=${selectedFolder}`).then((r) => r.json())
+        ? fetch(`/api/documents/get-by-client?id=${selectedClientId}&folder=${encodeURIComponent(selectedFolder)}`).then((r) => r.json())
         : fetch(`/api/documents/get-by-client?id=${selectedClientId}`).then((r) => r.json()),
     { revalidateOnFocus: false }
   );
@@ -102,6 +191,22 @@ export default function AdminDocumentsPage() {
     if (!clientId) return "Select a client";
     const client = clients.find((c: any) => c.client_id === Number(clientId));
     return client?.client_name || `Client #${clientId}`;
+  };
+
+  const getPreviewUrl = (fileUrl: string, fileName: string) => {
+    const lower = fileName.toLowerCase();
+
+    // Direct preview types
+    if (lower.endsWith(".pdf")) return fileUrl;
+    if (lower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) return fileUrl;
+
+    // Office / other docs -> Office viewer
+    if (lower.match(/\.(doc|docx|ppt|pptx|xls|xlsx|csv)$/)) {
+      return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
+    }
+
+    // Fallback: open the file itself (download/open by browser)
+    return fileUrl;
   };
 
   // Document columns with icons
@@ -156,23 +261,74 @@ export default function AdminDocumentsPage() {
     },
     {
       key: "actions",
-      header: "Actions",
+      header: "",
+      className: "text-right w-[240px]", // ✅ gives space so delete can sit far right
       render: (row: any) => (
-        <div className="flex gap-2">
+        <div className="flex items-center w-full">
+          {/* Left action (Preview) */}
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => window.open(row.url, "_blank")}
+            onClick={async () => {
+              try {
+                const lower = (row.name || "").toLowerCase();
+                const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx|csv)$/i.test(lower);
+
+                // Always generate a temporary public/SAS URL for ANY file type
+                const res = await fetch(
+                  `/api/documents/public-url?clientId=${encodeURIComponent(
+                    selectedClientId || ""
+                  )}&fullPath=${encodeURIComponent(row.fullPath)}`,
+                  { cache: "no-store" }
+                );
+
+                const json = await res.json();
+
+                if (!res.ok || !json?.success || !json?.url) {
+                  toast({
+                    title: "Preview failed",
+                    description: json?.error || "Could not generate preview link",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                // Office files must go through Office viewer
+                if (isOffice) {
+                  const viewer = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+                    json.url
+                  )}`;
+                  window.open(viewer, "_blank", "noopener,noreferrer");
+                  return;
+                }
+
+                // PDFs, images, anything else → open the SAS url directly
+                window.open(json.url, "_blank", "noopener,noreferrer");
+              } catch (err: any) {
+                toast({
+                  title: "Preview failed",
+                  description: err?.message || "Something went wrong while previewing",
+                  variant: "destructive",
+                });
+              }
+            }}
+
           >
-            Preview
+            View
           </Button>
 
+          {/* Spacer pushes delete to far right */}
+          <div className="flex-1" />
+
+          {/* Right action (Delete) */}
           <Button
-            size="sm"
+            size="icon"
             variant="destructive"
+            className="ml-4"
             onClick={() => handleDeleteDocument(row)}
+            title="Delete"
           >
-            <Trash2 className="w-4 h-4 text-white" />
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       ),
@@ -531,9 +687,9 @@ export default function AdminDocumentsPage() {
                               <div className="relative mb-3">
                                 <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
                                 <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' :
-                                    folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
-                                      folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
-                                        'bg-blue-500'
+                                  folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
+                                    folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
+                                      'bg-blue-500'
                                   }`}>
                                   <FolderIcon className="w-3 h-3 text-white" />
                                 </div>

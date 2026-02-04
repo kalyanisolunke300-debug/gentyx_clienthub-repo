@@ -13,12 +13,15 @@ export async function GET(req: Request) {
     const q = (searchParams.get("q") || "").trim();
     // Status filter: ALL, Not Started, In Progress, Completed
     const statusFilter = (searchParams.get("status") || "ALL").trim();
+    // Archive filter: ALL (both), active (not archived), archived (only archived)
+    const archiveFilter = (searchParams.get("archiveFilter") || "ALL").trim();
     const offset = (page - 1) * pageSize;
 
     const request = pool
       .request()
       .input("Q", sql.VarChar(255), q)
       .input("StatusFilter", sql.VarChar(50), statusFilter)
+      .input("ArchiveFilter", sql.VarChar(50), archiveFilter)
       .input("PageSize", sql.Int, pageSize)
       .input("Offset", sql.Int, offset);
 
@@ -46,18 +49,27 @@ export async function GET(req: Request) {
           c.updated_at,
           c.service_center_id,
           c.cpa_id,
+          ISNULL(c.is_archived, 0) AS is_archived,
           sc.center_name AS service_center_name,
           cp.cpa_name AS cpa_name
         FROM dbo.Clients c
         LEFT JOIN dbo.service_centers sc ON sc.service_center_id = c.service_center_id
         LEFT JOIN dbo.cpa_centers cp ON cp.cpa_id = c.cpa_id
         WHERE
-          @Q = '' OR
-          c.client_name LIKE '%' + @Q + '%' OR
-          c.code LIKE '%' + @Q + '%' OR
-          c.primary_contact_name LIKE '%' + @Q + '%' OR
-          sc.center_name LIKE '%' + @Q + '%' OR
-          cp.cpa_name LIKE '%' + @Q + '%'
+          -- Archive filter
+          (
+            @ArchiveFilter = 'ALL' 
+            OR (@ArchiveFilter = 'active' AND ISNULL(c.is_archived, 0) = 0)
+            OR (@ArchiveFilter = 'archived' AND c.is_archived = 1)
+          )
+          AND (
+            @Q = '' OR
+            c.client_name LIKE '%' + @Q + '%' OR
+            c.code LIKE '%' + @Q + '%' OR
+            c.primary_contact_name LIKE '%' + @Q + '%' OR
+            sc.center_name LIKE '%' + @Q + '%' OR
+            cp.cpa_name LIKE '%' + @Q + '%'
+          )
       ),
 
       /* ============================================
@@ -213,7 +225,9 @@ export async function GET(req: Request) {
           CASE 
             WHEN fc.total_stages = 0 THEN 0
             ELSE (fc.completed_stages * 100.0) / fc.total_stages
-          END
+          END,
+
+        fc.is_archived
 
       FROM FilteredClients fc
       LEFT JOIN dbo.service_centers sc
@@ -232,6 +246,8 @@ export async function GET(req: Request) {
         ORDER BY m.created_at DESC
       ) LastMsg
       ORDER BY 
+        -- Archived clients always at bottom
+        fc.is_archived ASC,
         -- When searching, sort by relevance (exact client_name matches first)
         CASE WHEN @Q <> '' THEN
           CASE 
@@ -264,12 +280,20 @@ export async function GET(req: Request) {
         LEFT JOIN dbo.service_centers sc ON sc.service_center_id = c.service_center_id
         LEFT JOIN dbo.cpa_centers cp ON cp.cpa_id = c.cpa_id
         WHERE
-          @Q = '' OR
-          c.client_name LIKE '%' + @Q + '%' OR
-          c.code LIKE '%' + @Q + '%' OR
-          c.primary_contact_name LIKE '%' + @Q + '%' OR
-          sc.center_name LIKE '%' + @Q + '%' OR
-          cp.cpa_name LIKE '%' + @Q + '%'
+          -- Archive filter
+          (
+            @ArchiveFilter = 'ALL' 
+            OR (@ArchiveFilter = 'active' AND ISNULL(c.is_archived, 0) = 0)
+            OR (@ArchiveFilter = 'archived' AND c.is_archived = 1)
+          )
+          AND (
+            @Q = '' OR
+            c.client_name LIKE '%' + @Q + '%' OR
+            c.code LIKE '%' + @Q + '%' OR
+            c.primary_contact_name LIKE '%' + @Q + '%' OR
+            sc.center_name LIKE '%' + @Q + '%' OR
+            cp.cpa_name LIKE '%' + @Q + '%'
+          )
       ),
       ClientWithStatus AS (
         SELECT

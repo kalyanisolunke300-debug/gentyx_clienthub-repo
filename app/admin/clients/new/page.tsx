@@ -52,9 +52,10 @@ function formatPhoneInput(value: string) {
 
 type AssociatedUser = {
   id: string;
-  name: string;
-  email: string;
-  role: "Client User" | "Service Center User" | "CPA User";
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
 };
 
 export default function NewClientPage() {
@@ -63,11 +64,11 @@ export default function NewClientPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [associatedUsers, setAssociatedUsers] = useState<AssociatedUser[]>([]);
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    role: "Client User" as const,
-  });
+  // const [newUser, setNewUser] = useState({
+  //   name: "",
+  //   email: "",
+  //   role: "Client User" as const,
+  // });
 
   /* ------------------- FETCH SQL DATA ------------------- */
   const { data: serviceCenters } = useSWR("service-centers-list", fetchServiceCenters);
@@ -90,22 +91,14 @@ export default function NewClientPage() {
 
   /* ------------------- ADD USER ------------------- */
   function addUser() {
-    if (!newUser.name.trim() || !newUser.email.trim()) {
-      toast({
-        title: "Error",
-        description: "Name and email required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setAssociatedUsers([...associatedUsers, { id: `user-${Date.now()}`, ...newUser }]);
-    setNewUser({ name: "", email: "", role: "Client User" });
+    setAssociatedUsers((prev) => [
+      ...prev,
+      { id: `user-${Date.now()}`, firstName: "", lastName: "", email: "", phone: "" },
+    ]);
   }
 
-  /* ------------------- REMOVE USER ------------------- */
   function removeUser(id: string) {
-    setAssociatedUsers(associatedUsers.filter((u) => u.id !== id));
+    setAssociatedUsers((prev) => prev.filter((u) => u.id !== id));
   }
 
   /* ------------------- SUBMIT FORM ------------------- */
@@ -116,6 +109,23 @@ export default function NewClientPage() {
       // Combine first and last name for display/storage
       const primaryContactName = `${values.primary_contact_first_name} ${values.primary_contact_last_name}`.trim();
 
+      const mappedAssociatedUsers = associatedUsers
+        .map((u) => {
+          const first = (u.firstName ?? "").trim();
+          const last = (u.lastName ?? "").trim();
+          const email = (u.email ?? "").trim();
+          const phone = (u.phone ?? "").trim();
+
+          return {
+            name: `${first} ${last}`.trim(),
+            email,
+            role: "Client User",
+            phone,
+          };
+        })
+        // remove fully-empty rows
+        .filter((u) => u.name || u.email || u.phone);
+
       const res = await createClient({
         clientName: values.client_name,
         primaryContactFirstName: values.primary_contact_first_name,
@@ -125,7 +135,7 @@ export default function NewClientPage() {
         primaryContactPhone: values.primary_contact_phone,
         serviceCenterId: Number(values.service_center_id) || null,
         cpaId: Number(values.cpa_id) || null,
-        associatedUsers,
+        associatedUsers: mappedAssociatedUsers,
       });
 
       // ✅ Check for API error response
@@ -276,57 +286,115 @@ export default function NewClientPage() {
 
 
           {/* Associated Users */}
+          {/* Associated Users */}
           <div className="border-t pt-4 mt-4">
-            <Label className="font-semibold">Associated Users</Label>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-semibold">Associated Users</Label>
+                <p className="text-xs text-muted-foreground">
+                  Optional users who can access this client.
+                </p>
+              </div>
 
-            <div className="grid grid-cols-3 gap-2 mt-2">
-              <Input
-                placeholder="Name"
-                value={newUser.name}
-                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-              />
-
-              <Input
-                placeholder="Email"
-                type="email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-              />
-
-              <Select
-                value={newUser.role}
-                onValueChange={(v) => setNewUser({ ...newUser, role: v as any })}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addUser}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Client User">Client User</SelectItem>
-                  <SelectItem value="Service Center User">Service Center User</SelectItem>
-                  <SelectItem value="CPA User">CPA User</SelectItem>
-                </SelectContent>
-              </Select>
+                <Plus className="mr-1 size-4" /> Add associated user
+              </Button>
             </div>
 
-            <Button type="button" className="w-full mt-2" variant="outline" onClick={addUser}>
-              <Plus className="mr-1 size-4" /> Add another user
-            </Button>
+            {associatedUsers.length === 0 ? (
+              <p className="text-xs text-muted-foreground mt-2">
+                No associated users added.
+              </p>
+            ) : (
+              <div className="space-y-3 mt-3">
+                {associatedUsers.map((u, idx) => (
+                  <div
+                    key={u.id}
+                    className="rounded-md border p-3"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                      {/* First Name */}
+                      <div className="grid gap-1">
+                        <Label className="text-xs">First Name</Label>
+                        <Input
+                          placeholder="John"
+                          value={u.firstName ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setAssociatedUsers((prev) =>
+                              prev.map((x) => (x.id === u.id ? { ...x, firstName: v } : x))
+                            );
+                          }}
+                        />
+                      </div>
 
-            {associatedUsers.length > 0 && (
-              <div className="space-y-2 mt-2">
-                {associatedUsers.map((u) => (
-                  <div key={u.id} className="flex items-center justify-between border p-2 rounded-md">
-                    <div>
-                      <div className="font-medium">{u.name}</div>
-                      <div className="text-xs">{u.email}</div>
-                      <div className="text-xs text-muted-foreground">{u.role}</div>
+                      {/* Last Name */}
+                      <div className="grid gap-1">
+                        <Label className="text-xs">Last Name</Label>
+                        <Input
+                          placeholder="Doe"
+                          value={u.lastName ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setAssociatedUsers((prev) =>
+                              prev.map((x) => (x.id === u.id ? { ...x, lastName: v } : x))
+                            );
+                          }}
+                        />
+                      </div>
+
+                      {/* Email (full row) */}
+                      <div className="grid gap-1 md:col-span-2">
+                        <Label className="text-xs">Email</Label>
+                        <Input
+                          type="email"
+                          placeholder="john@example.com"
+                          value={u.email ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setAssociatedUsers((prev) =>
+                              prev.map((x) => (x.id === u.id ? { ...x, email: v } : x))
+                            );
+                          }}
+                        />
+                      </div>
+
+                      {/* Phone (full row) */}
+                      <div className="grid gap-1 md:col-span-2">
+                        <Label className="text-xs">Phone</Label>
+                        <Input
+                          placeholder="555-888-3333"
+                          inputMode="numeric"
+                          maxLength={12}
+                          value={u.phone ?? ""}
+                          onChange={(e) => {
+                            const formatted = formatPhoneInput(e.target.value);
+                            setAssociatedUsers((prev) =>
+                              prev.map((x) => (x.id === u.id ? { ...x, phone: formatted } : x))
+                            );
+                          }}
+                        />
+                      </div>
+
+                      {/* Remove button (full row, right aligned) */}
+                      <div className="md:col-span-2 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeUser(u.id)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
                     </div>
-
-                    <Button variant="ghost" size="sm" onClick={() => removeUser(u.id)}>
-                      <X className="size-4" />
-                    </Button>
                   </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>

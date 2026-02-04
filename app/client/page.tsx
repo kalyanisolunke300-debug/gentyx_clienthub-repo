@@ -286,6 +286,83 @@ export default function ClientHome() {
         </div>
       </div>
 
+      {/* MY DOCUMENTS */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="h-5 w-5 text-primary" />
+            My Documents
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/client/documents")}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/client/documents")}
+            >
+              View All <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!clientId || docsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              <span className="ml-2 text-sm text-muted-foreground">
+                Loading documents…
+              </span>
+            </div>
+          ) : docsError ? (
+            <div className="text-sm text-red-600 py-4 text-center">
+              Failed to load documents.
+            </div>
+          ) : topDocs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="bg-muted/50 rounded-full p-4 mb-3">
+                <FileText className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground mb-2">
+                No documents uploaded yet.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/client/documents")}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Your First Document
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {topDocs.map((d: any, idx: number) => (
+                <div
+                  key={`doc-${idx}-${d.name}`}
+                  className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-sm">{d.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {d.size ? `${(d.size / 1024).toFixed(1)} KB` : "Document"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ONBOARDING PROGRESS - STAGE TIMELINE */}
       <Card>
         <CardHeader className="pb-3">
@@ -608,83 +685,6 @@ export default function ClientHome() {
           </CardContent>
         </Card>
       </div>
-
-      {/* MY DOCUMENTS */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <FileText className="h-5 w-5 text-primary" />
-            My Documents
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push("/client/documents")}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/client/documents")}
-            >
-              View All <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {!clientId || docsLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-              <span className="ml-2 text-sm text-muted-foreground">
-                Loading documents…
-              </span>
-            </div>
-          ) : docsError ? (
-            <div className="text-sm text-red-600 py-4 text-center">
-              Failed to load documents.
-            </div>
-          ) : topDocs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <div className="bg-muted/50 rounded-full p-4 mb-3">
-                <FileText className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground mb-2">
-                No documents uploaded yet.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push("/client/documents")}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Your First Document
-              </Button>
-            </div>
-          ) : (
-            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-              {topDocs.map((d: any, idx: number) => (
-                <div
-                  key={`doc-${idx}-${d.name}`}
-                  className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <FileText className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-sm">{d.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {d.size ? `${(d.size / 1024).toFixed(1)} KB` : "Document"}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -240,9 +240,29 @@ export default function AdminDashboard() {
   // ---------- TABLE COLUMNS ----------
   const clientCols: Column<ClientProfile>[] = [
     { key: "client_name", header: "Client" },
-    { key: "service_center_name", header: "Service Center" },
-    { key: "cpa_name", header: "CPA" },
+
+    // ✅ SERVICE CENTER: show "Not Assigned" if missing
+    {
+      key: "service_center_name",
+      header: "Service Center",
+      render: (row) => {
+        const name = (row.service_center_name ?? "").toString().trim();
+        return name.length > 0 ? name : "Not Assigned";
+      },
+    },
+
+    // ✅ CPA: show "Not Assigned" if missing
+    {
+      key: "cpa_name",
+      header: "CPA",
+      render: (row) => {
+        const name = (row.cpa_name ?? "").toString().trim();
+        return name.length > 0 ? name : "Not Assigned";
+      },
+    },
+
     { key: "stage_name", header: "Stage" },
+
     {
       key: "progress",
       header: "Progress",
@@ -551,7 +571,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <CardTitle>Clients Overview</CardTitle>
+              <CardTitle>Client List</CardTitle>
               <input
                 type="text"
                 placeholder="Search client..."

@@ -103,7 +103,7 @@ export async function POST(req: Request) {
                 headerColor,
                 bodyContent: processedBody,
                 showActionButton: true,
-                actionButtonUrl: "https://clienthub.hubonesystems.net",
+                actionButtonUrl: "https://legacy.hubonesystems.net",
                 actionButtonLabel: "Open ClientHub",
             });
         }

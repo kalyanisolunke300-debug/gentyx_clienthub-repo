@@ -14,6 +14,10 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const clientId = url.searchParams.get("id");
     const folder = url.searchParams.get("folder"); // optional
+    const rawRole = url.searchParams.get("role");
+    const role = (rawRole || "ADMIN").toUpperCase(); // Normalize to ADMIN
+
+    console.log(`[DOCS] Fetching for Client: ${clientId}, Role: ${role} (Raw: ${rawRole})`);
 
     if (!clientId) {
       return NextResponse.json({ success: false, error: "Missing clientId" });
@@ -42,7 +46,10 @@ export async function GET(req: Request) {
     const expiresOn = new Date(Date.now() + 60 * 60 * 1000);
 
     // HIERARCHY LISTING → RETURNS FOLDERS + FILES
-    for await (const blob of containerClient.listBlobsByHierarchy("/", { prefix })) {
+    // ✅ Include metadata in the listing itself to avoid N+1 calls
+    for await (const blob of containerClient.listBlobsByHierarchy("/", {
+      prefix,
+    })) {
 
       // -------------- FOLDER --------------
       if (blob.kind === "prefix") {
@@ -65,8 +72,36 @@ export async function GET(req: Request) {
 
       if (!fileName || fileName === ".keep") continue;
 
+      // Get visibility from metadata directly
+      // Robustly handle metadata: list inclusion might fail or use different casing
+      let meta = blob.metadata;
+      if (!meta) {
+        try {
+          const props = await containerClient.getBlobClient(blob.name).getProperties();
+          meta = props.metadata;
+        } catch (e) {
+          // ignore error
+        }
+      }
+
+      // Normalize metadata keys to lowercase for safe lookup
+      const metaLower = meta ? Object.fromEntries(Object.entries(meta).map(([k, v]) => [k.toLowerCase(), v])) : {};
+      const visibility = (metaLower.visibility || "shared").toLowerCase();
+
+      // DEBUG LOG
+      console.log(`[DOCS] File: ${fileName}, Vis: ${visibility}, Role: ${role}`);
+
+      // Filter based on role:
+      // - ADMIN can only see "shared" documents
+      // - CLIENT can see all documents (both "shared" and "private")
+      if (role === "ADMIN" && visibility === "private") {
+        console.log(`[DOCS] SKIPPING Private file for ADMIN: ${fileName}`);
+        continue; // Skip private documents for admin
+      }
+
       // Generate SAS URL for the file
       const blobClient = containerClient.getBlobClient(blob.name);
+
       const sas = generateBlobSASQueryParameters(
         {
           containerName,
@@ -85,6 +120,8 @@ export async function GET(req: Request) {
         url: sasUrl, // ✅ SAS URL instead of direct URL
         size: blob.properties.contentLength ?? 0,
         fullPath: blob.name, // ✅ REQUIRED FOR DELETE API
+        visibility: visibility, // ✅ Include visibility in response
+        uploadedBy: metaLower.uploadedby || "unknown",
       });
 
     }

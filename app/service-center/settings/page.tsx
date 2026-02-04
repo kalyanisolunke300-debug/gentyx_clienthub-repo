@@ -253,13 +253,13 @@ export default function ServiceCenterSettingsPage() {
                         <User className="h-4 w-4" />
                         <span className="hidden sm:inline">Profile</span>
                     </TabsTrigger>
-                    <TabsTrigger value="notifications" className="gap-2">
+                    {/* <TabsTrigger value="notifications" className="gap-2">
                         <Bell className="h-4 w-4" />
                         <span className="hidden sm:inline">Notifications</span>
-                    </TabsTrigger>
+                    </TabsTrigger> */}
                     <TabsTrigger value="security" className="gap-2">
                         <Shield className="h-4 w-4" />
-                        <span className="hidden sm:inline">Security</span>
+                        <span className="hidden sm:inline">Password</span>
                     </TabsTrigger>
                 </TabsList>
 

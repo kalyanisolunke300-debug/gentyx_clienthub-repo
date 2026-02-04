@@ -2,10 +2,13 @@
 import { NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { logAudit, AuditActions } from "@/lib/audit";
+import { queueFolderCreatedNotification } from "@/lib/notification-batcher";
+import { getDbPool } from "@/lib/db";
+import sql from "mssql";
 
 export async function POST(req: Request) {
   try {
-    const { clientId, folderName, parentFolder } = await req.json();
+    const { clientId, folderName, parentFolder, role = "ADMIN" } = await req.json();
 
     if (!clientId || !folderName) {
       return NextResponse.json(
@@ -67,9 +70,34 @@ export async function POST(req: Request) {
     logAudit({
       clientId: Number(clientId),
       action: AuditActions.FOLDER_CREATED,
-      actorRole: "ADMIN",
+      actorRole: role,
       details: folderName,
     });
+
+    // Queue email notification to admin (batched - will wait 30s for more folder creations)
+    (async () => {
+      try {
+        // Get client name
+        const pool = await getDbPool();
+        const clientResult = await pool.request()
+          .input("clientId", sql.Int, Number(clientId))
+          .query(`SELECT client_name FROM dbo.Clients WHERE client_id = @clientId`);
+
+        const clientName = clientResult.recordset[0]?.client_name || `Client ${clientId}`;
+
+        // Queue the notification (will batch multiple folder creations together)
+        queueFolderCreatedNotification({
+          clientId: Number(clientId),
+          clientName: clientName,
+          creatorName: role === 'ADMIN' ? 'Admin' : clientName,
+          creatorRole: role as any,
+          folderName: folderName,
+          parentPath: parentFolder || undefined,
+        });
+      } catch (emailErr) {
+        console.error("Failed to queue admin notification:", emailErr);
+      }
+    })();
 
     return NextResponse.json({
       success: true,
@@ -84,3 +112,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

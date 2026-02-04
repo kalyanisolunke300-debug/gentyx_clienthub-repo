@@ -9,17 +9,20 @@ export async function fetchClients({
   pageSize = 10,
   q = "",
   status = "ALL",
+  archiveFilter = "ALL",
 }: {
   page?: number;
   pageSize?: number;
   q?: string;
   status?: string;
+  archiveFilter?: string;
 }) {
   const params = new URLSearchParams({
     page: page.toString(),
     pageSize: pageSize.toString(),
     q,
     status,
+    archiveFilter,
   });
 
   const res = await fetch(`/api/clients/get?${params.toString()}`, {
@@ -95,8 +98,9 @@ export async function fetchClientTasksByClientId(
 }
 
 
-export async function fetchDocuments({ clientId }: { clientId: string }) {
-  const url = `/api/documents/list?clientId=${clientId}`;
+export async function fetchDocuments(params?: { clientId?: string }) {
+  const qs = params?.clientId ? `?clientId=${params.clientId}` : "";
+  const url = `/api/documents/list${qs}`;
 
   const res = await fetch(url);
   if (!res.ok) return [];
