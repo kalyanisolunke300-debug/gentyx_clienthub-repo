@@ -1,4 +1,4 @@
-// /app/api/documents/get-by-client/route.ts
+
 import { NextResponse } from "next/server";
 import {
   BlobServiceClient,
@@ -6,6 +6,7 @@ import {
   generateBlobSASQueryParameters,
   BlobSASPermissions,
 } from "@azure/storage-blob";
+import { getClientRootFolder } from "@/lib/storage-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,10 @@ export async function GET(req: Request) {
     const containerClient = blobServiceClient.getContainerClient(containerName);
 
     // ROOT OR SUBFOLDER PREFIX
+    const rootFolder = await getClientRootFolder(clientId);
     const prefix = folder
-      ? `client-${clientId}/${folder}/`
-      : `client-${clientId}/`;
+      ? `${rootFolder}/${folder}/`
+      : `${rootFolder}/`;
 
     const items: any[] = [];
 
@@ -92,11 +94,11 @@ export async function GET(req: Request) {
       console.log(`[DOCS] File: ${fileName}, Vis: ${visibility}, Role: ${role}`);
 
       // Filter based on role:
-      // - ADMIN can only see "shared" documents
-      // - CLIENT can see all documents (both "shared" and "private")
-      if (role === "ADMIN" && visibility === "private") {
-        console.log(`[DOCS] SKIPPING Private file for ADMIN: ${fileName}`);
-        continue; // Skip private documents for admin
+      // - ADMIN sees ALL (shared + private)
+      // - CLIENT sees ONLY shared
+      if (role !== "ADMIN" && visibility === "private") {
+        console.log(`[DOCS] SKIPPING Private file for CLIENT: ${fileName}`);
+        continue; // Hide private documents from clients
       }
 
       // Generate SAS URL for the file
@@ -132,4 +134,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: err.message });
   }
 }
-

@@ -590,8 +590,8 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
         </div>
       )}
 
-      {/* Visibility Toggle - Only show for CLIENT role */}
-      {role === "CLIENT" && selectedFiles.length > 0 && (
+      {/* Visibility Toggle - Only show for ADMIN role */}
+      {role === "ADMIN" && selectedFiles.length > 0 && (
         <div className="grid gap-2 p-4 border rounded-lg bg-muted/30">
           <Label className="text-sm font-semibold">Document Visibility</Label>
           <p className="text-xs text-muted-foreground mb-2">
@@ -603,8 +603,8 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
               type="button"
               onClick={() => setVisibility("shared")}
               className={`flex items-center gap-2 p-3 rounded-md border-2 transition-all ${visibility === "shared"
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-border bg-background hover:border-blue-300"
+                ? "border-blue-500 bg-blue-50 text-blue-700"
+                : "border-border bg-background hover:border-blue-300"
                 }`}
             >
               <Eye className="size-4 flex-shrink-0" />
@@ -618,8 +618,8 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
               type="button"
               onClick={() => setVisibility("private")}
               className={`flex items-center gap-2 p-3 rounded-md border-2 transition-all ${visibility === "private"
-                  ? "border-purple-500 bg-purple-50 text-purple-700"
-                  : "border-border bg-background hover:border-purple-300"
+                ? "border-purple-500 bg-purple-50 text-purple-700"
+                : "border-border bg-background hover:border-purple-300"
                 }`}
             >
               <Lock className="size-4 flex-shrink-0" />

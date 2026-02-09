@@ -126,7 +126,7 @@ export default function AdminMessages() {
                     Messages
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Communicate with clients, service centers, and CPAs
+                    Communicate with clients, service centers, and Preparers
                 </p>
             </div>
 
@@ -142,7 +142,7 @@ export default function AdminMessages() {
                     </TabsTrigger>
                     <TabsTrigger value="cpas" className="flex items-center gap-2">
                         <Landmark className="h-4 w-4" />
-                        Chat with CPAs
+                        Chat with Preparers
                     </TabsTrigger>
                 </TabsList>
 
@@ -382,12 +382,12 @@ export default function AdminMessages() {
                             <CardHeader className="pb-3 border-b">
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <Landmark className="h-4 w-4 text-amber-600" />
-                                    CPAs ({cpas.length})
+                                    Preparers ({cpas.length})
                                 </CardTitle>
                                 <div className="relative mt-3">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
-                                        placeholder="Search CPAs..."
+                                        placeholder="Search Preparers..."
                                         value={cpaSearch}
                                         onChange={(e) => setCPASearch(e.target.value)}
                                         className="pl-9"
@@ -398,7 +398,7 @@ export default function AdminMessages() {
                                 {cpaLoading ? (
                                     <div className="p-4 text-sm text-muted-foreground text-center">Loading...</div>
                                 ) : filteredCPAs.length === 0 ? (
-                                    <div className="p-4 text-sm text-muted-foreground text-center">No CPAs found</div>
+                                    <div className="p-4 text-sm text-muted-foreground text-center">No Preparers found</div>
                                 ) : (
                                     <div className="divide-y relative">
                                         {filteredCPAs.map((cpa) => {
@@ -479,7 +479,7 @@ export default function AdminMessages() {
                                             <Landmark className="size-8 text-amber-500" />
                                         </div>
                                         <div>
-                                            <p className="font-medium text-slate-900">Select a CPA to chat</p>
+                                            <p className="font-medium text-slate-900">Select a Preparer to chat</p>
                                         </div>
                                     </div>
                                 </Card>

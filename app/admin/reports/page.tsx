@@ -272,17 +272,17 @@ export default function ReportsPage() {
 
             <div className="space-y-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
-                <UserIcon className="h-3 w-3" /> CPA
+                <UserIcon className="h-3 w-3" /> Preparer
               </label>
               <Select
                 value={filters.cpa}
                 onValueChange={(v) => setFilters({ ...filters, cpa: v })}
               >
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="All CPAs" />
+                  <SelectValue placeholder="All Preparers" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All CPAs</SelectItem>
+                  <SelectItem value="all">All Preparers</SelectItem>
                   {cpas.map((c) => (
                     <SelectItem key={c.cpa_id} value={String(c.cpa_id)}>
                       {c.cpa_name}

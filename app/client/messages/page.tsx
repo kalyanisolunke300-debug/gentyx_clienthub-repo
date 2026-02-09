@@ -74,7 +74,7 @@ export default function ClientMessages() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Communicate with your admin, service center, and CPA team
+          Communicate with your admin, service center, and Preparer team
         </p>
       </div>
 
@@ -88,7 +88,7 @@ export default function ClientMessages() {
         recipients={[
           { role: "ADMIN", label: "Admin", color: "bg-violet-500" },
           { role: "SERVICE_CENTER", label: serviceCenterName || "Service Center", color: "bg-emerald-500" },
-          { role: "CPA", label: cpaName || "CPA", color: "bg-amber-500" },
+          { role: "CPA", label: cpaName || "Preparer", color: "bg-amber-500" },
         ]}
         height="600px"
       />

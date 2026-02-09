@@ -36,7 +36,11 @@ export async function POST(req: Request) {
     // Combine first and last name if not provided
     const fullContactName = primaryContactName || `${primaryContactFirstName || ''} ${primaryContactLastName || ''}`.trim();
 
-    if (!clientName || !fullContactName || !primaryContactEmail) {
+    // If Company Name is empty, use the Contact Name as the Client Name
+    const trimmedClientName = clientName?.trim();
+    const finalClientName = trimmedClientName || fullContactName;
+
+    if (!finalClientName || !primaryContactEmail) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 }
@@ -48,7 +52,7 @@ export async function POST(req: Request) {
     // ✅ CHECK FOR DUPLICATE CLIENT NAME (CASE-INSENSITIVE)
     const existingClient = await pool
       .request()
-      .input("clientName", sql.NVarChar(255), clientName.trim())
+      .input("clientName", sql.NVarChar(255), finalClientName)
       .query(`
         SELECT client_id, client_name 
         FROM dbo.clients 
@@ -96,7 +100,7 @@ export async function POST(req: Request) {
     -------------------------------------------------- */
     const clientResult = await pool
       .request()
-      .input("clientName", sql.NVarChar(255), clientName)
+      .input("clientName", sql.NVarChar(255), finalClientName)
       .input("code", sql.NVarChar(50), code || null)
       .input("slaNumber", sql.NVarChar(50), slaNumber || null)
       .input("primaryContactFirstName", sql.NVarChar(100), primaryContactFirstName || null)
@@ -176,7 +180,7 @@ export async function POST(req: Request) {
         await sendClientWelcomeEmail(
           primaryContactEmail,
           fullContactName,
-          clientName,
+          finalClientName,
           code || undefined
         );
         console.log(`✅ Welcome email sent to client: ${primaryContactEmail}`);

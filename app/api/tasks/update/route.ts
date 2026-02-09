@@ -4,7 +4,7 @@ import { getDbPool } from "@/lib/db";
 import sql from "mssql";
 import { calculateClientProgress } from "@/lib/progress";
 import { logAudit, AuditActions } from "@/lib/audit";
-import { sendTaskNotificationEmail, sendAdminTaskCompletionEmail } from "@/lib/email";
+import { sendTaskNotificationEmail, sendAdminTaskCompletionEmail, getAdminsWithNotificationsEnabled } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -144,11 +144,10 @@ export async function POST(req: Request) {
       try {
         console.log("📧 Task completed - sending admin notification...");
 
-        // Get admin email
-        const adminResult = await pool.request().query(`SELECT TOP 1 email, full_name FROM AdminSettings WHERE email IS NOT NULL`);
-        const admin = adminResult.recordset[0];
+        // Get ALL admins with notifications enabled
+        const admins = await getAdminsWithNotificationsEnabled();
 
-        if (admin?.email) {
+        if (admins.length > 0) {
           // Determine who completed the task
           const whoRole = (completedByRole || taskData.assigned_to_role || "CLIENT").toUpperCase();
           let whoName = completedByName || "";
@@ -170,23 +169,31 @@ export async function POST(req: Request) {
             }
           }
 
-          const emailResult = await sendAdminTaskCompletionEmail({
-            adminEmail: admin.email,
-            adminName: admin.full_name || "Admin",
-            taskTitle: taskTitle || taskData.task_title,
-            clientName: taskData.client_name || "Unknown Client",
-            completedByRole: whoRole as 'CLIENT' | 'CPA' | 'SERVICE_CENTER',
-            completedByName: whoName,
-            taskType: "ASSIGNED",
-          });
+          // Send to each admin with notifications enabled
+          for (const admin of admins) {
+            try {
+              const emailResult = await sendAdminTaskCompletionEmail({
+                adminEmail: admin.email,
+                adminName: admin.name || "Admin",
+                taskTitle: taskTitle || taskData.task_title,
+                clientName: taskData.client_name || "Unknown Client",
+                completedByRole: whoRole as 'CLIENT' | 'CPA' | 'SERVICE_CENTER',
+                completedByName: whoName,
+                taskType: "ASSIGNED",
+              });
 
-          if (emailResult.success) {
-            console.log(`✅ Admin task completion notification sent to ${admin.email}`);
-          } else {
-            console.warn(`⚠️ Admin task completion notification failed:`, emailResult.error);
+              if (emailResult.success) {
+                console.log(`✅ Admin task completion notification sent to ${admin.email}`);
+              } else {
+                console.warn(`⚠️ Admin task completion notification failed for ${admin.email}:`, emailResult.error);
+              }
+            } catch (err) {
+              console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+            }
           }
+          console.log(`📧 Notified ${admins.length} admin(s) about task completion`);
         } else {
-          console.warn("⚠️ No admin email configured - skipping completion notification");
+          console.warn("⚠️ No admins with notifications enabled found - skipping completion notification");
         }
       } catch (adminEmailError) {
         console.error("❌ Admin task completion email error:", adminEmailError);

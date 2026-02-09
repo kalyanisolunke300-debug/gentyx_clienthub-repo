@@ -275,10 +275,10 @@ export default function CPASettingsPage() {
                                     </div>
                                     <div className="flex-1">
                                         <h2 className="text-2xl font-bold">
-                                            {cpa?.cpa_name || "CPA"}
+                                            {cpa?.cpa_name || "Preparer"}
                                         </h2>
                                         <p className="text-sm text-muted-foreground mt-1">
-                                            CPA Account
+                                            Preparer Account
                                         </p>
                                         <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-muted-foreground">
                                             {cpa?.cpa_code && (
@@ -308,19 +308,19 @@ export default function CPASettingsPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Landmark className="h-5 w-5 text-primary" />
-                                    CPA Information
+                                    Preparer Information
                                 </CardTitle>
                                 <CardDescription>
-                                    Update your CPA details
+                                    Update your Preparer details
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label htmlFor="cpaName">CPA Name</Label>
+                                        <Label htmlFor="cpaName">Preparer Name</Label>
                                         <Input
                                             id="cpaName"
-                                            placeholder="Enter CPA name"
+                                            placeholder="Enter Preparer name"
                                             value={profileData.cpaName}
                                             onChange={(e) =>
                                                 setProfileData({ ...profileData, cpaName: e.target.value })
@@ -328,7 +328,7 @@ export default function CPASettingsPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="cpaCode">CPA Code</Label>
+                                        <Label htmlFor="cpaCode">Preparer Code</Label>
                                         <Input
                                             id="cpaCode"
                                             placeholder="e.g., CPA001"
@@ -338,7 +338,7 @@ export default function CPASettingsPage() {
                                             }
                                         />
                                         <p className="text-xs text-muted-foreground">
-                                            Unique identifier for your CPA account
+                                            Unique identifier for your Preparer account
                                         </p>
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
@@ -379,7 +379,7 @@ export default function CPASettingsPage() {
                                     Account Statistics
                                 </CardTitle>
                                 <CardDescription>
-                                    Overview of your CPA activity
+                                    Overview of your Preparer activity
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -599,10 +599,10 @@ export default function CPASettingsPage() {
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between py-2 border-b">
                                         <span className="text-sm text-muted-foreground">Account Type</span>
-                                        <span className="font-medium">CPA</span>
+                                        <span className="font-medium">Preparer</span>
                                     </div>
                                     <div className="flex items-center justify-between py-2 border-b">
-                                        <span className="text-sm text-muted-foreground">CPA Code</span>
+                                        <span className="text-sm text-muted-foreground">Preparer Code</span>
                                         <span className="font-medium">{cpa?.cpa_code || "—"}</span>
                                     </div>
                                     <div className="flex items-center justify-between py-2 border-b">

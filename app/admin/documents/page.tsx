@@ -709,7 +709,7 @@ export default function AdminDocumentsPage() {
                               <span className="text-xs text-green-600 mt-1">Task Completions</span>
                             )}
                             {folder.name === ASSIGNED_TASK_CPA_FOLDER && (
-                              <span className="text-xs text-purple-600 mt-1">CPA Completions</span>
+                              <span className="text-xs text-purple-600 mt-1">Preparer Completions</span>
                             )}
                             {folder.name === ASSIGNED_TASK_SC_FOLDER && (
                               <span className="text-xs text-indigo-600 mt-1">Center Completions</span>

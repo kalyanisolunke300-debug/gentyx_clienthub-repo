@@ -3,7 +3,7 @@
 
 import { useContext } from "react";
 import { Button } from "@/components/ui/button";
-import { Inbox, Handshake, LogOut, UserCircle } from "lucide-react";
+import { Inbox, Handshake, LogOut, Settings, Globe } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { DateTimeDisplay } from "@/components/widgets/date-time-display";
 import { useRouter } from "next/navigation";
@@ -48,31 +48,47 @@ export function TopNav() {
 
         {/* ✅ RIGHT SIDE ICONS */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/inbox")} title="Inbox">
-            <Inbox className="size-5" />
+          <Button
+            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm px-4"
+            size="sm"
+            onClick={() => window.open("https://www.prolegacy.com/", "_blank")}
+            title="Prolegacy.com"
+          >
+            <Globe className="size-4 mr-2" />
+            <span className="text-xs font-semibold tracking-wide">PROLEGACY.COM</span>
           </Button>
 
           <Button
-            variant="ghost"
-            size="icon"
+            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm ml-1 px-4"
+            size="sm"
+            onClick={() => router.push("/inbox")}
+            title="Inbox"
+          >
+            <Inbox className="size-4 mr-2" />
+            <span className="text-xs font-semibold tracking-wide">INBOX</span>
+          </Button>
+
+          <Button
+            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm ml-1 px-4"
+            size="sm"
+            onClick={() => router.push("/help")}
+            title="Help"
+          >
+            <Handshake className="size-4 mr-2" />
+            <span className="text-xs font-semibold tracking-wide">HELP</span>
+          </Button>
+
+          <Button
+            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm ml-1 px-4"
+            size="sm"
             onClick={() => router.push(getSettingsPath())}
             title="Profile & Settings"
           >
-            <UserCircle className="size-5" />
+            <Settings className="size-4 mr-2" />
+            <span className="text-xs font-semibold tracking-wide">SETTINGS</span>
           </Button>
 
-          <Button variant="ghost" size="icon" onClick={() => router.push("/help")} title="Help">
-            <Handshake className="size-5" />
-          </Button>
-
-
-
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-            <LogOut className="size-5" />
-          </Button>
-
-          <div className="ml-2 text-sm text-muted-foreground">
-            {/* Role: {role} */}
+          <div className="ml-2 px-6 py-1.5 rounded-full bg-[#470D1B] text-white text-xs font-semibold shadow-sm tracking-widest uppercase cursor-default select-none border border-[#5a1f2d]">
             {role}
           </div>
         </div>

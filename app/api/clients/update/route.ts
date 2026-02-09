@@ -26,6 +26,10 @@ export async function POST(req: Request) {
     const fullContactName = primary_contact_name ||
       `${primary_contact_first_name || ''} ${primary_contact_last_name || ''}`.trim();
 
+    // If Company Name is empty, use the Contact Name as the Client Name
+    const trimmedClientName = client_name?.trim();
+    const finalClientName = trimmedClientName || fullContactName;
+
     if (!clientId) {
       return NextResponse.json(
         { success: false, error: "Client ID missing" },
@@ -36,10 +40,10 @@ export async function POST(req: Request) {
     const pool = await getDbPool();
 
     // ✅ CHECK FOR DUPLICATE CLIENT NAME (CASE-INSENSITIVE, EXCLUDING CURRENT)
-    if (client_name) {
+    if (finalClientName) {
       const existingClient = await pool
         .request()
-        .input("clientName", sql.NVarChar(255), client_name.trim())
+        .input("clientName", sql.NVarChar(255), finalClientName)
         .input("clientId", sql.Int, Number(clientId))
         .query(`
           SELECT client_id, client_name 
@@ -97,7 +101,7 @@ export async function POST(req: Request) {
     await pool
       .request()
       .input("client_id", sql.Int, Number(clientId))
-      .input("client_name", sql.NVarChar, client_name)
+      .input("client_name", sql.NVarChar, finalClientName)
       .input("code", sql.NVarChar, code)
       .input("primary_contact_first_name", sql.NVarChar(100), primary_contact_first_name || null)
       .input("primary_contact_last_name", sql.NVarChar(100), primary_contact_last_name || null)
@@ -141,7 +145,7 @@ export async function POST(req: Request) {
       clientId,
       action: AuditActions.CLIENT_UPDATED,
       actorRole: "ADMIN",
-      details: client_name,
+      details: finalClientName,
     });
 
     // Log service center assignment if changed
@@ -167,11 +171,11 @@ export async function POST(req: Request) {
       try {
         await sendUpdateNotification({
           recipientEmail: primary_contact_email,
-          recipientName: primary_contact_name || client_name,
+          recipientName: primary_contact_name || finalClientName,
           updateType: 'profile_updated',
           details: {
             title: 'Your Profile Has Been Updated',
-            description: `Your client profile "${client_name}" has been updated by the administrator. If you did not expect this change, please contact support.`,
+            description: `Your client profile "${finalClientName}" has been updated by the administrator. If you did not expect this change, please contact support.`,
             actionUrl: 'https://legacy.hubonesystems.net/login',
             actionLabel: 'View Your Profile',
           },

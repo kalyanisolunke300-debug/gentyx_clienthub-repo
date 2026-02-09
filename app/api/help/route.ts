@@ -55,10 +55,38 @@ export async function GET() {
     `);
 
         const recordsets = result.recordsets as any[];
-        const roles = recordsets[0] || [];
-        const responsibilities = recordsets[1] || [];
-        const flowSteps = recordsets[2] || [];
-        const faqs = recordsets[3] || [];
+
+        // Helper to replace CPA with Preparer in text
+        const updateText = (text: string) => {
+            if (!text) return text;
+            return text
+                .replace(/\bCPA\b/g, "Preparer")
+                .replace(/\bCPAs\b/g, "Preparers")
+                .replace(/\bCPA's\b/g, "Preparer's");
+        };
+
+        const roles = (recordsets[0] || []).map((r: any) => ({
+            ...r,
+            title: r.role_key === 'CPA' ? 'Preparer' : updateText(r.title),
+            description: updateText(r.description)
+        }));
+
+        const responsibilities = (recordsets[1] || []).map((r: any) => ({
+            ...r,
+            description: updateText(r.description)
+        }));
+
+        const flowSteps = (recordsets[2] || []).map((r: any) => ({
+            ...r,
+            title: updateText(r.title),
+            description: updateText(r.description)
+        }));
+
+        const faqs = (recordsets[3] || []).map((r: any) => ({
+            ...r,
+            question: updateText(r.question),
+            answer: updateText(r.answer)
+        }));
 
         // Build structured response
         const helpContent = roles.map((role: any) => ({

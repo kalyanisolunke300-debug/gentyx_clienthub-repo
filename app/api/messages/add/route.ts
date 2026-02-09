@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
-import { sendMessageNotification, sendAdminMessageNotification } from "@/lib/email";
+import { sendMessageNotification, sendAdminMessageNotification, getAdminsWithNotificationsEnabled } from "@/lib/email";
 import { logAudit, AuditActions } from "@/lib/audit";
 
 
@@ -288,23 +288,32 @@ async function sendEmailNotification(
         ? client.primary_contact_name
         : clientName;
 
-      // Get admin email
-      const adminResult = await pool.request().query(`SELECT TOP 1 email, full_name FROM AdminSettings WHERE email IS NOT NULL`);
-      const admin = adminResult.recordset[0];
+      // Get ALL admins with notifications enabled
+      const admins = await getAdminsWithNotificationsEnabled();
 
-      if (admin?.email) {
-        console.log("📧 Sending email to admin:", admin.email);
-        return await sendAdminMessageNotification({
-          adminEmail: admin.email,
-          adminName: admin.full_name || "Admin",
-          senderName,
-          senderRole: "CLIENT",
-          messagePreview: messageBody,
-          clientName,
-        });
+      if (admins.length > 0) {
+        console.log(`📧 Sending email to ${admins.length} admin(s) with notifications enabled`);
+
+        // Send to each admin with notifications enabled
+        for (const admin of admins) {
+          try {
+            await sendAdminMessageNotification({
+              adminEmail: admin.email,
+              adminName: admin.name || "Admin",
+              senderName,
+              senderRole: "CLIENT",
+              messagePreview: messageBody,
+              clientName,
+            });
+            console.log(`✅ Message notification sent to admin: ${admin.email}`);
+          } catch (err) {
+            console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+          }
+        }
+        return { success: true, sentTo: admins.length };
       } else {
-        console.warn("⚠️ No admin email configured");
-        return { success: false, reason: "No admin email configured" };
+        console.warn("⚠️ No admins with notifications enabled found");
+        return { success: false, reason: "No admins with notifications enabled" };
       }
     }
 
@@ -359,22 +368,30 @@ async function sendEmailNotification(
         scName = scResult.recordset[0]?.center_name || "Service Center";
       }
 
-      // Get admin email
-      const adminResult = await pool.request().query(`SELECT TOP 1 email, full_name FROM AdminSettings WHERE email IS NOT NULL`);
-      const admin = adminResult.recordset[0];
+      // Get ALL admins with notifications enabled
+      const admins = await getAdminsWithNotificationsEnabled();
 
-      if (admin?.email) {
-        console.log("📧 Sending email to admin:", admin.email);
-        return await sendAdminMessageNotification({
-          adminEmail: admin.email,
-          adminName: admin.full_name || "Admin",
-          senderName: scName,
-          senderRole: "SERVICE_CENTER",
-          messagePreview: messageBody,
-        });
+      if (admins.length > 0) {
+        console.log(`📧 Sending email to ${admins.length} admin(s) with notifications enabled`);
+
+        for (const admin of admins) {
+          try {
+            await sendAdminMessageNotification({
+              adminEmail: admin.email,
+              adminName: admin.name || "Admin",
+              senderName: scName,
+              senderRole: "SERVICE_CENTER",
+              messagePreview: messageBody,
+            });
+            console.log(`✅ Message notification sent to admin: ${admin.email}`);
+          } catch (err) {
+            console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+          }
+        }
+        return { success: true, sentTo: admins.length };
       } else {
-        console.warn("⚠️ No admin email configured");
-        return { success: false, reason: "No admin email configured" };
+        console.warn("⚠️ No admins with notifications enabled found");
+        return { success: false, reason: "No admins with notifications enabled" };
       }
     }
 
@@ -393,22 +410,30 @@ async function sendEmailNotification(
         cpaName = cpaResult.recordset[0]?.cpa_name || "CPA";
       }
 
-      // Get admin email
-      const adminResult = await pool.request().query(`SELECT TOP 1 email, full_name FROM AdminSettings WHERE email IS NOT NULL`);
-      const admin = adminResult.recordset[0];
+      // Get ALL admins with notifications enabled
+      const admins = await getAdminsWithNotificationsEnabled();
 
-      if (admin?.email) {
-        console.log("📧 Sending email to admin:", admin.email);
-        return await sendAdminMessageNotification({
-          adminEmail: admin.email,
-          adminName: admin.full_name || "Admin",
-          senderName: cpaName,
-          senderRole: "CPA",
-          messagePreview: messageBody,
-        });
+      if (admins.length > 0) {
+        console.log(`📧 Sending email to ${admins.length} admin(s) with notifications enabled`);
+
+        for (const admin of admins) {
+          try {
+            await sendAdminMessageNotification({
+              adminEmail: admin.email,
+              adminName: admin.name || "Admin",
+              senderName: cpaName,
+              senderRole: "CPA",
+              messagePreview: messageBody,
+            });
+            console.log(`✅ Message notification sent to admin: ${admin.email}`);
+          } catch (err) {
+            console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+          }
+        }
+        return { success: true, sentTo: admins.length };
       } else {
-        console.warn("⚠️ No admin email configured");
-        return { success: false, reason: "No admin email configured" };
+        console.warn("⚠️ No admins with notifications enabled found");
+        return { success: false, reason: "No admins with notifications enabled" };
       }
     }
 

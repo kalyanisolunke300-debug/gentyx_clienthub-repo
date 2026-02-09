@@ -37,9 +37,9 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
         description: "Full system access and administrative control. Oversees the entire onboarding lifecycle.",
         color: "text-blue-600 dark:text-blue-400",
         responsibilities: [
-            "Create and manage Client, CPA, and Service Center profiles",
+            "Create and manage Client, Preparer, and Service Center profiles",
             "Configure onboarding stages and associated tasks",
-            "Assign CPA and Service Center to clients",
+            "Assign Preparer and Service Center to clients",
             "Oversee documents, reports, communications, and audit logs",
         ],
         flow: [
@@ -49,7 +49,7 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
             },
             {
                 title: "Assign Roles",
-                description: "Assign a CPA and Service Center to the client for support and compliance.",
+                description: "Assign a Preparer and Service Center to the client for support and compliance.",
             },
             {
                 title: "Configure Onboarding",
@@ -63,7 +63,7 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
         faqs: [
             {
                 question: "How do I reset a user's password?",
-                answer: "Go to the Client/CPA/Service Center list in the Dashboard, select the user, and click 'Edit'. You can set a new temporary password there.",
+                answer: "Go to the Client/Preparer/Service Center list in the Dashboard, select the user, and click 'Edit'. You can set a new temporary password there.",
             },
             {
                 question: "Can I delete a client?",
@@ -84,7 +84,7 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
         responsibilities: [
             "Complete assigned onboarding tasks",
             "Upload required documentation",
-            "Communicate with assigned CPA and Service Center",
+            "Communicate with assigned Preparer and Service Center",
         ],
         flow: [
             {
@@ -101,7 +101,7 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
             },
             {
                 title: "Communication",
-                description: "Send messages to CPA or Service Center if clarification is needed.",
+                description: "Send messages to Preparer or Service Center if clarification is needed.",
             },
         ],
         faqs: [
@@ -121,13 +121,13 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
     },
     CPA: {
         id: "CPA",
-        title: "CPA",
+        title: "Preparer",
         icon: FileCheck,
         description: "Compliance and review role responsible for validating client tasks and documents.",
         color: "text-purple-600 dark:text-purple-400",
         responsibilities: [
             "Review client tasks and submitted documents",
-            "Upload documents when assigned specific CPA tasks",
+            "Upload documents when assigned specific Preparer tasks",
             "Communicate with clients for validation",
         ],
         flow: [
@@ -155,7 +155,7 @@ export const ROLE_CONTENT: Record<string, RoleHelpContent> = {
             },
             {
                 question: "Can I upload documents for the client?",
-                answer: "Yes, CPAs can upload documents to client folders if necessary, usually under the 'Documents' tab or specific tasks assigned to CPA.",
+                answer: "Yes, Preparers can upload documents to client folders if necessary, usually under the 'Documents' tab or specific tasks assigned to Preparer.",
             }
         ]
     },

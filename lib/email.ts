@@ -1,5 +1,6 @@
 // lib/email.ts
 import { EmailClient, EmailMessage } from "@azure/communication-email";
+import { logEmail, updateEmailLogStatus, type EmailType } from "@/lib/email-logger";
 
 // Create reusable email client using Azure Communication Services
 const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || "";
@@ -12,24 +13,69 @@ interface SendEmailOptions {
   text?: string;
 }
 
+// Extended options for email logging context
+interface SendEmailWithLoggingOptions extends SendEmailOptions {
+  logging?: {
+    recipientName?: string;
+    recipientRole?: 'CLIENT' | 'CPA' | 'SERVICE_CENTER' | null;
+    relatedEntityType?: 'client' | 'cpa' | 'service_center' | null;
+    relatedEntityId?: number | null;
+    relatedEntityName?: string | null;
+    emailType?: EmailType;
+    metadata?: Record<string, any>;
+  };
+}
+
 /**
  * Send an email using Azure Communication Services
+ * Optionally logs the email to the database for admin visibility
  */
-export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
+export async function sendEmail(options: SendEmailOptions | SendEmailWithLoggingOptions) {
+  const { to, subject, html, text } = options;
+  const logging = 'logging' in options ? options.logging : undefined;
+
   console.log("📧 sendEmail called with:", { to, subject: subject.substring(0, 50) });
   console.log("📧 ACS Config:", {
     connectionString: process.env.AZURE_COMMUNICATION_CONNECTION_STRING ? "✅ Set" : "❌ Missing",
     sender: process.env.AZURE_EMAIL_SENDER
   });
 
+  // Log the email attempt if logging context is provided
+  let emailLogId: number | null = null;
+  if (logging) {
+    try {
+      emailLogId = await logEmail({
+        recipientEmail: to,
+        recipientName: logging.recipientName,
+        recipientRole: logging.recipientRole,
+        relatedEntityType: logging.relatedEntityType,
+        relatedEntityId: logging.relatedEntityId,
+        relatedEntityName: logging.relatedEntityName,
+        emailType: logging.emailType || 'general',
+        emailSubject: subject,
+        emailBodyPreview: html.substring(0, 2000),
+        status: 'Pending',
+        metadata: logging.metadata,
+      });
+    } catch (logError) {
+      console.error("⚠️ Failed to log email (non-blocking):", logError);
+    }
+  }
+
   if (!emailClient) {
     console.error("❌ Email client not initialized - missing connection string");
+    if (emailLogId) {
+      await updateEmailLogStatus(emailLogId, 'Failed', 'Email client not configured');
+    }
     return { success: false, error: "Email client not configured" };
   }
 
   const sender = process.env.AZURE_EMAIL_SENDER;
   if (!sender) {
     console.error("❌ Missing AZURE_EMAIL_SENDER environment variable");
+    if (emailLogId) {
+      await updateEmailLogStatus(emailLogId, 'Failed', 'Email sender not configured');
+    }
     return { success: false, error: "Email sender not configured" };
   }
 
@@ -52,17 +98,27 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 
     if (result.status === "Succeeded") {
       console.log("✅ Email sent successfully via Azure Communication Services:", result.id);
+      if (emailLogId) {
+        await updateEmailLogStatus(emailLogId, 'Sent', 'Email sent successfully', result.id);
+      }
       return { success: true, messageId: result.id };
     } else {
       console.error("❌ Email send failed:", result.error);
+      if (emailLogId) {
+        await updateEmailLogStatus(emailLogId, 'Failed', result.error?.message || 'Unknown error');
+      }
       return { success: false, error: result.error };
     }
   } catch (error: any) {
     console.error("❌ Email send error:", error?.message || error);
     console.error("❌ Full error:", JSON.stringify(error, null, 2));
+    if (emailLogId) {
+      await updateEmailLogStatus(emailLogId, 'Failed', error?.message || 'Send error');
+    }
     return { success: false, error };
   }
 }
+
 
 interface MessageNotificationOptions {
   recipientEmail: string;
@@ -105,7 +161,7 @@ function getRoleInfo(role: WelcomeEmailOptions['role']): { title: string; dashbo
     case 'CLIENT':
       return { title: 'Client', dashboardPath: '/client', icon: '👤', color: '#6366f1' };
     case 'CPA':
-      return { title: 'CPA', dashboardPath: '/cpa', icon: '📊', color: '#10b981' };
+      return { title: 'Preparer', dashboardPath: '/cpa', icon: '📊', color: '#10b981' };
     case 'SERVICE_CENTER':
       return { title: 'Service Center', dashboardPath: '/service-center', icon: '🏢', color: '#f59e0b' };
     default:
@@ -248,7 +304,7 @@ export async function sendWelcomeEmail({
                               <p style="margin: 0 0 10px; font-size: 14px; color: #92400e; font-weight: 600;">📋 Account Details</p>
                               ${additionalInfo?.clientName ? `<p style="margin: 0 0 5px; font-size: 14px; color: #78350f;"><strong>Client Name:</strong> ${additionalInfo.clientName}</p>` : ''}
                               ${additionalInfo?.code ? `<p style="margin: 0 0 5px; font-size: 14px; color: #78350f;"><strong>Client Code:</strong> ${additionalInfo.code}</p>` : ''}
-                              ${additionalInfo?.cpaCode ? `<p style="margin: 0 0 5px; font-size: 14px; color: #78350f;"><strong>CPA Code:</strong> ${additionalInfo.cpaCode}</p>` : ''}
+                              ${additionalInfo?.cpaCode ? `<p style="margin: 0 0 5px; font-size: 14px; color: #78350f;"><strong>Preparer Code:</strong> ${additionalInfo.cpaCode}</p>` : ''}
                               ${additionalInfo?.centerCode ? `<p style="margin: 0; font-size: 14px; color: #78350f;"><strong>Center Code:</strong> ${additionalInfo.centerCode}</p>` : ''}
                             </td>
                           </tr>
@@ -359,10 +415,35 @@ export async function sendWelcomeEmail({
     </html>
   `;
 
+  // Map role to email type for logging
+  const emailTypeMap: Record<string, EmailType> = {
+    'CLIENT': 'welcome_client',
+    'CPA': 'welcome_cpa',
+    'SERVICE_CENTER': 'welcome_service_center',
+  };
+
+  // Map role to entity type for logging
+  const entityTypeMap: Record<string, 'client' | 'cpa' | 'service_center'> = {
+    'CLIENT': 'client',
+    'CPA': 'cpa',
+    'SERVICE_CENTER': 'service_center',
+  };
+
   return sendEmail({
     to: recipientEmail,
     subject,
     html,
+    logging: {
+      recipientName,
+      recipientRole: role,
+      relatedEntityType: entityTypeMap[role],
+      relatedEntityName: additionalInfo?.clientName || recipientName,
+      emailType: emailTypeMap[role] || 'general',
+      metadata: {
+        ...additionalInfo,
+        welcomeEmailType: true,
+      },
+    },
   });
 }
 
@@ -398,7 +479,7 @@ export async function sendCpaWelcomeEmail(
     recipientEmail: email,
     recipientName: name,
     role: 'CPA',
-    password: 'Cpa@12345',
+    password: 'Preparer@12345',
     additionalInfo: { cpaCode },
   });
 }
@@ -778,7 +859,7 @@ function getTaskNotificationRoleConfig(role: TaskNotificationOptions['recipientR
       return {
         icon: '📊',
         color: '#10b981',
-        title: 'CPA',
+        title: 'Preparer',
         dashboardUrl: `${baseUrl}/cpa`
       };
     case 'SERVICE_CENTER':
@@ -1589,7 +1670,7 @@ export async function sendAdminTaskCompletionEmail({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -1805,7 +1886,7 @@ export async function sendAdminMessageNotification({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -2198,7 +2279,7 @@ export async function sendAdminDocumentUploadNotification({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -2266,7 +2347,7 @@ export async function sendAdminFolderCreatedNotification({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -2334,7 +2415,7 @@ export async function sendAdminBatchDocumentUploadNotification({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -2399,7 +2480,7 @@ export async function sendAdminBatchFolderCreatedNotification({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -2466,7 +2547,7 @@ export async function sendAdminTaskCompletedNotification({
 
   const roleLabels: Record<string, string> = {
     'CLIENT': 'Client',
-    'CPA': 'CPA',
+    'CPA': 'Preparer',
     'SERVICE_CENTER': 'Service Center',
   };
 
@@ -2615,6 +2696,9 @@ export async function sendClientBatchFolderCreatedNotification({
   });
 }
 
+/**
+ * Get the primary admin email (first admin with notifications enabled)
+ */
 export async function getAdminEmail(): Promise<{ email: string; name: string } | null> {
   try {
     const { getDbPool } = await import("@/lib/db");
@@ -2624,6 +2708,7 @@ export async function getAdminEmail(): Promise<{ email: string; name: string } |
       SELECT TOP 1 email, full_name as name
       FROM AdminSettings 
       WHERE email IS NOT NULL
+        AND (notifications_enabled = 1 OR notifications_enabled IS NULL)
     `);
 
     if (result.recordset.length > 0) {
@@ -2638,6 +2723,38 @@ export async function getAdminEmail(): Promise<{ email: string; name: string } |
   } catch (error) {
     console.error("❌ Failed to get admin email:", error);
     return null;
+  }
+}
+
+/**
+ * Get ALL admins who have notifications enabled
+ * Used for sending notifications to multiple admins
+ */
+export async function getAdminsWithNotificationsEnabled(): Promise<Array<{ email: string; name: string }>> {
+  try {
+    const { getDbPool } = await import("@/lib/db");
+
+    const pool = await getDbPool();
+    const result = await pool.request().query(`
+      SELECT email, full_name as name
+      FROM AdminSettings 
+      WHERE email IS NOT NULL
+        AND (notifications_enabled = 1 OR notifications_enabled IS NULL)
+    `);
+
+    if (result.recordset.length > 0) {
+      const admins = result.recordset.map((admin: any) => ({
+        email: admin.email,
+        name: admin.name || 'Admin',
+      }));
+      console.log(`📧 Found ${admins.length} admin(s) with notifications enabled:`, admins.map(a => a.email));
+      return admins;
+    }
+    console.warn("⚠️ No admins with notifications enabled found");
+    return [];
+  } catch (error) {
+    console.error("❌ Failed to get admins with notifications enabled:", error);
+    return [];
   }
 }
 

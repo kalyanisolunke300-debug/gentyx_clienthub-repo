@@ -259,7 +259,7 @@ export default function LoginPage() {
       <div className="footer-container">
         <div className="powered-by">POWERED BY HUBONE SYSTEMS</div>
         <p>
-          © 2014–{new Date().getFullYear()} HubOne Systems Inc. – All Rights Reserved
+          © 2014–{new Date().getFullYear()} HubOne Systems Inc.  All Rights Reserved
         </p>
       </div>
     </div>

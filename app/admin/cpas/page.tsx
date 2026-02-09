@@ -120,7 +120,7 @@ export default function CPAsPage() {
     const errors: { name?: string; email?: string } = {};
 
     if (!formData.name.trim()) {
-      errors.name = "CPA Name is required";
+      errors.name = "Preparer Name is required";
     }
     if (!formData.email.trim()) {
       errors.email = "Email Address is required";
@@ -156,7 +156,7 @@ export default function CPAsPage() {
           return;
         }
 
-        toast({ title: "Updated", description: "CPA updated successfully", variant: "success" });
+        toast({ title: "Updated", description: "Preparer updated successfully", variant: "success" });
       } else {
         // CREATE
         const res = await fetch("/api/cpas/add", {
@@ -174,7 +174,7 @@ export default function CPAsPage() {
           return;
         }
 
-        toast({ title: "Created", description: "New CPA created successfully", variant: "success" });
+        toast({ title: "Created", description: "New Preparer created successfully", variant: "success" });
       }
 
       // Reload list
@@ -194,7 +194,7 @@ export default function CPAsPage() {
   // DELETE CPA
   // ==========================
   async function handleDelete(id: number) {
-    if (!confirm("Are you sure you want to delete this CPA?")) return;
+    if (!confirm("Are you sure you want to delete this Preparer?")) return;
 
     try {
       const res = await fetch("/api/cpas/delete", {
@@ -209,7 +209,7 @@ export default function CPAsPage() {
         return;
       }
 
-      toast({ title: "Deleted", description: "CPA deleted" });
+      toast({ title: "Deleted", description: "Preparer deleted" });
 
       const reload = await fetch("/api/cpas/get");
       setCPAs((await reload.json()).data);
@@ -232,14 +232,14 @@ export default function CPAsPage() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">CPAs</h1>
-          <p className="text-muted-foreground mt-1">Manage CPAs and their client assignments.</p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Preparers</h1>
+          <p className="text-muted-foreground mt-1">Manage Preparers and their client assignments.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative w-full md:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search CPAs..."
+              placeholder="Search Preparers..."
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -248,13 +248,13 @@ export default function CPAsPage() {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => handleOpenDialog()}>
-                <Plus className="mr-2 h-4 w-4" /> Add CPA
+                <Plus className="mr-2 h-4 w-4" /> Add Preparer
               </Button>
             </DialogTrigger>
 
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>{editingId ? "Edit CPA Details" : "New CPA"}</DialogTitle>
+                <DialogTitle>{editingId ? "Edit Preparer Details" : "New Preparer"}</DialogTitle>
               </DialogHeader>
 
               <div className="grid gap-6 py-4">
@@ -267,7 +267,7 @@ export default function CPAsPage() {
                       setFormData({ ...formData, name: e.target.value });
                       if (formErrors.name) setFormErrors({ ...formErrors, name: undefined });
                     }}
-                    placeholder="e.g. John Doe, CPA"
+                    placeholder="e.g. John Doe"
                   />
                   {formErrors.name && (
                     <p className="text-xs text-red-500">{formErrors.name}</p>
@@ -302,7 +302,7 @@ export default function CPAsPage() {
                 </Button>
 
                 <Button onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? (editingId ? "Updating..." : "Creating...") : (editingId ? "Update CPA" : "Create CPA")}
+                  {isSaving ? (editingId ? "Updating..." : "Creating...") : (editingId ? "Update Preparer" : "Create Preparer")}
                 </Button>
               </div>
             </DialogContent>
@@ -314,8 +314,8 @@ export default function CPAsPage() {
       {filteredCPAs.length === 0 ? (
         <div className="text-center py-20 bg-muted/20 rounded-lg border-2 border-dashed">
           <UserCheck className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-          <h3 className="text-lg font-medium">No CPAs Found</h3>
-          <p className="text-muted-foreground text-sm mt-1">Try adjusting your search or add a new CPA.</p>
+          <h3 className="text-lg font-medium">No Preparers Found</h3>
+          <p className="text-muted-foreground text-sm mt-1">Try adjusting your search or add a new Preparer.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -350,7 +350,7 @@ export default function CPAsPage() {
                         onClick={() => handleDelete(c.cpa_id)}
                         disabled={c.client_count > 0}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete CPA
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete Preparer
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -409,7 +409,7 @@ export default function CPAsPage() {
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Briefcase className="h-12 w-12 text-muted-foreground/30 mb-3" />
                 <h3 className="text-lg font-medium">No Clients Assigned</h3>
-                <p className="text-muted-foreground text-sm max-w-sm mt-1">This CPA does not have any clients assigned to them yet.</p>
+                <p className="text-muted-foreground text-sm max-w-sm mt-1">This Preparer does not have any clients assigned to them yet.</p>
               </div>
             ) : (
               <div className="grid gap-3">

@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import sql from "mssql";
 import { getDbPool } from "@/lib/db";
-import { sendAdminTaskCompletionEmail } from "@/lib/email";
+import { sendAdminTaskCompletionEmail, getAdminsWithNotificationsEnabled } from "@/lib/email";
 
 export async function POST(req: Request) {
     try {
@@ -72,11 +72,10 @@ export async function POST(req: Request) {
             try {
                 console.log("📧 Onboarding subtask completed - sending admin notification...");
 
-                // Get admin email
-                const adminResult = await pool.request().query(`SELECT TOP 1 email, full_name FROM AdminSettings WHERE email IS NOT NULL`);
-                const admin = adminResult.recordset[0];
+                // Get ALL admins with notifications enabled
+                const admins = await getAdminsWithNotificationsEnabled();
 
-                if (admin?.email) {
+                if (admins.length > 0) {
                     // Determine who completed the task
                     const whoRole = (completedByRole || "CLIENT").toUpperCase();
                     let whoName = completedByName || "";
@@ -98,24 +97,32 @@ export async function POST(req: Request) {
                         }
                     }
 
-                    const emailResult = await sendAdminTaskCompletionEmail({
-                        adminEmail: admin.email,
-                        adminName: admin.full_name || "Admin",
-                        taskTitle: subtaskData.subtask_title,
-                        clientName: subtaskData.client_name || "Unknown Client",
-                        completedByRole: whoRole as 'CLIENT' | 'CPA' | 'SERVICE_CENTER',
-                        completedByName: whoName,
-                        taskType: "ONBOARDING",
-                        stageName: subtaskData.stage_name,
-                    });
+                    // Send to each admin with notifications enabled
+                    for (const admin of admins) {
+                        try {
+                            const emailResult = await sendAdminTaskCompletionEmail({
+                                adminEmail: admin.email,
+                                adminName: admin.name || "Admin",
+                                taskTitle: subtaskData.subtask_title,
+                                clientName: subtaskData.client_name || "Unknown Client",
+                                completedByRole: whoRole as 'CLIENT' | 'CPA' | 'SERVICE_CENTER',
+                                completedByName: whoName,
+                                taskType: "ONBOARDING",
+                                stageName: subtaskData.stage_name,
+                            });
 
-                    if (emailResult.success) {
-                        console.log(`✅ Admin onboarding task completion notification sent to ${admin.email}`);
-                    } else {
-                        console.warn(`⚠️ Admin onboarding task completion notification failed:`, emailResult.error);
+                            if (emailResult.success) {
+                                console.log(`✅ Admin onboarding task completion notification sent to ${admin.email}`);
+                            } else {
+                                console.warn(`⚠️ Admin onboarding task completion notification failed for ${admin.email}:`, emailResult.error);
+                            }
+                        } catch (err) {
+                            console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+                        }
                     }
+                    console.log(`📧 Notified ${admins.length} admin(s) about onboarding task completion`);
                 } else {
-                    console.warn("⚠️ No admin email configured - skipping completion notification");
+                    console.warn("⚠️ No admins with notifications enabled found - skipping completion notification");
                 }
             } catch (adminEmailError) {
                 console.error("❌ Admin onboarding task completion email error:", adminEmailError);

@@ -153,7 +153,7 @@ export default function AdminClientsList() {
     // ✅ CPA: show "Not Assigned" if missing
     {
       key: "cpa_name",
-      header: "CPA",
+      header: "Preparer",
       render: (row) => {
         const name = (row.cpa_name ?? "").toString().trim();
         return name.length > 0 ? name : "Not Assigned";
@@ -221,8 +221,8 @@ export default function AdminClientsList() {
             setPage(1);
           }}
           className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${archiveFilter === "ALL"
-              ? "text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
+            ? "text-gray-900"
+            : "text-gray-500 hover:text-gray-700"
             }`}
         >
           All Clients
@@ -236,8 +236,8 @@ export default function AdminClientsList() {
             setPage(1);
           }}
           className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${archiveFilter === "active"
-              ? "text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
+            ? "text-gray-900"
+            : "text-gray-500 hover:text-gray-700"
             }`}
         >
           Active Clients
@@ -251,8 +251,8 @@ export default function AdminClientsList() {
             setPage(1);
           }}
           className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${archiveFilter === "archived"
-              ? "text-gray-900"
-              : "text-gray-500 hover:text-gray-700"
+            ? "text-gray-900"
+            : "text-gray-500 hover:text-gray-700"
             }`}
         >
           Archived Clients

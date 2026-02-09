@@ -127,3 +127,25 @@ export type CPA = {
   updated_at?: string;
 };
 
+export type EmailLog = {
+  id: number;
+  recipientEmail: string;
+  recipientName?: string;
+  recipientRole?: 'CLIENT' | 'CPA' | 'SERVICE_CENTER';
+  relatedEntityType?: 'client' | 'cpa' | 'service_center';
+  relatedEntityId?: number;
+  relatedEntityName?: string;
+  emailType: string;
+  emailSubject: string;
+  emailBodyPreview?: string;
+  status: 'Pending' | 'Sent' | 'Delivered' | 'Failed' | 'Unknown';
+  statusMessage?: string;
+  acsMessageId?: string;
+  resendCount: number;
+  lastResentAt?: string;
+  resentBy?: string;
+  createdAt: string;
+  sentAt?: string;
+  deliveredAt?: string;
+  metadata?: Record<string, any>;
+};

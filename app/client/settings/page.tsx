@@ -370,7 +370,7 @@ export default function ClientSettingsPage() {
                                     Your Assigned Team
                                 </CardTitle>
                                 <CardDescription>
-                                    Your service center and CPA assignments
+                                    Your service center and Preparer assignments
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -395,7 +395,7 @@ export default function ClientSettingsPage() {
                                         </div>
                                         <div>
                                             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                                CPA
+                                                Preparer
                                             </p>
                                             <p className="text-lg font-semibold">
                                                 {client?.cpa_name || "Not Assigned"}

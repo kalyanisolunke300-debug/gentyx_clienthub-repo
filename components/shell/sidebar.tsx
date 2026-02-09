@@ -19,6 +19,7 @@ import {
   Handshake,
   LogOut,
   BookOpen,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -42,9 +43,10 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     { href: "/admin/tasks", label: "Tasks", icon: ListChecks },
     { href: "/admin/stages", label: "Onboarding Stages", icon: Library },
     { href: "/admin/service-centers", label: "Service Centers", icon: Building2 },
-    { href: "/admin/cpas", label: "CPAs", icon: Landmark },
-    { href: "/admin/messages", label: "Messages", icon: Mail },
+    { href: "/admin/cpas", label: "Preparers", icon: Landmark },
     { href: "/admin/email-templates", label: "Email Templates", icon: Mail },
+    { href: "/admin/messages", label: "Portal Messages", icon: Mail },
+    { href: "/admin/email-activity", label: "Portal Emails", icon: Activity },
     // { href: "/admin/documents", label: "Documents", icon: FileText },
     { href: "/admin/reports", label: "Reports", icon: BarChart2 },
     { href: "/admin/settings", label: "Settings", icon: Settings },

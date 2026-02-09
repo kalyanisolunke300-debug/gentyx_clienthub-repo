@@ -140,7 +140,7 @@ async function sendBatchedDocumentNotification(key: string): Promise<void> {
 
     try {
         const {
-            getAdminEmail,
+            getAdminsWithNotificationsEnabled,
             getClientEmail,
             sendAdminBatchDocumentUploadNotification,
             sendClientBatchDocumentUploadNotification
@@ -166,26 +166,34 @@ async function sendBatchedDocumentNotification(key: string): Promise<void> {
             console.log(`✅ Batched notification sent to CLIENT (${client.email}) for ${batch.documents.length} documents`);
 
         } else {
-            // Notify ADMIN
-            const admin = await getAdminEmail();
-            if (!admin) {
-                console.warn("⚠️ No admin email found - skipping batch notification");
+            // Notify ALL ADMINs with notifications enabled
+            const admins = await getAdminsWithNotificationsEnabled();
+            if (admins.length === 0) {
+                console.warn("⚠️ No admins with notifications enabled found - skipping batch notification");
                 return;
             }
 
-            await sendAdminBatchDocumentUploadNotification({
-                adminEmail: admin.email,
-                adminName: admin.name,
-                uploaderName: batch.uploaderName,
-                uploaderRole: batch.uploaderRole,
-                documents: batch.documents.map(d => ({
-                    name: d.documentName,
-                    folder: d.folderPath,
-                })),
-                clientName: batch.clientName,
-                clientId: batch.clientId,
-            });
-            console.log(`✅ Batched notification sent to ADMIN (${admin.email}) for ${batch.documents.length} documents`);
+            // Send to each admin with notifications enabled
+            for (const admin of admins) {
+                try {
+                    await sendAdminBatchDocumentUploadNotification({
+                        adminEmail: admin.email,
+                        adminName: admin.name,
+                        uploaderName: batch.uploaderName,
+                        uploaderRole: batch.uploaderRole,
+                        documents: batch.documents.map(d => ({
+                            name: d.documentName,
+                            folder: d.folderPath,
+                        })),
+                        clientName: batch.clientName,
+                        clientId: batch.clientId,
+                    });
+                    console.log(`✅ Batched notification sent to ADMIN (${admin.email}) for ${batch.documents.length} documents`);
+                } catch (err) {
+                    console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+                }
+            }
+            console.log(`📧 Notified ${admins.length} admin(s) about ${batch.documents.length} document upload(s)`);
         }
 
     } catch (error) {
@@ -210,7 +218,7 @@ async function sendBatchedFolderNotification(key: string): Promise<void> {
 
     try {
         const {
-            getAdminEmail,
+            getAdminsWithNotificationsEnabled,
             getClientEmail,
             sendAdminBatchFolderCreatedNotification,
             sendClientBatchFolderCreatedNotification
@@ -236,26 +244,34 @@ async function sendBatchedFolderNotification(key: string): Promise<void> {
             console.log(`✅ Batched notification sent to CLIENT (${client.email}) for ${batch.folders.length} folders`);
 
         } else {
-            // Notify ADMIN
-            const admin = await getAdminEmail();
-            if (!admin) {
-                console.warn("⚠️ No admin email found - skipping batch notification");
+            // Notify ALL ADMINs with notifications enabled
+            const admins = await getAdminsWithNotificationsEnabled();
+            if (admins.length === 0) {
+                console.warn("⚠️ No admins with notifications enabled found - skipping batch notification");
                 return;
             }
 
-            await sendAdminBatchFolderCreatedNotification({
-                adminEmail: admin.email,
-                adminName: admin.name,
-                creatorName: batch.uploaderName,
-                creatorRole: batch.uploaderRole,
-                folders: batch.folders.map(f => ({
-                    name: f.folderName,
-                    parentPath: f.parentPath,
-                })),
-                clientName: batch.clientName,
-                clientId: batch.clientId,
-            });
-            console.log(`✅ Batched notification sent to ADMIN (${admin.email}) for ${batch.folders.length} folders`);
+            // Send to each admin with notifications enabled
+            for (const admin of admins) {
+                try {
+                    await sendAdminBatchFolderCreatedNotification({
+                        adminEmail: admin.email,
+                        adminName: admin.name,
+                        creatorName: batch.uploaderName,
+                        creatorRole: batch.uploaderRole,
+                        folders: batch.folders.map(f => ({
+                            name: f.folderName,
+                            parentPath: f.parentPath,
+                        })),
+                        clientName: batch.clientName,
+                        clientId: batch.clientId,
+                    });
+                    console.log(`✅ Batched notification sent to ADMIN (${admin.email}) for ${batch.folders.length} folders`);
+                } catch (err) {
+                    console.error(`❌ Failed to send to admin ${admin.email}:`, err);
+                }
+            }
+            console.log(`📧 Notified ${admins.length} admin(s) about ${batch.folders.length} folder creation(s)`);
         }
     } catch (error) {
         console.error("❌ Failed to send batched folder notification:", error);

@@ -336,7 +336,7 @@ export default function ClientProfile() {
                 </div>
                 <div className="flex-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    CPA
+                    Preparer
                   </p>
                   <p className="text-lg font-semibold">
                     {client?.cpa_name || "Not Assigned"}

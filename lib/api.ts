@@ -475,3 +475,50 @@ export async function createAdminUser(payload: {
   return json;
 }
 
+
+/* -------------------------------------------------------------
+    EMAIL LOGS / AUDIT API CALLS
+--------------------------------------------------------------*/
+
+export interface EmailLogFilters {
+  page?: number;
+  pageSize?: number;
+  recipientRole?: string;
+  status?: string;
+  emailType?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+}
+
+// FETCH EMAIL LOGS
+export async function fetchEmailLogs(filters: EmailLogFilters) {
+  const params = new URLSearchParams();
+
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
+  if (filters.recipientRole) params.set("recipientRole", filters.recipientRole);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.emailType) params.set("emailType", filters.emailType);
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  if (filters.search) params.set("search", filters.search);
+
+  const res = await fetch(`/api/email-logs?${params.toString()}`, {
+    cache: "no-store",
+  });
+
+  if (!res.ok) throw new Error("Failed to fetch email logs");
+  return res.json();
+}
+
+// RESEND EMAIL
+export async function resendEmail(emailLogId: number, adminEmail?: string) {
+  const res = await fetch("/api/email-logs/resend", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ emailLogId, adminEmail }),
+  });
+
+  return res.json();
+}

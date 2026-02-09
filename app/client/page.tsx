@@ -123,7 +123,7 @@ export default function ClientHome() {
   } = useSWR(
     clientId ? ["client-home-docs", clientId] : null,
     async () => {
-      const res = await fetch(`/api/documents/get-by-client?id=${clientId}`);
+      const res = await fetch(`/api/documents/get-by-client?id=${clientId}&role=CLIENT`);
       if (!res.ok) return { data: [] };
       return res.json();
     },
@@ -607,7 +607,7 @@ export default function ClientHome() {
                     : senderRole === "SERVICE_CENTER"
                       ? "Service Center"
                       : senderRole === "CPA"
-                        ? "CPA"
+                        ? "Preparer"
                         : senderRole;
                 return (
                   <div

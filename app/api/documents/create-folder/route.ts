@@ -1,10 +1,10 @@
-// /app/api/documents/create-folder/route.ts
 import { NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { logAudit, AuditActions } from "@/lib/audit";
 import { queueFolderCreatedNotification } from "@/lib/notification-batcher";
 import { getDbPool } from "@/lib/db";
 import sql from "mssql";
+import { getClientRootFolder } from "@/lib/storage-utils";
 
 export async function POST(req: Request) {
   try {
@@ -24,17 +24,21 @@ export async function POST(req: Request) {
     );
     await containerClient.createIfNotExists();
 
+    const rootFolder = await getClientRootFolder(clientId);
+
     // ✅ SUPPORT SUB-FOLDERS
     const finalFolderPath = parentFolder
-      ? `client-${clientId}/${parentFolder}/${folderName}/`
-      : `client-${clientId}/${folderName}/`;
+      ? `${rootFolder}/${parentFolder}/${folderName}/`
+      : `${rootFolder}/${folderName}/`;
 
     // ✅ CASE-INSENSITIVE DUPLICATE PROTECTION
     // List all folders at the parent level and check for case-insensitive matches
     const parentPath = parentFolder
-      ? `client-${clientId}/${parentFolder}/`
-      : `client-${clientId}/`;
+      ? `${rootFolder}/${parentFolder}/`
+      : `${rootFolder}/`;
 
+    // If client folder doesn't exist yet, this list call returns empty, which is fine
+    // But we need to ensure listBlobsByHierarchy treats "/" as delimiter correctly
     const existingFolders = containerClient.listBlobsByHierarchy("/", {
       prefix: parentPath,
     });
@@ -60,10 +64,12 @@ export async function POST(req: Request) {
 
 
     // ✅ REAL FOLDER CREATION
+    // Create a .keep file to simulate a directory
     const blockBlobClient = containerClient.getBlockBlobClient(
       `${finalFolderPath}.keep`
     );
 
+    // Upload empty file
     await blockBlobClient.upload("", 0);
 
     // Audit log
@@ -112,4 +118,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

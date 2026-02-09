@@ -506,7 +506,7 @@ export default function AdminTasksPage() {
             <SelectItem value="ALL">All Users</SelectItem>
             <SelectItem value="CLIENT">Client</SelectItem>
             <SelectItem value="SERVICE_CENTER">Service Center</SelectItem>
-            <SelectItem value="CPA">CPA</SelectItem>
+            <SelectItem value="CPA">Preparer</SelectItem>
           </SelectContent>
         </Select>
 

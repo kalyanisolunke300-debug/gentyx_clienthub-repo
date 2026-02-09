@@ -61,7 +61,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle, Users, Plus, Mail, Phone } from "lucide-react";
+import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle, Users, Plus, Mail, Phone, Lock } from "lucide-react";
 import { formatPhone } from "@/lib/formatters";
 
 
@@ -629,6 +629,35 @@ export default function ClientProfilePage() {
           <span className="font-mono text-xs text-muted-foreground">
             {size} {units[i]}
           </span>
+        );
+      },
+    },
+    {
+      key: "visibility",
+      header: "Visibility",
+      render: (row: any) => {
+        if (row.type === "folder") return <span className="text-muted-foreground text-xs">—</span>;
+
+        const isPrivate = (row.visibility || "shared") === "private";
+
+        return (
+          <div className="flex items-center gap-1.5">
+            {isPrivate ? (
+              <>
+                <Lock className="size-3.5 text-purple-600" />
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
+                  Private
+                </span>
+              </>
+            ) : (
+              <>
+                <Eye className="size-3.5 text-blue-600" />
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                  Shared
+                </span>
+              </>
+            )}
+          </div>
         );
       },
     },

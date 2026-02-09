@@ -254,7 +254,7 @@ export default function AdminDashboard() {
     // ✅ CPA: show "Not Assigned" if missing
     {
       key: "cpa_name",
-      header: "CPA",
+      header: "Preparer",
       render: (row) => {
         const name = (row.cpa_name ?? "").toString().trim();
         return name.length > 0 ? name : "Not Assigned";

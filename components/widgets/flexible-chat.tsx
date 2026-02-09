@@ -222,7 +222,7 @@ export function FlexibleChat({
             case "ADMIN":
                 return "Admin"
             case "CPA":
-                return "CPA"
+                return "Preparer"
             default:
                 return role
         }

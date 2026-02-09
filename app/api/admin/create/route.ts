@@ -58,12 +58,12 @@ export async function POST(req: Request) {
         VALUES (@email, @password, 'ADMIN')
       `);
 
-        // 5. Add to AdminSettings
+        // 5. Add to AdminSettings with notifications enabled by default
         await pool.request()
             .input("email", newEmail)
             .query(`
-        INSERT INTO AdminSettings (full_name, email, phone, role)
-        VALUES ('New Admin', @email, '', 'Administrator')
+        INSERT INTO AdminSettings (full_name, email, phone, role, notifications_enabled)
+        VALUES ('New Admin', @email, '', 'Administrator', 1)
         `);
 
         return NextResponse.json({ success: true });

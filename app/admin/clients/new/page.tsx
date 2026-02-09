@@ -263,14 +263,14 @@ export default function NewClientPage() {
 
           {/* CPA */}
           <div className="grid gap-2">
-            <Label>CPA</Label>
+            <Label>Preparer</Label>
 
             <Select
               value={form.watch("cpa_id")}
               onValueChange={(v) => form.setValue("cpa_id", v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Assign CPA" />
+                <SelectValue placeholder="Assign Preparer" />
               </SelectTrigger>
 
               <SelectContent>

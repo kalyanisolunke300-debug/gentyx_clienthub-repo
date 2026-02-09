@@ -186,35 +186,7 @@ export default function ClientDocuments() {
         );
       },
     },
-    {
-      key: "visibility",
-      header: "Visibility",
-      render: (row: any) => {
-        if (row.type === "folder") return <span className="text-muted-foreground text-xs">—</span>;
 
-        const isPrivate = row.visibility === "private";
-
-        return (
-          <div className="flex items-center gap-1.5">
-            {isPrivate ? (
-              <>
-                <Lock className="size-3.5 text-purple-600" />
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
-                  Private
-                </span>
-              </>
-            ) : (
-              <>
-                <Eye className="size-3.5 text-blue-600" />
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
-                  Shared
-                </span>
-              </>
-            )}
-          </div>
-        );
-      },
-    },
     {
       key: "actions",
       header: "",

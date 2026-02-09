@@ -271,7 +271,7 @@ export default function CPADashboard() {
                       msg.sender_role === "CLIENT" ? "bg-blue-100 text-blue-700" :
                         "bg-amber-100 text-amber-700"
                     )}>
-                      {msg.sender_role === "CLIENT" ? "CL" : "CP"}
+                      {msg.sender_role === "CLIENT" ? "CL" : "PR"}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2 mb-1">

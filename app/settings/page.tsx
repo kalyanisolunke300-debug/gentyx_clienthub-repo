@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { User, Bell, Shield, Activity, Save, Eye, EyeOff, Check, Loader2, UserPlus, Lock, Plus, X, BookOpen } from "lucide-react"
+import { User, Bell, Shield, Activity, Save, Eye, EyeOff, Check, Loader2, UserPlus, Lock, Plus, X, BookOpen, Mail, RefreshCw } from "lucide-react"
 import { updateAdminPassword, createAdminUser } from "@/lib/api"
 import { HelpContentManager } from "@/components/admin/help-content-manager"
 import {
@@ -79,6 +79,70 @@ export default function SettingsPage() {
   const [masterPass, setMasterPass] = useState("") // Current admin password to confirm
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false)
   const [showCreateAdminDialog, setShowCreateAdminDialog] = useState(false)
+
+  // Admin notification management state
+  const [adminNotifications, setAdminNotifications] = useState<Array<{
+    id: number;
+    fullName: string;
+    email: string;
+    notificationsEnabled: boolean;
+  }>>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [toggling, setToggling] = useState<number | null>(null);
+
+  // Fetch admin notifications
+  const fetchAdminNotifications = async () => {
+    setLoadingAdmins(true);
+    try {
+      const response = await fetch('/api/admin/notifications');
+      const data = await response.json();
+      if (data.success) {
+        setAdminNotifications(data.admins);
+      }
+    } catch (error) {
+      console.error('Failed to fetch admin notifications:', error);
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  // Toggle admin notification
+  const toggleAdminNotification = async (adminId: number, enabled: boolean) => {
+    setToggling(adminId);
+    try {
+      const response = await fetch('/api/admin/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId, notificationsEnabled: enabled }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAdminNotifications(prev =>
+          prev.map(admin =>
+            admin.id === adminId ? { ...admin, notificationsEnabled: enabled } : admin
+          )
+        );
+        toast({
+          title: "Updated",
+          description: `Notifications ${enabled ? 'enabled' : 'disabled'} for this admin.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to update notification preference.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update notification preference.",
+        variant: "destructive",
+      });
+    } finally {
+      setToggling(null);
+    }
+  };
 
   // Save handlers
   const handleSaveProfile = async () => {
@@ -203,15 +267,15 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 lg:w-[625px]">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
           </TabsTrigger>
-          {/* <TabsTrigger value="notifications" className="gap-2">
+          <TabsTrigger value="notifications" className="gap-2" onClick={() => fetchAdminNotifications()}>
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
-          </TabsTrigger> */}
+          </TabsTrigger>
           <TabsTrigger value="security" className="gap-2">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Password</span>
@@ -295,75 +359,101 @@ export default function SettingsPage() {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-primary" />
-                Notification Preferences
-              </CardTitle>
-              <CardDescription>Configure how you receive notifications and alerts</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Email Alerts</Label>
-                    <p className="text-sm text-muted-foreground">Receive email notifications for important updates</p>
-                  </div>
-                  <Switch
-                    checked={notifications.emailAlerts}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, emailAlerts: checked })}
-                  />
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="h-5 w-5 text-primary" />
+                    Admin Email Notifications
+                  </CardTitle>
+                  <CardDescription>
+                    Control which administrators receive system email notifications (messages, documents, task completions, etc.)
+                  </CardDescription>
                 </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Task Updates</Label>
-                    <p className="text-sm text-muted-foreground">Get notified when tasks are assigned or completed</p>
-                  </div>
-                  <Switch
-                    checked={notifications.taskUpdates}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, taskUpdates: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Client Updates</Label>
-                    <p className="text-sm text-muted-foreground">Notifications for client onboarding progress changes</p>
-                  </div>
-                  <Switch
-                    checked={notifications.clientUpdates}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, clientUpdates: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Message Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Get notified when you receive new messages</p>
-                  </div>
-                  <Switch
-                    checked={notifications.messageNotifications}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, messageNotifications: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Weekly Digest</Label>
-                    <p className="text-sm text-muted-foreground">Receive a weekly summary of activity</p>
-                  </div>
-                  <Switch
-                    checked={notifications.weeklyDigest}
-                    onCheckedChange={(checked) => setNotifications({ ...notifications, weeklyDigest: checked })}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button onClick={handleSaveNotifications} className="gap-2">
-                  <Check className="h-4 w-4" />
-                  Save Preferences
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchAdminNotifications}
+                  disabled={loadingAdmins}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loadingAdmins ? 'animate-spin' : ''}`} />
+                  Refresh
                 </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingAdmins ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="ml-2 text-muted-foreground">Loading admins...</span>
+                </div>
+              ) : adminNotifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="bg-muted/50 rounded-full p-3 mb-3">
+                    <User className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">No administrators found.</p>
+                  <Button variant="link" onClick={fetchAdminNotifications} className="mt-2">
+                    Click to load admins
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground mb-4">
+                    Toggle the switch to enable or disable email notifications for each administrator.
+                    When enabled, that admin will receive emails about new messages, document uploads, task completions, and other system events.
+                  </div>
+                  {adminNotifications.map((admin) => (
+                    <div
+                      key={admin.id}
+                      className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${admin.notificationsEnabled ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
+                          }`}>
+                          <Mail className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{admin.fullName}</p>
+                          <p className="text-sm text-muted-foreground">{admin.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs px-2 py-1 rounded-full ${admin.notificationsEnabled
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-500'
+                          }`}>
+                          {admin.notificationsEnabled ? 'Receiving emails' : 'Not receiving'}
+                        </span>
+                        {toggling === admin.id ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        ) : (
+                          <Switch
+                            checked={admin.notificationsEnabled}
+                            onCheckedChange={(checked) => toggleAdminNotification(admin.id, checked)}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-6 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="flex items-start gap-3">
+                  <Bell className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-amber-800">About Admin Notifications</div>
+                    <div className="text-sm text-amber-700 mt-1">
+                      Administrators with notifications enabled will receive emails when:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>A client sends a message to the admin team</li>
+                        <li>Documents are uploaded by clients, CPAs, or Service Centers</li>
+                        <li>Tasks or onboarding steps are completed</li>
+                        <li>New folders are created in client document areas</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
