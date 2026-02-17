@@ -54,8 +54,8 @@ export default function EditClientPage() {
           primary_contact_email: clientRes.data.primary_contact_email || "",
           primary_contact_phone: clientRes.data.primary_contact_phone || "",
           service_center_id:
-            clientRes.data.service_center_id?.toString() || "",
-          cpa_id: clientRes.data.cpa_id?.toString() || "",
+            clientRes.data.service_center_id?.toString() || "unassigned",
+          cpa_id: clientRes.data.cpa_id?.toString() || "unassigned",
         });
       }
 
@@ -70,10 +70,17 @@ export default function EditClientPage() {
   async function handleSave() {
     setSaving(true);
 
+    // Convert "unassigned" to empty string (which sends as null)
+    const payload = {
+      ...form,
+      service_center_id: form.service_center_id === "unassigned" ? "" : form.service_center_id,
+      cpa_id: form.cpa_id === "unassigned" ? "" : form.cpa_id,
+    };
+
     const res = await fetch("/api/clients/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: id, ...form }),
+      body: JSON.stringify({ clientId: id, ...payload }),
     });
 
     const json = await res.json();
@@ -176,6 +183,9 @@ export default function EditClientPage() {
               <SelectValue placeholder="Assign service center" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="unassigned" className="text-muted-foreground italic">
+                Not Assigned
+              </SelectItem>
               {serviceCenters.map((sc) => (
                 <SelectItem
                   key={sc.service_center_id}
@@ -190,7 +200,7 @@ export default function EditClientPage() {
 
         {/* ✅ CPA DROPDOWN */}
         <div>
-          <label className="text-sm font-medium">Assigned CPA</label>
+          <label className="text-sm font-medium">Assigned Preparers</label>
           <Select
             value={form.cpa_id}
             onValueChange={(v) => setForm({ ...form, cpa_id: v })}
@@ -199,6 +209,9 @@ export default function EditClientPage() {
               <SelectValue placeholder="Assign CPA" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="unassigned" className="text-muted-foreground italic">
+                Not Assigned
+              </SelectItem>
               {cpas.map((cpa) => (
                 <SelectItem key={cpa.cpa_id} value={cpa.cpa_id.toString()}>
                   {cpa.cpa_name}

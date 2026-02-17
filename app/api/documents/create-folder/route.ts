@@ -80,30 +80,42 @@ export async function POST(req: Request) {
       details: folderName,
     });
 
-    // Queue email notification to admin (batched - will wait 30s for more folder creations)
-    (async () => {
-      try {
-        // Get client name
-        const pool = await getDbPool();
-        const clientResult = await pool.request()
-          .input("clientId", sql.Int, Number(clientId))
-          .query(`SELECT client_name FROM dbo.Clients WHERE client_id = @clientId`);
+    // Queue email notification (batched - will wait 30s for more folder creations)
+    // ✅ SKIP notification if folder is inside "Admin Only" section — client shouldn't know
+    const isAdminOnlySection =
+      parentFolder === "Admin Only" ||
+      parentFolder === "Admin Restricted" ||
+      (parentFolder && (parentFolder.startsWith("Admin Only/") || parentFolder.startsWith("Admin Restricted/"))) ||
+      folderName === "Admin Only" ||
+      folderName === "Admin Restricted";
 
-        const clientName = clientResult.recordset[0]?.client_name || `Client ${clientId}`;
+    if (!isAdminOnlySection) {
+      (async () => {
+        try {
+          // Get client name
+          const pool = await getDbPool();
+          const clientResult = await pool.request()
+            .input("clientId", sql.Int, Number(clientId))
+            .query(`SELECT client_name FROM dbo.Clients WHERE client_id = @clientId`);
 
-        // Queue the notification (will batch multiple folder creations together)
-        queueFolderCreatedNotification({
-          clientId: Number(clientId),
-          clientName: clientName,
-          creatorName: role === 'ADMIN' ? 'Admin' : clientName,
-          creatorRole: role as any,
-          folderName: folderName,
-          parentPath: parentFolder || undefined,
-        });
-      } catch (emailErr) {
-        console.error("Failed to queue admin notification:", emailErr);
-      }
-    })();
+          const clientName = clientResult.recordset[0]?.client_name || `Client ${clientId}`;
+
+          // Queue the notification (will batch multiple folder creations together)
+          queueFolderCreatedNotification({
+            clientId: Number(clientId),
+            clientName: clientName,
+            creatorName: role === 'ADMIN' ? 'Admin' : clientName,
+            creatorRole: role as any,
+            folderName: folderName,
+            parentPath: parentFolder || undefined,
+          });
+        } catch (emailErr) {
+          console.error("Failed to queue admin notification:", emailErr);
+        }
+      })();
+    } else {
+      console.log(`[CREATE-FOLDER] Skipping notification for Admin Only section folder: ${folderName}`);
+    }
 
     return NextResponse.json({
       success: true,

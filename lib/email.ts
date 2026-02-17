@@ -28,6 +28,7 @@ interface SendEmailWithLoggingOptions extends SendEmailOptions {
 
 /**
  * Send an email using Azure Communication Services
+ * Includes retry logic with exponential backoff for 429 rate-limiting
  * Optionally logs the email to the database for admin visibility
  */
 export async function sendEmail(options: SendEmailOptions | SendEmailWithLoggingOptions) {
@@ -63,7 +64,7 @@ export async function sendEmail(options: SendEmailOptions | SendEmailWithLogging
   }
 
   if (!emailClient) {
-    console.error("❌ Email client not initialized - missing connection string");
+    console.error("❌ Email client not initialized - missing AZURE_COMMUNICATION_CONNECTION_STRING");
     if (emailLogId) {
       await updateEmailLogStatus(emailLogId, 'Failed', 'Email client not configured');
     }
@@ -79,44 +80,67 @@ export async function sendEmail(options: SendEmailOptions | SendEmailWithLogging
     return { success: false, error: "Email sender not configured" };
   }
 
-  try {
-    const message: EmailMessage = {
-      senderAddress: sender,
-      content: {
-        subject,
-        html,
-        plainText: text || html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
-      },
-      recipients: {
-        to: [{ address: to }],
-      },
-    };
+  const message: EmailMessage = {
+    senderAddress: sender,
+    content: {
+      subject,
+      html,
+      plainText: text || html.replace(/<[^>]*>/g, ""),
+    },
+    recipients: {
+      to: [{ address: to }],
+    },
+  };
 
-    // Send the email using ACS
-    const poller = await emailClient.beginSend(message);
-    const result = await poller.pollUntilDone();
+  // Retry with exponential backoff: 5s, 10s, 20s, 40s
+  const MAX_RETRIES = 5;
+  const BASE_DELAY_MS = 5000;
 
-    if (result.status === "Succeeded") {
-      console.log("✅ Email sent successfully via Azure Communication Services:", result.id);
-      if (emailLogId) {
-        await updateEmailLogStatus(emailLogId, 'Sent', 'Email sent successfully', result.id);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(`📧 ACS Attempt ${attempt}/${MAX_RETRIES} to send email to ${to}`);
+
+      const poller = await emailClient.beginSend(message);
+      const result = await poller.pollUntilDone();
+
+      if (result.status === "Succeeded") {
+        console.log("✅ Email sent successfully via ACS:", result.id);
+        if (emailLogId) {
+          await updateEmailLogStatus(emailLogId, 'Sent', 'Email sent successfully', result.id);
+        }
+        return { success: true, messageId: result.id };
+      } else {
+        console.error("❌ ACS send failed with status:", result.status, result.error);
+        if (emailLogId) {
+          await updateEmailLogStatus(emailLogId, 'Failed', result.error?.message || 'Unknown error');
+        }
+        return { success: false, error: result.error };
       }
-      return { success: true, messageId: result.id };
-    } else {
-      console.error("❌ Email send failed:", result.error);
-      if (emailLogId) {
-        await updateEmailLogStatus(emailLogId, 'Failed', result.error?.message || 'Unknown error');
+    } catch (error: any) {
+      const isRateLimited = error?.statusCode === 429 || error?.code === 'TooManyRequests';
+
+      if (isRateLimited && attempt < MAX_RETRIES) {
+        // Exponential backoff: 5s, 10s, 20s, 40s
+        const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(`⚠️ ACS rate limited (429). Waiting ${delayMs / 1000}s before retry (attempt ${attempt}/${MAX_RETRIES})...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        continue;
       }
-      return { success: false, error: result.error };
+
+      // Final attempt failed or non-retryable error
+      console.error(`❌ ACS email failed (attempt ${attempt}/${MAX_RETRIES}):`, error?.message || error);
+      if (emailLogId) {
+        await updateEmailLogStatus(emailLogId, 'Failed', error?.message || 'Send error');
+      }
+      return { success: false, error };
     }
-  } catch (error: any) {
-    console.error("❌ Email send error:", error?.message || error);
-    console.error("❌ Full error:", JSON.stringify(error, null, 2));
-    if (emailLogId) {
-      await updateEmailLogStatus(emailLogId, 'Failed', error?.message || 'Send error');
-    }
-    return { success: false, error };
   }
+
+  // Should not reach here
+  if (emailLogId) {
+    await updateEmailLogStatus(emailLogId, 'Failed', 'Max retries exceeded');
+  }
+  return { success: false, error: 'Max retries exceeded' };
 }
 
 
@@ -2735,11 +2759,11 @@ export async function getAdminsWithNotificationsEnabled(): Promise<Array<{ email
     const { getDbPool } = await import("@/lib/db");
 
     const pool = await getDbPool();
+    // Return ALL admins — no notifications_enabled filter
     const result = await pool.request().query(`
       SELECT email, full_name as name
       FROM AdminSettings 
       WHERE email IS NOT NULL
-        AND (notifications_enabled = 1 OR notifications_enabled IS NULL)
     `);
 
     if (result.recordset.length > 0) {
@@ -2747,13 +2771,13 @@ export async function getAdminsWithNotificationsEnabled(): Promise<Array<{ email
         email: admin.email,
         name: admin.name || 'Admin',
       }));
-      console.log(`📧 Found ${admins.length} admin(s) with notifications enabled:`, admins.map(a => a.email));
+      console.log(`📧 Found ${admins.length} admin(s) for notifications:`, admins.map(a => a.email));
       return admins;
     }
-    console.warn("⚠️ No admins with notifications enabled found");
+    console.warn("⚠️ No admins found in AdminSettings");
     return [];
   } catch (error) {
-    console.error("❌ Failed to get admins with notifications enabled:", error);
+    console.error("❌ Failed to get admins:", error);
     return [];
   }
 }

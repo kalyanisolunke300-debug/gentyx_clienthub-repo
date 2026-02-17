@@ -123,13 +123,13 @@ export default function ClientProfile() {
             totalStages={client?.total_stages}
           />
 
-          <Button
+          {/* <Button
             variant="outline"
             onClick={() => router.push("/client/stages")}
           >
             <Eye className="mr-2 h-4 w-4" />
             View Stages
-          </Button>
+          </Button> */}
 
           <Button onClick={() => router.push("/client/profile/edit")}>
             <Pencil className="mr-2 h-4 w-4" />
@@ -141,7 +141,7 @@ export default function ClientProfile() {
       {/* ---------- OVERVIEW CARDS ---------- */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* CLIENT SUMMARY */}
-        <Card className="md:col-span-2 lg:col-span-1">
+        <Card className={`md:col-span-2 ${stages.length > 0 ? "lg:col-span-1" : "lg:col-span-3"}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <svg
@@ -193,53 +193,28 @@ export default function ClientProfile() {
         </Card>
 
         {/* STAGE TIMELINE */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-primary"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-              Stage Timeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <div className="bg-muted/50 rounded-full p-4 mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-8 w-8 text-muted-foreground"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  No onboarding stages have been set up yet.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Your admin will set up your onboarding stages soon.
-                </p>
-              </div>
-            ) : (
+        {stages.length > 0 && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                Stage Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="flex flex-wrap items-center gap-2 py-2">
                 {stages
                   .sort((a, b) => a.order_number - b.order_number)
@@ -283,75 +258,78 @@ export default function ClientProfile() {
                     );
                   })}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* SERVICE CENTER & CPA INFO */}
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-primary"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              Your Assigned Team
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Building2 className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Service Center
-                  </p>
-                  <p className="text-lg font-semibold">
-                    {client?.service_center_name || "Not Assigned"}
-                  </p>
-                  {client?.service_center_email && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <Mail className="h-3.5 w-3.5" />
-                      {client.service_center_email}
+        {/* SERVICE CENTER & CPA INFO */}
+        {(client?.service_center_name || client?.cpa_name) && (
+          <Card className="lg:col-span-3">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
+                </svg>
+                Your Assigned Team
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
+                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <Building2 className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Service Center
                     </p>
-                  )}
+                    <p className="text-lg font-semibold">
+                      {client?.service_center_name || "Not Assigned"}
+                    </p>
+                    {client?.service_center_email && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                        <Mail className="h-3.5 w-3.5" />
+                        {client.service_center_email}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <UserCircle className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Preparer
-                  </p>
-                  <p className="text-lg font-semibold">
-                    {client?.cpa_name || "Not Assigned"}
-                  </p>
-                  {client?.cpa_email && (
-                    <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <Mail className="h-3.5 w-3.5" />
-                      {client.cpa_email}
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
+                  <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                    <UserCircle className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Preparer
                     </p>
-                  )}
+                    <p className="text-lg font-semibold">
+                      {client?.cpa_name || "Not Assigned"}
+                    </p>
+                    {client?.cpa_email && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
+                        <Mail className="h-3.5 w-3.5" />
+                        {client.cpa_email}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

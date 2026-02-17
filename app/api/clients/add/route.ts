@@ -177,13 +177,17 @@ export async function POST(req: Request) {
 
       // 📧 Send welcome email to the client
       try {
-        await sendClientWelcomeEmail(
+        const emailResult = await sendClientWelcomeEmail(
           primaryContactEmail,
           fullContactName,
           finalClientName,
           code || undefined
         );
-        console.log(`✅ Welcome email sent to client: ${primaryContactEmail}`);
+        if (emailResult?.success) {
+          console.log(`✅ Welcome email sent to client: ${primaryContactEmail}`);
+        } else {
+          console.error(`⚠️ Welcome email failed for client: ${primaryContactEmail}`, emailResult?.error || 'Unknown error');
+        }
       } catch (emailError) {
         console.error(`⚠️ Failed to send welcome email to client: ${primaryContactEmail}`, emailError);
         // Don't fail the entire request if email fails

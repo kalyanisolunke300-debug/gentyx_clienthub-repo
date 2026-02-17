@@ -362,49 +362,51 @@ export default function ClientSettingsPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Assigned Team Card */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <UserCircle className="h-5 w-5 text-primary" />
-                                    Your Assigned Team
-                                </CardTitle>
-                                <CardDescription>
-                                    Your service center and Preparer assignments
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
-                                        <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                                            <Building2 className="h-6 w-6 text-blue-600" />
+                        {/* Assigned Team Card - only show if at least one is assigned */}
+                        {(client?.service_center_name || client?.cpa_name) && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <UserCircle className="h-5 w-5 text-primary" />
+                                        Your Assigned Team
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Your service center and Preparer assignments
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
+                                            <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <Building2 className="h-6 w-6 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                                    Service Center
+                                                </p>
+                                                <p className="text-lg font-semibold">
+                                                    {client?.service_center_name || "Not Assigned"}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                                Service Center
-                                            </p>
-                                            <p className="text-lg font-semibold">
-                                                {client?.service_center_name || "Not Assigned"}
-                                            </p>
-                                        </div>
-                                    </div>
 
-                                    <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
-                                        <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                                            <UserCircle className="h-6 w-6 text-purple-600" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                                Preparer
-                                            </p>
-                                            <p className="text-lg font-semibold">
-                                                {client?.cpa_name || "Not Assigned"}
-                                            </p>
+                                        <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
+                                            <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                                                <UserCircle className="h-6 w-6 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                                    Preparer
+                                                </p>
+                                                <p className="text-lg font-semibold">
+                                                    {client?.cpa_name || "Not Assigned"}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 </TabsContent>
 

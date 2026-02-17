@@ -169,7 +169,7 @@ export async function POST(req: Request) {
     // 📧 Send profile update notification email to client
     if (primary_contact_email) {
       try {
-        await sendUpdateNotification({
+        const emailResult = await sendUpdateNotification({
           recipientEmail: primary_contact_email,
           recipientName: primary_contact_name || finalClientName,
           updateType: 'profile_updated',
@@ -180,7 +180,11 @@ export async function POST(req: Request) {
             actionLabel: 'View Your Profile',
           },
         });
-        console.log(`✅ Profile update notification sent to client: ${primary_contact_email}`);
+        if (emailResult?.success) {
+          console.log(`✅ Profile update notification sent to client: ${primary_contact_email}`);
+        } else {
+          console.error(`⚠️ Profile update notification failed for client: ${primary_contact_email}`, emailResult?.error || 'Unknown error');
+        }
       } catch (emailError) {
         console.error(`⚠️ Failed to send profile update notification to client: ${primary_contact_email}`, emailError);
       }

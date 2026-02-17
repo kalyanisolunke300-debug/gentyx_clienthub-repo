@@ -1,44 +1,50 @@
-// app/api/test-email/route.ts
-import { NextResponse } from "next/server";
+
 import { sendEmail } from "@/lib/email";
+import { getDbPool } from "@/lib/db";
+import { NextResponse } from "next/server";
 
-export async function GET(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const to = searchParams.get("to");
+export async function POST(req: Request) {
+    try {
+        // 1. Fetch current admin email from Database to verify the SQL update worked
+        const pool = await getDbPool();
+        const adminResult = await pool.request().query("SELECT TOP 1 email FROM AdminSettings");
 
-    if (!to) {
-        return NextResponse.json(
-            { error: "Please provide a 'to' email parameter, e.g., /api/test-email?to=your@email.com" },
-            { status: 400 }
-        );
-    }
+        if (adminResult.recordset.length === 0) {
+            return NextResponse.json({ error: "No admin found in AdminSettings table" }, { status: 404 });
+        }
 
-    console.log("🧪 Testing email to:", to);
+        const dbEmail = adminResult.recordset[0].email;
 
-    const result = await sendEmail({
-        to,
-        subject: "🧪 Test Email from Legacy ClientHub",
-        html: `
-            <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px;">
-                <h1 style="color: #6366f1;">✅ Email Test Successful!</h1>
-                <p>This is a test email sent via <strong>Azure Communication Services</strong>.</p>
-                <p style="color: #64748b; font-size: 14px;">Sent at: ${new Date().toLocaleString()}</p>
-                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
-                <p style="color: #94a3b8; font-size: 12px;">Legacy ClientHub - Email Integration Test</p>
-            </div>
-        `,
-    });
+        // 2. Send email to the address found in the DB
+        const html = `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <h1>Database Verification: Admin Email</h1>
+        <p>This email was sent to the address currently stored in your <strong>AdminSettings</strong> database table.</p>
+        <div style="background: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin:0; font-weight:bold; color: #5a1f2d;">Stored Email: ${dbEmail}</p>
+        </div>
+        <p>✅ If you are reading this, your SQL update was successful and the system is correctly using your testing email.</p>
+        <hr />
+        <p style="font-size: 12px; color: #666;">Legacy ClientHub Verification</p>
+      </div>
+    `;
 
-    if (result.success) {
-        return NextResponse.json({
-            success: true,
-            message: `Test email sent successfully to ${to}`,
-            messageId: result.messageId,
+        const result = await sendEmail({
+            to: dbEmail,
+            subject: "Verification: Database Email Update Successful",
+            html,
         });
-    } else {
-        return NextResponse.json(
-            { success: false, error: result.error },
-            { status: 500 }
-        );
+
+        if (result.success) {
+            return NextResponse.json({
+                success: true,
+                message: `Email sent to database address: ${dbEmail}`,
+                messageId: result.messageId
+            });
+        } else {
+            return NextResponse.json({ success: false, error: result.error }, { status: 500 });
+        }
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

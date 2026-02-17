@@ -55,8 +55,8 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
   const clientLinks = [
     { href: "/client", label: "Home", icon: LayoutGrid },
-    { href: "/client/tasks", label: "My Tasks", icon: ListChecks },
     { href: "/client/documents", label: "Documents", icon: FileText },
+    { href: "/client/tasks", label: "My Tasks", icon: ListChecks },
     { href: "/client/messages", label: "Messages", icon: Mail },
     { href: "/client/reports", label: "Reports", icon: BarChart2 },
     { href: "/client/profile", label: "Profile", icon: Users },

@@ -94,7 +94,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* LOGO SECTION - Clickable to navigate to dashboard */}
         <Link
           href={getDashboardUrl()}
-          className="h-24 flex flex-col items-center justify-center px-2 border-b bg-sidebar cursor-pointer hover:bg-sidebar-accent transition-colors"
+          className="h-24 flex flex-col items-center justify-center px-2 border-b border-white/10 bg-[#470D1B] cursor-pointer hover:bg-[#5a1f2d] transition-colors"
           title="Go to Dashboard"
         >
           {sidebarCollapsed ? (
@@ -105,9 +105,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             />
           ) : (
             <img
-              src="/images/legacytest.png"
-              alt="ClientHub Logo"
-              className="w-36 h-auto object-contain"
+              src="/images/legacy%20client%20portal%20branding%20logo.png"
+              alt="Legacy Client Portal"
+              className="max-w-[190px] max-h-[93px] w-auto h-auto object-contain"
             />
           )}
         </Link>

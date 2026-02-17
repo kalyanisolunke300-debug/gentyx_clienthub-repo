@@ -88,7 +88,7 @@ export function TopNav() {
             <span className="text-xs font-semibold tracking-wide">SETTINGS</span>
           </Button>
 
-          <div className="ml-2 px-6 py-1.5 rounded-full bg-[#470D1B] text-white text-xs font-semibold shadow-sm tracking-widest uppercase cursor-default select-none border border-[#5a1f2d]">
+          <div className="ml-4 text-xs font-bold tracking-widest uppercase text-muted-foreground cursor-default select-none">
             {role}
           </div>
         </div>

@@ -174,8 +174,14 @@ export async function POST(req: Request) {
     });
 
     // Queue email notification to admin (batched - will wait 30s for more uploads)
-    // ✅ ONLY IF SHARED (Private docs do not notify admin)
-    if (visibility !== "private") {
+    // ✅ SKIP notification for:
+    //   - Private docs (visibility === "private")
+    //   - Anything in the "Admin Only" section folder — client shouldn't know
+    const isAdminOnlyFolder =
+      safeFolder === "Admin Only" || safeFolder === "Admin Restricted" ||
+      (safeFolder && (safeFolder.startsWith("Admin Only/") || safeFolder.startsWith("Admin Restricted/")));
+
+    if (visibility !== "private" && !isAdminOnlyFolder) {
       (async () => {
         try {
           // Get client name

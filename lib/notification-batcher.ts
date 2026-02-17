@@ -166,14 +166,14 @@ async function sendBatchedDocumentNotification(key: string): Promise<void> {
             console.log(`✅ Batched notification sent to CLIENT (${client.email}) for ${batch.documents.length} documents`);
 
         } else {
-            // Notify ALL ADMINs with notifications enabled
+            // Notify ALL ADMINs
             const admins = await getAdminsWithNotificationsEnabled();
             if (admins.length === 0) {
-                console.warn("⚠️ No admins with notifications enabled found - skipping batch notification");
+                console.warn("⚠️ No admins found - skipping batch notification");
                 return;
             }
 
-            // Send to each admin with notifications enabled
+            // Send to each admin
             for (const admin of admins) {
                 try {
                     await sendAdminBatchDocumentUploadNotification({
@@ -244,14 +244,14 @@ async function sendBatchedFolderNotification(key: string): Promise<void> {
             console.log(`✅ Batched notification sent to CLIENT (${client.email}) for ${batch.folders.length} folders`);
 
         } else {
-            // Notify ALL ADMINs with notifications enabled
+            // Notify ALL ADMINs
             const admins = await getAdminsWithNotificationsEnabled();
             if (admins.length === 0) {
-                console.warn("⚠️ No admins with notifications enabled found - skipping batch notification");
+                console.warn("⚠️ No admins found - skipping batch notification");
                 return;
             }
 
-            // Send to each admin with notifications enabled
+            // Send to each admin
             for (const admin of admins) {
                 try {
                     await sendAdminBatchFolderCreatedNotification({

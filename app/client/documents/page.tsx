@@ -225,7 +225,10 @@ export default function ClientDocuments() {
               className="ml-4"
               onClick={() => {
                 if (isFolder) {
-                  const fullPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+                  const localPath = selectedFolder ? `${selectedFolder}/${row.name}` : row.name;
+                  // Resolve to the actual blob path using the section returned by API
+                  const section = row._section || "Client Uploaded";
+                  const fullPath = `${section}/${localPath}`;
                   if (!confirm(`Delete folder "${row.name}"?`)) return;
 
                   fetch("/api/documents/delete-folder", {
@@ -304,12 +307,16 @@ export default function ClientDocuments() {
             {/* UPLOAD DOCUMENT BUTTON */}
             <Button
               size="sm"
-              onClick={() =>
+              onClick={() => {
+                // Auto-route to "Client Uploaded" section in blob storage
+                const uploadFolder = selectedFolder
+                  ? `Client Uploaded/${selectedFolder}`
+                  : "Client Uploaded";
                 useUIStore.getState().openDrawer("uploadDoc", {
                   clientId: clientId,
-                  folderName: selectedFolder,
-                })
-              }
+                  folderName: uploadFolder,
+                });
+              }}
             >
               <span className="flex items-center gap-2">
                 <Upload className="size-4" /> Upload Document
@@ -352,13 +359,18 @@ export default function ClientDocuments() {
                     onClick={async () => {
                       if (!newFolderName.trim()) return;
 
+                      // Auto-route to "Client Uploaded" section
+                      const parentPath = selectedFolder
+                        ? `Client Uploaded/${selectedFolder}`
+                        : "Client Uploaded";
+
                       const res = await fetch("/api/documents/create-folder", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           clientId: clientId,
                           folderName: newFolderName,
-                          parentFolder: selectedFolder,
+                          parentFolder: parentPath,
                           role: role,
                         }),
                       });
@@ -440,12 +452,15 @@ export default function ClientDocuments() {
 
                         <Button
                           size="sm"
-                          onClick={() =>
+                          onClick={() => {
+                            const uploadFolder = selectedFolder
+                              ? `Client Uploaded/${selectedFolder}`
+                              : "Client Uploaded";
                             useUIStore.getState().openDrawer("uploadDoc", {
                               clientId: clientId,
-                              folderName: selectedFolder,
-                            })
-                          }
+                              folderName: uploadFolder,
+                            });
+                          }}
                         >
                           <Upload className="mr-2 size-4" />
                           Upload Document

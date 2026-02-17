@@ -76,6 +76,9 @@ export default function AdminTasksPage() {
     taskType: "ASSIGNED" | "ONBOARDING";
   } | null>(null);
 
+  const { toast } = useToast();
+  const { page, setPage, pageSize, setPageSize, q, setQ } = useServerTableState();
+
   // Initialize filters from URL on mount
   useEffect(() => {
     const urlFilter = searchParams.get("filter");
@@ -89,8 +92,15 @@ export default function AdminTasksPage() {
     }
   }, [searchParams]);
 
-  const { toast } = useToast();
-  const { page, setPage, pageSize, setPageSize, q, setQ } = useServerTableState();
+  // Load persisted page size on mount
+  useEffect(() => {
+    const savedSize = localStorage.getItem("adminTasksPageSize");
+    if (savedSize) {
+      setPageSize(Number(savedSize));
+    }
+  }, []);
+
+
 
   // Load ALL tasks so frontend pagination works
   const { data: tasksData } = useSWR(["tasks"], () =>
@@ -624,7 +634,9 @@ export default function AdminTasksPage() {
           <Select
             value={String(pageSize)}
             onValueChange={(val) => {
-              setPageSize(Number(val));
+              const newSize = Number(val);
+              setPageSize(newSize);
+              localStorage.setItem("adminTasksPageSize", String(newSize));
               setPage(1); // reset to page 1
             }}
           >

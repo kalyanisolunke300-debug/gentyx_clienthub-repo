@@ -489,7 +489,7 @@ export function FlexibleChat({
                             ref={fileInputRef}
                             onChange={handleFileSelect}
                             className="hidden"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt"
+                            accept="*"
                         />
 
                         {/* Attachment Button */}

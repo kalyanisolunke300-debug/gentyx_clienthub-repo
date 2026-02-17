@@ -130,7 +130,7 @@ export default function ClientHome() {
     { revalidateOnFocus: false }
   );
   const docs = (docsResponse?.data || []).filter(
-    (d: any) => d.type === 'file' && !d.name?.endsWith('.keep') && d.name !== '.keep'
+    (d: any) => (d.type === 'file' || d.type === 'folder') && !d.name?.endsWith('.keep') && d.name !== '.keep'
   );
 
   // Messages - extract data array from response
@@ -274,11 +274,13 @@ export default function ClientHome() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <ProgressRing
-            value={progress}
-            completedStages={completedStagesCount}
-            totalStages={stages.length}
-          />
+          {stages.length > 0 && (
+            <ProgressRing
+              value={progress}
+              completedStages={completedStagesCount}
+              totalStages={stages.length}
+            />
+          )}
           <Button onClick={() => router.push("/client/profile")}>
             <User className="mr-2 h-4 w-4" />
             View Profile
@@ -295,12 +297,18 @@ export default function ClientHome() {
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => router.push("/client/documents")}
+              onClick={() => {
+                // Auto-route to "Client Uploaded" section in blob storage
+                const uploadFolder = "Client Uploaded";
+                useUIStore.getState().openDrawer("uploadDoc", {
+                  clientId: clientId,
+                  folderName: uploadFolder,
+                });
+              }}
             >
               <Upload className="mr-2 h-4 w-4" />
-              Upload
+              Upload Files
             </Button>
             <Button
               variant="ghost"
@@ -342,64 +350,67 @@ export default function ClientHome() {
             </div>
           ) : (
             <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-              {topDocs.map((d: any, idx: number) => (
-                <div
-                  key={`doc-${idx}-${d.name}`}
-                  className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <FileText className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-sm">{d.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {d.size ? `${(d.size / 1024).toFixed(1)} KB` : "Document"}
+              {topDocs.map((d: any, idx: number) => {
+                const isFolder = d.type === "folder";
+                return (
+                  <div
+                    key={`doc-${idx}-${d.name}`}
+                    className="flex items-center gap-3 rounded-lg border p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (isFolder) {
+                        router.push(`/client/documents?folder=${encodeURIComponent(d.name)}`);
+                      } else {
+                        // If file, go to documents page (or we could open preview)
+                        router.push("/client/documents");
+                      }
+                    }}
+                  >
+                    <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${isFolder ? "bg-amber-100" : "bg-primary/10"}`}>
+                      {isFolder ? (
+                        <Folder className="h-5 w-5 text-amber-600" />
+                      ) : (
+                        <FileText className="h-5 w-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-sm">{d.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {isFolder ? "Folder" : (d.size ? `${(d.size / 1024).toFixed(1)} KB` : "Document")}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* ONBOARDING PROGRESS - STAGE TIMELINE */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-primary"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-              Your Onboarding Progress
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {stages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <div className="bg-muted/50 rounded-full p-4 mb-4">
-                <Clock className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground mb-2">
-                Your onboarding stages haven't been set up yet.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Your admin will configure your onboarding journey soon.
-              </p>
+      {/* ONBOARDING PROGRESS - STAGE TIMELINE (hidden if no stages assigned) */}
+      {stages.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                Your Onboarding Progress
+              </CardTitle>
             </div>
-          ) : (
+          </CardHeader>
+          <CardContent>
             <div className="space-y-4">
               {/* Progress Bar */}
               <div className="space-y-2">
@@ -463,9 +474,9 @@ export default function ClientHome() {
                   })}
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* QUICK STATS CARDS */}
       <div className="grid gap-4 md:grid-cols-4">

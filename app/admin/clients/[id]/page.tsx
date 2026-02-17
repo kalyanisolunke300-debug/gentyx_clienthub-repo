@@ -61,8 +61,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Send, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { Pencil, Eye, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle, Users, Plus, Mail, Phone, Lock } from "lucide-react";
+import { Pencil, Eye, EyeOff, Folder, FileText, FileImage, FileSpreadsheet, File as FileIcon, Reply, Paperclip, X, Smile, CheckCircle2, Layers, Building2, Landmark, AlertTriangle, Users, Plus, Mail, Phone, Lock, Shield, Upload, FolderOpen } from "lucide-react";
 import { formatPhone } from "@/lib/formatters";
+import { DocumentTreeExplorer } from "@/components/widgets/document-tree-explorer";
 
 
 // ------------------ TYPES ------------------
@@ -106,6 +107,205 @@ type StageItem = {
   status: string;
 };
 
+/* ═══════════════════════════════════════════════════ */
+/*  DOCUMENT CATEGORY SECTION (SharePoint-Style)      */
+/* ═══════════════════════════════════════════════════ */
+function DocumentCategorySection({
+  category,
+  clientId,
+  selectedFolder,
+  onDeleteDoc,
+  toast,
+}: {
+  category: any;
+  clientId: string;
+  selectedFolder: string | null;
+  onDeleteDoc: (doc: any) => void;
+  toast: any;
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const getFileIcon = (fileName: string) => {
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith(".pdf")) return FileText;
+    if (lower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) return FileImage;
+    if (lower.match(/\.(xls|xlsx|csv)$/)) return FileSpreadsheet;
+    if (lower.match(/\.(doc|docx)$/)) return FileText;
+    return FileIcon;
+  };
+
+  const formatSize = (bytes: number) => {
+    if (!bytes || bytes === 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${units[i]}`;
+  };
+
+  const handleView = async (doc: any) => {
+    try {
+      const lower = (doc.name || "").toLowerCase();
+      const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx)$/i.test(lower);
+      const fullPath = doc.path || doc.fullPath || (selectedFolder ? `${selectedFolder}/${doc.name}` : doc.name);
+
+      const res = await fetch(
+        `/api/documents/public-url?clientId=${encodeURIComponent(clientId)}&fullPath=${encodeURIComponent(fullPath)}`,
+        { cache: "no-store" }
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json?.success || !json?.url) {
+        toast({ title: "Preview failed", description: json?.error || "Could not generate preview link", variant: "destructive" });
+        return;
+      }
+
+      if (isOffice) {
+        window.open(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(json.url)}`, "_blank", "noopener,noreferrer");
+        return;
+      }
+      window.open(json.url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      toast({ title: "Preview failed", description: err?.message || "Something went wrong", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className={`rounded-xl border ${category.border} overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200`}>
+      {/* Category Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 bg-gradient-to-r ${category.headerGradient} hover:brightness-[0.98] group relative`}
+      >
+        {/* Left accent stripe */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${category.stripe} rounded-l-xl`} />
+
+        {/* Expand/Collapse */}
+        <ChevronDown className={`size-4 ${category.text} transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+
+        {/* Category Icon */}
+        <div className={`p-1.5 rounded-lg ${category.iconBg}`}>
+          {category.key === "admin-only" ? (
+            <Shield className={`size-4 ${category.iconColor}`} />
+          ) : category.key === "client-only" ? (
+            <Users className={`size-4 ${category.iconColor}`} />
+          ) : (
+            <Layers className={`size-4 ${category.iconColor}`} />
+          )}
+        </div>
+
+        {/* Label */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className={`text-sm font-semibold ${category.text}`}>{category.label}</h3>
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold ${category.badge}`}>
+              {category.docs.length} {category.docs.length === 1 ? "file" : "files"}
+            </span>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-0.5">{category.description}</p>
+        </div>
+
+        {/* Upload button (appears on hover) */}
+        <div
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            useUIStore.getState().openDrawer("uploadDoc", {
+              clientId,
+              folderName: selectedFolder,
+              visibility: category.uploadVisibility,
+            });
+          }}
+        >
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${category.text} bg-white/80 hover:bg-white shadow-sm cursor-pointer`}>
+            <Upload className="size-3" />
+            Upload
+          </span>
+        </div>
+      </button>
+
+      {/* Category Content */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? "max-h-[3000px] opacity-100" : "max-h-0 opacity-0"}`}>
+        {category.docs.length === 0 ? (
+          <div className="flex items-center gap-3 px-6 py-5 text-gray-400 bg-white">
+            <div className={`p-2 rounded-lg ${category.iconBg} opacity-50`}>
+              <FileIcon className={`size-4 ${category.iconColor} opacity-50`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-400">No documents</p>
+              <p className="text-xs text-gray-350">{category.emptyText}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white divide-y divide-gray-50">
+            {category.docs.map((doc: any, idx: number) => {
+              const Icon = getFileIcon(doc.name);
+              const ext = doc.name.split(".").pop()?.toUpperCase() || "FILE";
+              return (
+                <div
+                  key={doc.path || doc.fullPath || doc.name || idx}
+                  className="group flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/80 transition-all duration-150"
+                >
+                  {/* Tree connector */}
+                  <div className="pl-4">
+                    <div className="w-3 h-px bg-gray-200" />
+                  </div>
+
+                  {/* File icon */}
+                  <div className={`flex-shrink-0 p-1.5 rounded-md ${category.iconBg}`}>
+                    <Icon className={`size-4 ${category.iconColor}`} />
+                  </div>
+
+                  {/* File name */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700 truncate" title={doc.name}>
+                      {doc.name}
+                    </p>
+                  </div>
+
+                  {/* Type badge */}
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 uppercase tracking-wider">
+                    {ext}
+                  </span>
+
+                  {/* Size */}
+                  <span className="hidden md:inline text-xs font-mono text-gray-400 w-20 text-right">
+                    {formatSize(doc.size || 0)}
+                  </span>
+
+                  {/* Visibility badge */}
+                  <span className={`hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${category.visBg}`}>
+                    {category.visIcon} {category.visLabel}
+                  </span>
+
+                  {/* Actions (show on hover) */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2.5 text-xs hover:bg-blue-50 hover:text-blue-600"
+                      onClick={() => handleView(doc)}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => onDeleteDoc(doc)}
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ClientProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -680,11 +880,10 @@ export default function ClientProfilePage() {
                     const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx)$/i.test(lower);
                     const isCsv = /\.csv$/i.test(lower);
 
-                    // ✅ Ensure we have a fullPath (needed by public-url API)
-                    // Your list API should already provide row.fullPath.
-                    // If it doesn't, we fallback-build it from current folder + filename.
+                    // ✅ Use row.path (returned by /api/documents/list) as the full blob path
+                    // Fallback to row.fullPath for compatibility with get-by-client API
                     const fullPath =
-                      row.fullPath ||
+                      row.path || row.fullPath ||
                       (selectedFolder ? `${selectedFolder}/${row.name}` : row.name);
 
                     const res = await fetch(
@@ -787,7 +986,7 @@ export default function ClientProfilePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientId: id,
-        fullPath: doc.path, // ✅ FIXED: Use doc.path (returned by list API)
+        fullPath: doc.path || doc.fullPath, // ✅ Use doc.path (list API) or doc.fullPath (get-by-client API)
       }),
     });
 
@@ -1440,7 +1639,7 @@ export default function ClientProfilePage() {
                       </svg>
                     </div>
                     <div>
-                      <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide">CPA</p>
+                      <p className="text-xs text-emerald-600 font-medium uppercase tracking-wide">Preparers</p>
                     </div>
                   </div>
 
@@ -1466,7 +1665,7 @@ export default function ClientProfilePage() {
                     )}
 
                     {!client?.cpa_name && (
-                      <p className="text-xs text-gray-400 italic">No CPA assigned yet</p>
+                      <p className="text-xs text-gray-400 italic">No Preparers assigned yet</p>
                     )}
                   </div>
                 </div>
@@ -1864,7 +2063,7 @@ export default function ClientProfilePage() {
     </CardHeader>  */}
 
             <CardHeader className="flex items-center justify-between">
-              <CardTitle>Seperate Assigned Tasks</CardTitle>
+              <CardTitle>Stand-Alone Assigned Tasks</CardTitle>
 
               {/* Only show when there are tasks */}
               {taskRows.length > 0 && (
@@ -1892,7 +2091,7 @@ export default function ClientProfilePage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                     </svg>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">No separate tasks have been assigned to this client.</p>
+                  <p className="text-sm text-muted-foreground mb-2">No stand-alone tasks have been assigned to this client.</p>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1979,158 +2178,28 @@ export default function ClientProfilePage() {
         </TabsContent>
 
 
-        {/* ---------- DOCUMENTS ---------- */}
+        {/* ---------- DOCUMENTS (SharePoint-Style Tree Explorer) ---------- */}
         <TabsContent value="documents">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 border-b">
-              <div className="flex items-center gap-2">
-                <div className="bg-amber-100 p-2 rounded-lg">
-                  <Folder className="size-5 text-amber-600" />
+          <Card className="shadow-md border-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b bg-gradient-to-r from-gray-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-amber-100 to-amber-200 p-2.5 rounded-xl shadow-sm">
+                  <Folder className="size-5 text-amber-700" />
                 </div>
                 <div>
-                  <CardTitle>Documents</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Manage client files and folders
+                  <CardTitle className="text-base">Document Explorer</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    SharePoint-style file library with role-based sections
                   </p>
                 </div>
               </div>
-
-              <div className="flex items-center gap-3">
-                {/* ✅ CREATE FOLDER BUTTON */}
-                <Button variant="outline" size="sm" onClick={() => setShowCreateFolder(true)}>
-                  ➕ Create Folder
-                </Button>
-
-                {/* ✅ UPLOAD DOCUMENT BUTTON */}
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    useUIStore.getState().openDrawer("uploadDoc", {
-                      clientId: id,
-                      clientName: client?.client_name,
-                      folderName: selectedFolder,
-                    })
-                  }
-                >
-                  <span className="flex items-center gap-2">
-                    <FileIcon className="size-4" /> Upload Document
-                  </span>
-                </Button>
-              </div>
             </CardHeader>
 
-            <CardContent className="p-6">
-              {showCreateFolder && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-in fade-in duration-200">
-                  <div className="bg-white p-6 rounded-xl shadow-xl w-[350px] space-y-4 border">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <Folder className="size-5 text-amber-500" /> New Folder
-                      </h2>
-                    </div>
-
-                    <Input
-                      placeholder="Folder name..."
-                      value={newFolderName}
-                      onChange={(e) => setNewFolderName(e.target.value)}
-                      className="border-gray-200 focus:border-amber-500 focus:ring-amber-500"
-                      autoFocus
-                    />
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setShowCreateFolder(false);
-                          setNewFolderName("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-
-                      <Button
-                        onClick={async () => {
-                          if (!newFolderName.trim()) return;
-
-                          const res = await fetch("/api/documents/create-folder", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              clientId: id,
-                              folderName: newFolderName,
-                              parentFolder: selectedFolder,
-                              role: "ADMIN",
-                            }),
-                          });
-
-                          const data = await res.json();
-
-                          if (data.success) {
-                            toast({ title: "Folder created successfully" });
-                            mutate(["docs", id, selectedFolder]);
-                            setShowCreateFolder(false);
-                            setNewFolderName("");
-                          } else {
-                            toast({
-                              title: "Folder creation failed",
-                              description: data.error || "Unable to create folder",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                        className="bg-amber-600 hover:bg-amber-700 text-white"
-                      >
-                        Create
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ✅ FOLDER NAVIGATION / BREADCRUMB UI */}
-              {selectedFolder && (
-                <div className="mb-6 flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="pl-0 hover:bg-transparent hover:text-primary"
-                    onClick={() => setSelectedFolder(null)}
-                  >
-                    ← All Documents
-                  </Button>
-                  <span className="text-muted-foreground">/</span>
-                  <span className="font-semibold text-gray-800 flex items-center gap-2">
-                    <Folder className="size-4 text-amber-500" />
-                    {selectedFolder.split("/").pop()}
-                  </span>
-                </div>
-              )}
-
-              {/* ✅ FILES TABLE */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                    Files ({items.filter((i: any) => i.type === "file").length})
-                  </h3>
-                </div>
-
-                {docs.filter((i: any) => i.type === "file").length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed rounded-xl bg-gray-50/50">
-                    <div className="flex flex-col items-center gap-2">
-                      <FileIcon className="size-8 text-gray-300" />
-                      <p className="text-gray-500 font-medium">No files in this folder</p>
-                      <p className="text-sm text-gray-400">Upload a document to get started</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden shadow-sm">
-                    <div className="border rounded-lg overflow-hidden shadow-sm">
-                      <DataTable columns={docCols} rows={items} />
-                    </div>
-                  </div>
-                )}
-              </div>
-
+            <CardContent className="p-5 bg-gray-50/30">
+              <DocumentTreeExplorer
+                clientId={id}
+                clientName={client?.client_name}
+              />
             </CardContent>
           </Card>
         </TabsContent>

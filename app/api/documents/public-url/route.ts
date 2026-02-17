@@ -115,6 +115,7 @@ import {
     BlobSASPermissions,
     SASProtocol,
 } from "@azure/storage-blob";
+import { getClientRootFolder } from "@/lib/storage-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -148,20 +149,26 @@ export async function GET(req: Request) {
 
         /**
          * ✅ IMPORTANT:
-         * - Your list API / UI already gives fullPath like: "client-2/folder/file.docx"
-         * - So DO NOT auto-prefix with `${clientId}/`
-         * - Only prefix if caller sends just a filename or folder relative path.
+         * - The list API returns fullPath like: "ClientName-123/folder/file.docx"
+         * - So DO NOT auto-prefix if it already has one.
+         * - Only prefix if caller sends just a filename or relative path.
          */
         let blobName = fullPath;
 
+        // ✅ Use getClientRootFolder to get the correct root folder name (e.g., "SumitMetal-158")
+        const rootFolder = await getClientRootFolder(clientId);
+
         const hasAnyPrefix =
+            blobName.startsWith(`${rootFolder}/`) ||
             blobName.startsWith(`${clientId}/`) ||
             blobName.startsWith(`client-${clientId}/`);
 
         if (!hasAnyPrefix) {
-            // ✅ Use the prefix style your system uses: client-<id>/
-            blobName = `client-${clientId}/${blobName}`;
+            // ✅ Use the dynamically resolved root folder name
+            blobName = `${rootFolder}/${blobName}`;
         }
+
+        console.log(`[PUBLIC-URL] clientId=${clientId}, rootFolder="${rootFolder}", fullPath="${fullPath}", blobName="${blobName}"`);
 
         // ✅ Detect content type (helps inline preview + fixes CSV)
         const ext = blobName.split(".").pop()?.toLowerCase();

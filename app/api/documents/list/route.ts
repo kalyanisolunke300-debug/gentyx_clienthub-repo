@@ -52,14 +52,20 @@ export async function GET(req: Request) {
       ? `${rootFolder}/${folderPath}/`
       : `${rootFolder}/`;
 
+    console.log(`[DOCS LIST] Client: ${clientId}, Root: "${rootFolder}", Prefix: "${prefix}"`);
+
     const items: any[] = [];
     const seenFiles = new Set<string>();
 
     // ✅ Return folders + files directly under prefix
     // Include metadata for visibility check
+    let entryCount = 0;
     for await (const entry of containerClient.listBlobsByHierarchy("/", {
-      prefix
+      prefix,
+      includeMetadata: true
     })) {
+      entryCount++;
+      // console.log(`[DOCS LIST] Entry: kind=${entry.kind}, name="${entry.name}"`);
       if (entry.kind === "prefix") {
         // Folder
         const raw = entry.name.slice(prefix.length); // e.g. "Demo 2/"
@@ -115,12 +121,14 @@ export async function GET(req: Request) {
           size: entry.properties?.contentLength ?? 0,
           contentType: entry.properties?.contentType ?? null,
           lastModified: entry.properties?.lastModified ?? null,
-          visibility: visibility, // ✅ Return visibility just in case
+          visibility: visibility, // ✅ Return visibility for category filtering
+          uploadedBy: metaLower.uploadedby || "unknown", // ✅ Return uploader role for category filtering
         });
       }
     }
 
     // ✅ IMPORTANT: return both `data` and `items` for compatibility
+    console.log(`[DOCS LIST] Found ${items.length} items (Entries filtered: ${entryCount - items.length})`);
     return NextResponse.json({
       success: true,
       prefix,

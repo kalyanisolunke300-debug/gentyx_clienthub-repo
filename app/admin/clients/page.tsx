@@ -21,6 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { StatusPill } from "@/components/widgets/status-pill";
 import { ProgressRing } from "@/components/widgets/progress-ring";
@@ -38,8 +48,20 @@ export default function AdminClientsList() {
   // Read status filter from URL, default to "ALL"
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
+  // Load persisted page size on mount
+  useEffect(() => {
+    const savedSize = localStorage.getItem("adminClientsPageSize");
+    if (savedSize) {
+      setClientPageSize(Number(savedSize));
+    }
+  }, []);
+
   // Archive filter tab: "ALL" = all clients, "active" = only active, "archived" = only archived
   const [archiveFilter, setArchiveFilter] = useState<string>("ALL");
+
+  // Archive confirmation state
+  const [clientToArchive, setClientToArchive] = useState<ClientProfile | null>(null);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
   // Initialize filter from URL on mount
   useEffect(() => {
@@ -328,11 +350,15 @@ export default function AdminClientsList() {
                 Restore
               </Button>
             ) : (
+
               <Button
                 size="sm"
                 variant="outline"
                 data-no-row-click="true"
-                onClick={() => handleArchiveClient(row, true)}
+                onClick={() => {
+                  setClientToArchive(row);
+                  setIsArchiveDialogOpen(true);
+                }}
                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
               >
                 <Archive className="h-4 w-4 mr-1" />
@@ -340,7 +366,8 @@ export default function AdminClientsList() {
               </Button>
             )}
           </div>
-        )}
+        )
+        }
       />
 
       {/* ---------- PAGINATION ---------- */}
@@ -353,7 +380,12 @@ export default function AdminClientsList() {
           <select
             className="border rounded px-2 py-1"
             value={clientPageSize}
-            onChange={(e) => setClientPageSize(Number(e.target.value))}
+            onChange={(e) => {
+              const newSize = Number(e.target.value);
+              setClientPageSize(newSize);
+              localStorage.setItem("adminClientsPageSize", String(newSize));
+              setPage(1); // Reset to page 1 on size change
+            }}
           >
             <option value={5}>5</option>
             <option value={10}>10</option>
@@ -376,6 +408,32 @@ export default function AdminClientsList() {
         />
       </div>
 
-    </div>
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to archive this client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move <strong>{clientToArchive?.client_name}</strong> to the Archived Clients list.
+              They will no longer appear in the active list, but data will be preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClientToArchive(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-orange-600 hover:bg-orange-700"
+              onClick={() => {
+                if (clientToArchive) {
+                  handleArchiveClient(clientToArchive, true);
+                  setClientToArchive(null);
+                }
+              }}
+            >
+              Archive Client
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+    </div >
   );
 }

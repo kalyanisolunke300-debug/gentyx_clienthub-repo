@@ -593,11 +593,17 @@ export default function AdminDashboard() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => router.push(`/admin/clients/${row.client_id}`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/admin/clients/${row.client_id}`);
+                  }}
                 >
                   Open
                 </Button>
               )}
+              onRowClick={(row: ClientProfile) =>
+                router.push(`/admin/clients/${row.client_id}`)
+              }
             />
             {/* Pagination Controls */}
             <PaginationControls

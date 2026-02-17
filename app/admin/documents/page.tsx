@@ -1,14 +1,13 @@
 // app/admin/documents/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import useSWR, { mutate } from "swr";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DataTable, type Column } from "@/components/data-table";
 import { useUIStore } from "@/store/ui-store";
 import { useToast } from "@/hooks/use-toast";
 import { fetchClients } from "@/lib/api";
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import {
   Folder,
+  FolderOpen,
   FileText,
   FileImage,
   FileSpreadsheet,
@@ -33,6 +33,18 @@ import {
   ChevronsUpDown,
   Building2,
   Landmark,
+  ChevronRight,
+  ChevronDown,
+  Lock,
+  Share2,
+  UserCircle,
+  Eye,
+  EyeOff,
+  FolderPlus,
+  Shield,
+  Globe,
+  User,
+  HardDrive,
 } from "lucide-react";
 import {
   Popover,
@@ -49,12 +61,132 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
-// Special folder names for task completion documents
+/* ─────────────────── CONSTANTS ─────────────────── */
 const ASSIGNED_TASK_FOLDER = "Assigned Task Completion Documents";
 const ASSIGNED_TASK_CPA_FOLDER = "Assigned Task Completion Documents - CPA";
 const ASSIGNED_TASK_SC_FOLDER = "Assigned Task Completion Documents - Service Center";
 const ONBOARDING_FOLDER = "Onboarding Stage Completion Documents";
 
+/* ─────────────────── CATEGORY DEFINITIONS ─────────────────── */
+type DocumentCategory = "admin-only" | "legacy-client-shared" | "client-only";
+
+const CATEGORY_CONFIG: Record<DocumentCategory, {
+  label: string;
+  description: string;
+  icon: any;
+  colorScheme: {
+    bg: string;
+    bgHover: string;
+    border: string;
+    borderHover: string;
+    text: string;
+    iconBg: string;
+    iconColor: string;
+    badge: string;
+    badgeText: string;
+    headerGradient: string;
+    stripe: string;
+  };
+}> = {
+  "admin-only": {
+    label: "Admin Restricted",
+    description: "Internal files — Not visible to Client",
+    icon: Shield,
+    colorScheme: {
+      bg: "bg-rose-50/40",
+      bgHover: "hover:bg-rose-50/70",
+      border: "border-rose-200/60",
+      borderHover: "hover:border-rose-300",
+      text: "text-rose-700",
+      iconBg: "bg-rose-100",
+      iconColor: "text-rose-600",
+      badge: "bg-rose-100",
+      badgeText: "text-rose-700",
+      headerGradient: "from-rose-50 to-rose-100/50",
+      stripe: "bg-rose-500",
+    },
+  },
+  "legacy-client-shared": {
+    label: "Legacy Uploaded",
+    description: "Uploaded by Legacy — Visible to both Admin and Client",
+    icon: Globe,
+    colorScheme: {
+      bg: "bg-blue-50/40",
+      bgHover: "hover:bg-blue-50/70",
+      border: "border-blue-200/60",
+      borderHover: "hover:border-blue-300",
+      text: "text-blue-700",
+      iconBg: "bg-blue-100",
+      iconColor: "text-blue-600",
+      badge: "bg-blue-100",
+      badgeText: "text-blue-700",
+      headerGradient: "from-blue-50 to-blue-100/50",
+      stripe: "bg-blue-500",
+    },
+  },
+  "client-only": {
+    label: "Client Uploaded",
+    description: "Uploaded by Client — Visible to both Admin and Client",
+    icon: User,
+    colorScheme: {
+      bg: "bg-emerald-50/40",
+      bgHover: "hover:bg-emerald-50/70",
+      border: "border-emerald-200/60",
+      borderHover: "hover:border-emerald-300",
+      text: "text-emerald-700",
+      iconBg: "bg-emerald-100",
+      iconColor: "text-emerald-600",
+      badge: "bg-emerald-100",
+      badgeText: "text-emerald-700",
+      headerGradient: "from-emerald-50 to-emerald-100/50",
+      stripe: "bg-emerald-500",
+    },
+  },
+};
+
+/* ─────────────────── HELPERS ─────────────────── */
+function getFileIcon(fileName: string) {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return FileText;
+  if (lower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) return FileImage;
+  if (lower.match(/\.(xls|xlsx|csv)$/)) return FileSpreadsheet;
+  if (lower.match(/\.(doc|docx)$/)) return FileText;
+  return FileIcon;
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes || bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const size = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
+  return `${size} ${units[i]}`;
+}
+
+function categorizeDocument(doc: any): DocumentCategory {
+  const visibility = (doc.visibility || "shared").toLowerCase();
+  const uploadedBy = (doc.uploadedBy || "unknown").toUpperCase();
+
+  // Admin-uploaded with private visibility → Admin Only
+  if (visibility === "private" && uploadedBy === "ADMIN") {
+    return "admin-only";
+  }
+
+  // Client uploaded docs → Client Only
+  if (uploadedBy === "CLIENT") {
+    return "client-only";
+  }
+
+  // Everything else (admin shared, system, legacy) → Legacy + Client Shared
+  return "legacy-client-shared";
+}
+
+function categorizeFolder(_folder: any): DocumentCategory[] {
+  // Folders can belong to multiple categories or default to "legacy-client-shared"
+  return ["admin-only", "legacy-client-shared", "client-only"];
+}
+
+/* ─────────────────── MAIN COMPONENT ─────────────────── */
 export default function AdminDocumentsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -68,11 +200,26 @@ export default function AdminDocumentsPage() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [clientOpen, setClientOpen] = useState(false);
+
+  // Category expansion state
+  const [expandedCategories, setExpandedCategories] = useState<Record<DocumentCategory, boolean>>({
+    "admin-only": true,
+    "legacy-client-shared": true,
+    "client-only": true,
+  });
+
+  // Track expanded folders within each category
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+
+  // Upload state
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingClientId, setPendingClientId] = useState<string>("");
   const [pendingFolderName, setPendingFolderName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Upload target category (determines visibility)
+  const [uploadCategory, setUploadCategory] = useState<DocumentCategory>("legacy-client-shared");
 
   const doUpload = async (action: "ask" | "replace" | "skip") => {
     if (!pendingClientId || !pendingFile) return;
@@ -85,6 +232,13 @@ export default function AdminDocumentsPage() {
       fd.append("file", pendingFile);
       fd.append("duplicateAction", action);
 
+      // Set visibility based on category
+      if (uploadCategory === "admin-only") {
+        fd.append("visibility", "private");
+      } else {
+        fd.append("visibility", "shared");
+      }
+
       const res = await fetch("/api/documents/upload", {
         method: "POST",
         body: fd,
@@ -92,22 +246,15 @@ export default function AdminDocumentsPage() {
 
       const json = await res.json();
 
-      // ✅ Duplicate → show centered popup (Replace/Cancel)
       if (res.status === 409 && json?.duplicate) {
         setDuplicateOpen(true);
         return;
       }
 
-      if (!json?.success) {
-        // show toast or error
-        // toast({ title: "Upload failed", description: json?.error || "Upload failed", variant: "destructive" });
-        return;
-      }
+      if (!json?.success) return;
 
-      // ✅ SUCCESS: close duplicate dialog (if open)
       setDuplicateOpen(false);
 
-      // ✅ IMPORTANT: trigger refresh on both pages
       window.dispatchEvent(
         new CustomEvent("clienthub:docs-updated", {
           detail: {
@@ -117,33 +264,26 @@ export default function AdminDocumentsPage() {
         })
       );
 
-      // ✅ optional: clear file
       setPendingFile(null);
-
-      // ✅ optional: show toast
-      // toast({ title: json.message || "File uploaded" });
-
     } catch (e: any) {
-      // toast({ title: "Upload error", description: e?.message || "Upload failed", variant: "destructive" });
+      // Error handled silently
     } finally {
       setUploading(false);
     }
   };
 
-
-  // Revalidate docs list (fixes "need refresh after upload/delete")
+  // Revalidate docs list
   const revalidateDocs = (clientId?: string | null, folder?: string | null) => {
     const cid = clientId ?? selectedClientId;
     const f = folder ?? selectedFolder;
 
     if (!cid) return;
 
-    // Revalidate both keys: root + current folder
     mutate(["docs", cid, null]);
     mutate(["docs", cid, f ?? null]);
   };
 
-  // Listen for upload success event from Upload Drawer
+  // Listen for upload success event
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -151,21 +291,14 @@ export default function AdminDocumentsPage() {
     };
 
     window.addEventListener("clienthub:docs-updated", handler as EventListener);
-
-    return () => {
-      window.removeEventListener("clienthub:docs-updated", handler as EventListener);
-    };
+    return () => window.removeEventListener("clienthub:docs-updated", handler as EventListener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClientId, selectedFolder]);
 
   // Initialize from URL on mount
   useEffect(() => {
-    if (urlClientId) {
-      setSelectedClientId(urlClientId);
-    }
-    if (urlFolder) {
-      setSelectedFolder(decodeURIComponent(urlFolder));
-    }
+    if (urlClientId) setSelectedClientId(urlClientId);
+    if (urlFolder) setSelectedFolder(decodeURIComponent(urlFolder));
   }, [urlClientId, urlFolder]);
 
   // Fetch clients list
@@ -186,6 +319,16 @@ export default function AdminDocumentsPage() {
 
   const docs = docsResponse?.data || [];
 
+  // Categorize documents
+  const categorizedDocs = {
+    "admin-only": docs.filter((d: any) => d.type === "file" && categorizeDocument(d) === "admin-only"),
+    "legacy-client-shared": docs.filter((d: any) => d.type === "file" && categorizeDocument(d) === "legacy-client-shared"),
+    "client-only": docs.filter((d: any) => d.type === "file" && categorizeDocument(d) === "client-only"),
+  };
+
+  // Get folders
+  const folders = docs.filter((d: any) => d.type === "folder");
+
   // Get client name
   const getClientName = (clientId: string | null) => {
     if (!clientId) return "Select a client";
@@ -193,148 +336,28 @@ export default function AdminDocumentsPage() {
     return client?.client_name || `Client #${clientId}`;
   };
 
-  const getPreviewUrl = (fileUrl: string, fileName: string) => {
-    const lower = fileName.toLowerCase();
-
-    // Direct preview types
-    if (lower.endsWith(".pdf")) return fileUrl;
-    if (lower.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) return fileUrl;
-
-    // Office / other docs -> Office viewer
-    if (lower.match(/\.(doc|docx|ppt|pptx|xls|xlsx|csv)$/)) {
-      return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fileUrl)}`;
-    }
-
-    // Fallback: open the file itself (download/open by browser)
-    return fileUrl;
+  // Toggle category expansion
+  const toggleCategory = (category: DocumentCategory) => {
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [category]: !prev[category],
+    }));
   };
 
-  // Document columns with icons
-  const docCols: Column<any>[] = [
-    {
-      key: "name",
-      header: "Name",
-      render: (row: any) => {
-        let Icon = FileIcon;
-        const lowerName = row.name.toLowerCase();
-        if (lowerName.endsWith(".pdf")) Icon = FileText;
-        else if (lowerName.match(/\.(jpg|jpeg|png|gif|svg|webp)$/)) Icon = FileImage;
-        else if (lowerName.match(/\.(xls|xlsx|csv)$/)) Icon = FileSpreadsheet;
+  // Toggle folder expansion
+  const toggleFolder = (folderKey: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderKey)) {
+        next.delete(folderKey);
+      } else {
+        next.add(folderKey);
+      }
+      return next;
+    });
+  };
 
-        return (
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-1.5 rounded-md text-primary">
-              <Icon className="size-4" />
-            </div>
-            <span className="font-medium text-gray-700">{row.name}</span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "type",
-      header: "Type",
-      render: (row: any) => (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 uppercase tracking-wide">
-          {row.name.split(".").pop() || "FILE"}
-        </span>
-      ),
-    },
-    {
-      key: "size",
-      header: "Size",
-      render: (row: any) => {
-        const bytes = row.size || 0;
-        if (bytes === 0) return <span className="text-muted-foreground text-xs">0 B</span>;
-
-        const units = ["B", "KB", "MB", "GB", "TB"];
-        const k = 1024;
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        const size = parseFloat((bytes / Math.pow(k, i)).toFixed(2));
-
-        return (
-          <span className="font-mono text-xs text-muted-foreground">
-            {size} {units[i]}
-          </span>
-        );
-      },
-    },
-    {
-      key: "actions",
-      header: "",
-      className: "text-right w-[240px]", // ✅ gives space so delete can sit far right
-      render: (row: any) => (
-        <div className="flex items-center w-full">
-          {/* Left action (Preview) */}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={async () => {
-              try {
-                const lower = (row.name || "").toLowerCase();
-                const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx|csv)$/i.test(lower);
-
-                // Always generate a temporary public/SAS URL for ANY file type
-                const res = await fetch(
-                  `/api/documents/public-url?clientId=${encodeURIComponent(
-                    selectedClientId || ""
-                  )}&fullPath=${encodeURIComponent(row.fullPath)}`,
-                  { cache: "no-store" }
-                );
-
-                const json = await res.json();
-
-                if (!res.ok || !json?.success || !json?.url) {
-                  toast({
-                    title: "Preview failed",
-                    description: json?.error || "Could not generate preview link",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                // Office files must go through Office viewer
-                if (isOffice) {
-                  const viewer = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
-                    json.url
-                  )}`;
-                  window.open(viewer, "_blank", "noopener,noreferrer");
-                  return;
-                }
-
-                // PDFs, images, anything else → open the SAS url directly
-                window.open(json.url, "_blank", "noopener,noreferrer");
-              } catch (err: any) {
-                toast({
-                  title: "Preview failed",
-                  description: err?.message || "Something went wrong while previewing",
-                  variant: "destructive",
-                });
-              }
-            }}
-
-          >
-            View
-          </Button>
-
-          {/* Spacer pushes delete to far right */}
-          <div className="flex-1" />
-
-          {/* Right action (Delete) */}
-          <Button
-            size="icon"
-            variant="destructive"
-            className="ml-4"
-            onClick={() => handleDeleteDocument(row)}
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
+  /* ─────────── DELETE DOCUMENT ─────────── */
   async function handleDeleteDocument(doc: any) {
     if (!confirm(`Delete document "${doc.name}"?`)) return;
 
@@ -359,6 +382,7 @@ export default function AdminDocumentsPage() {
     toast({ title: "Document deleted successfully" });
   }
 
+  /* ─────────── CREATE FOLDER ─────────── */
   async function handleCreateFolder() {
     if (!newFolderName.trim() || !selectedClientId) return;
 
@@ -388,27 +412,374 @@ export default function AdminDocumentsPage() {
     }
   }
 
+  /* ─────────── VIEW FILE ─────────── */
+  async function handleViewFile(doc: any) {
+    try {
+      const lower = (doc.name || "").toLowerCase();
+      const isOffice = /\.(doc|docx|ppt|pptx|xls|xlsx|csv)$/i.test(lower);
+
+      const res = await fetch(
+        `/api/documents/public-url?clientId=${encodeURIComponent(
+          selectedClientId || ""
+        )}&fullPath=${encodeURIComponent(doc.fullPath)}`,
+        { cache: "no-store" }
+      );
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.success || !json?.url) {
+        toast({
+          title: "Preview failed",
+          description: json?.error || "Could not generate preview link",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (isOffice) {
+        const viewer = `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(
+          json.url
+        )}`;
+        window.open(viewer, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      window.open(json.url, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      toast({
+        title: "Preview failed",
+        description: err?.message || "Something went wrong while previewing",
+        variant: "destructive",
+      });
+    }
+  }
+
+  /* ─────────── RENDER: FILE ROW ─────────── */
+  function FileRow({ doc, category }: { doc: any; category: DocumentCategory }) {
+    const config = CATEGORY_CONFIG[category];
+    const Icon = getFileIcon(doc.name);
+    const extension = doc.name.split(".").pop()?.toUpperCase() || "FILE";
+
+    return (
+      <div
+        className={cn(
+          "group flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 last:border-b-0",
+          "hover:bg-gray-50/80 transition-all duration-150"
+        )}
+      >
+        {/* Tree indent lines */}
+        <div className="flex items-center gap-0 pl-6">
+          <div className="w-4 h-px bg-gray-300"></div>
+        </div>
+
+        {/* File icon */}
+        <div className={cn("flex-shrink-0 p-1.5 rounded-md", config.colorScheme.iconBg)}>
+          <Icon className={cn("size-4", config.colorScheme.iconColor)} />
+        </div>
+
+        {/* File name */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-700 truncate" title={doc.name}>
+            {doc.name}
+          </p>
+        </div>
+
+        {/* File type badge */}
+        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600 uppercase tracking-wider">
+          {extension}
+        </span>
+
+        {/* File size */}
+        <span className="hidden md:inline text-xs font-mono text-gray-400 w-20 text-right">
+          {formatFileSize(doc.size || 0)}
+        </span>
+
+        {/* Visibility badge */}
+        <span className={cn(
+          "hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium",
+          category === "admin-only"
+            ? "bg-rose-50 text-rose-600"
+            : "bg-emerald-50 text-emerald-600"
+        )}>
+          {category === "admin-only" ? (
+            <><EyeOff className="size-2.5" /> Private</>
+          ) : (
+            <><Eye className="size-2.5" /> Shared</>
+          )}
+        </span>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2.5 text-xs hover:bg-blue-50 hover:text-blue-600"
+            onClick={() => handleViewFile(doc)}
+          >
+            View
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 hover:bg-red-50 hover:text-red-600"
+            onClick={() => handleDeleteDocument(doc)}
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─────────── RENDER: FOLDER ROW ─────────── */
+  function FolderRow({ folder }: { folder: any }) {
+    const fullPath = selectedFolder
+      ? `${selectedFolder}/${folder.name}`
+      : folder.name;
+
+    // Determine special folder styling
+    let folderColorClass = "text-amber-500";
+    let folderBgClass = "bg-amber-50";
+
+    if (folder.name === ASSIGNED_TASK_FOLDER) {
+      folderColorClass = "text-green-500";
+      folderBgClass = "bg-green-50";
+    } else if (folder.name === ASSIGNED_TASK_CPA_FOLDER) {
+      folderColorClass = "text-purple-500";
+      folderBgClass = "bg-purple-50";
+    } else if (folder.name === ASSIGNED_TASK_SC_FOLDER) {
+      folderColorClass = "text-indigo-500";
+      folderBgClass = "bg-indigo-50";
+    } else if (folder.name === ONBOARDING_FOLDER) {
+      folderColorClass = "text-blue-500";
+      folderBgClass = "bg-blue-50";
+    }
+
+    return (
+      <div
+        className={cn(
+          "group flex items-center gap-3 px-4 py-2.5 border-b border-gray-100",
+          "hover:bg-gray-50/80 cursor-pointer transition-all duration-150"
+        )}
+        onClick={() => setSelectedFolder(fullPath)}
+      >
+        {/* Folder icon */}
+        <div className={cn("flex-shrink-0 p-1.5 rounded-md", folderBgClass)}>
+          <Folder className={cn("size-4", folderColorClass)} />
+        </div>
+
+        {/* Folder name */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-700 truncate" title={folder.name}>
+            {folder.name}
+          </p>
+          {(folder.name === ASSIGNED_TASK_FOLDER ||
+            folder.name === ASSIGNED_TASK_CPA_FOLDER ||
+            folder.name === ASSIGNED_TASK_SC_FOLDER ||
+            folder.name === ONBOARDING_FOLDER) && (
+              <p className="text-[10px] text-gray-400 mt-0.5">System Folder</p>
+            )}
+        </div>
+
+        {/* Type badge */}
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 uppercase tracking-wider">
+          Folder
+        </span>
+
+        {/* Navigate arrow */}
+        <ChevronRight className="size-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+
+        {/* Delete button */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!confirm(`Delete folder "${folder.name}"?`)) return;
+            fetch("/api/documents/delete-folder", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clientId: selectedClientId,
+                folderPath: fullPath,
+              }),
+            }).then(() => mutate(["docs", selectedClientId, selectedFolder]));
+          }}
+          title="Delete folder"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
+  /* ─────────── RENDER: CATEGORY SECTION ─────────── */
+  function CategorySection({
+    category,
+    documents,
+  }: {
+    category: DocumentCategory;
+    documents: any[];
+  }) {
+    const config = CATEGORY_CONFIG[category];
+    const isExpanded = expandedCategories[category];
+    const CategoryIcon = config.icon;
+    const fileCount = documents.length;
+
+    return (
+      <div className={cn(
+        "rounded-xl border overflow-hidden transition-all duration-200",
+        config.colorScheme.border,
+        "shadow-sm hover:shadow-md"
+      )}>
+        {/* Category Header - Clickable to expand/collapse */}
+        <button
+          onClick={() => toggleCategory(category)}
+          className={cn(
+            "w-full flex items-center gap-3 px-5 py-3.5 text-left transition-all duration-200",
+            `bg-gradient-to-r ${config.colorScheme.headerGradient}`,
+            config.colorScheme.bgHover,
+            "group"
+          )}
+        >
+          {/* Left stripe accent */}
+          <div className={cn(
+            "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl",
+            config.colorScheme.stripe
+          )} style={{ position: "absolute" }} />
+
+          {/* Expand/Collapse chevron */}
+          <div className={cn(
+            "flex-shrink-0 p-0.5 rounded transition-transform duration-200",
+            isExpanded ? "rotate-0" : "-rotate-90"
+          )}>
+            <ChevronDown className={cn("size-4", config.colorScheme.text)} />
+          </div>
+
+          {/* Category Icon */}
+          <div className={cn("flex-shrink-0 p-2 rounded-lg", config.colorScheme.iconBg)}>
+            <CategoryIcon className={cn("size-4", config.colorScheme.iconColor)} />
+          </div>
+
+          {/* Category Label & Description */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className={cn("text-sm font-semibold", config.colorScheme.text)}>
+                {config.label}
+              </h3>
+              <span className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold",
+                config.colorScheme.badge, config.colorScheme.badgeText
+              )}>
+                {fileCount} {fileCount === 1 ? "file" : "files"}
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-0.5">{config.description}</p>
+          </div>
+
+          {/* Upload button for this category */}
+          {selectedClientId && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className={cn(
+                "h-8 px-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity",
+                config.colorScheme.text,
+                `hover:${config.colorScheme.bg}`
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                setUploadCategory(category);
+
+                // Determine folder name based on category if at root
+                let targetFolder = selectedFolder;
+                if (!targetFolder) {
+                  if (category === "admin-only") targetFolder = "Admin Restricted";
+                  else if (category === "client-only") targetFolder = "Client Uploaded";
+                  else if (category === "legacy-client-shared") targetFolder = "Legacy Uploaded";
+                }
+
+                useUIStore.getState().openDrawer("uploadDoc", {
+                  clientId: selectedClientId,
+                  folderName: targetFolder,
+                  visibility: category === "admin-only" ? "private" : "shared",
+                });
+              }}
+            >
+              <Upload className="size-3.5 mr-1.5" />
+              Upload
+            </Button>
+          )}
+        </button>
+
+        {/* Category Content */}
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-300 ease-in-out",
+            isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+          )}
+        >
+          {documents.length === 0 ? (
+            <div className="flex items-center gap-3 px-8 py-6 text-gray-400">
+              <div className={cn("p-2 rounded-lg", config.colorScheme.iconBg, "opacity-50")}>
+                <FileIcon className={cn("size-4", config.colorScheme.iconColor, "opacity-50")} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-400">No documents</p>
+                <p className="text-xs text-gray-350">
+                  {category === "admin-only"
+                    ? "Upload confidential files here — Clients will not see them."
+                    : category === "client-only"
+                      ? "Documents uploaded by the client will appear here."
+                      : "Shared documents for collaboration will appear here."}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white">
+              {documents.map((doc: any, idx: number) => (
+                <FileRow key={doc.fullPath || doc.name || idx} doc={doc} category={category} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════ */
+  /*                                 RENDER                                    */
+  /* ═══════════════════════════════════════════════════════════════════════════ */
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
-          <div className="flex items-center gap-2">
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <Folder className="size-5 text-amber-600" />
+      <Card className="shadow-lg border-0 overflow-hidden">
+        {/* ─── HEADER ─── */}
+        <CardHeader className="flex flex-row items-center justify-between pb-4 border-b bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-amber-100 to-amber-200 p-2.5 rounded-xl shadow-sm">
+              <HardDrive className="size-5 text-amber-700" />
             </div>
             <div>
-              <CardTitle>Documents</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Manage client documents and folders
+              <CardTitle className="text-lg">Document Explorer</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                SharePoint-style document management with role-based access
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* CREATE FOLDER BUTTON */}
             {selectedClientId && (
-              <Button variant="outline" size="sm" onClick={() => setShowCreateFolder(true)}>
-                ➕ Create Folder
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 border-gray-200 hover:border-gray-300 shadow-sm"
+                onClick={() => setShowCreateFolder(true)}
+              >
+                <FolderPlus className="size-4 mr-1.5 text-amber-500" />
+                New Folder
               </Button>
             )}
 
@@ -416,6 +787,7 @@ export default function AdminDocumentsPage() {
             {selectedClientId && (
               <Button
                 size="sm"
+                className="h-9 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-sm"
                 onClick={() =>
                   useUIStore.getState().openDrawer("uploadDoc", {
                     clientId: selectedClientId,
@@ -423,25 +795,37 @@ export default function AdminDocumentsPage() {
                   })
                 }
               >
-                <span className="flex items-center gap-2">
-                  <Upload className="size-4" /> Upload Document
-                </span>
+                <Upload className="size-4 mr-1.5" />
+                Upload Document
               </Button>
             )}
           </div>
         </CardHeader>
 
-        <CardContent className="p-6">
-          {/* PROMINENT CLIENT SELECTOR */}
-          <div className={`mb-6 p-4 rounded-xl border ${selectedClientId ? 'border-gray-200 bg-gray-50' : 'border-gray-200 bg-white'}`}>
+        <CardContent className="p-6 bg-gray-50/30">
+          {/* ─── CLIENT SELECTOR ─── */}
+          <div className={cn(
+            "mb-6 p-4 rounded-xl border transition-all duration-200",
+            selectedClientId
+              ? "border-blue-200 bg-gradient-to-r from-blue-50/50 to-white shadow-sm"
+              : "border-gray-200 bg-white"
+          )}>
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-full ${selectedClientId ? 'bg-primary/10' : 'bg-gray-100'}`}>
-                <Users className={`h-6 w-6 ${selectedClientId ? 'text-primary' : 'text-gray-500'}`} />
+              <div className={cn(
+                "p-3 rounded-xl transition-all duration-200",
+                selectedClientId
+                  ? "bg-blue-100 shadow-sm"
+                  : "bg-gray-100"
+              )}>
+                <Users className={cn(
+                  "h-6 w-6 transition-colors",
+                  selectedClientId ? "text-blue-600" : "text-gray-500"
+                )} />
               </div>
 
               <div className="flex-1">
-                <Label className="text-sm font-medium mb-2 block">
-                  {selectedClientId ? 'Viewing Documents For:' : 'Select a Client to View Documents'}
+                <Label className="text-sm font-medium mb-2 block text-gray-600">
+                  {selectedClientId ? "Viewing Documents For:" : "Select a Client to View Documents"}
                 </Label>
 
                 <Popover open={clientOpen} onOpenChange={setClientOpen}>
@@ -449,7 +833,7 @@ export default function AdminDocumentsPage() {
                     <Button
                       variant="outline"
                       role="combobox"
-                      className="w-full max-w-md justify-between h-11 text-left border-gray-300 hover:bg-gray-50"
+                      className="w-full max-w-md justify-between h-11 text-left border-gray-300 hover:bg-gray-50 shadow-sm"
                     >
                       <div className="flex items-center gap-2">
                         {selectedClientId ? (
@@ -458,9 +842,7 @@ export default function AdminDocumentsPage() {
                             <span className="font-medium">{getClientName(selectedClientId)}</span>
                           </>
                         ) : (
-                          <>
-                            <span className="text-gray-500">Select a client...</span>
-                          </>
+                          <span className="text-gray-500">Select a client...</span>
                         )}
                       </div>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-gray-400" />
@@ -515,34 +897,43 @@ export default function AdminDocumentsPage() {
             </div>
           </div>
 
-          {/* NO CLIENT SELECTED MESSAGE */}
+          {/* ─── NO CLIENT SELECTED ─── */}
           {!selectedClientId && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="bg-gray-100 p-4 rounded-full mb-4">
-                <Folder className="h-10 w-10 text-gray-400" />
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="relative">
+                <div className="bg-gradient-to-br from-gray-100 to-gray-200 p-6 rounded-2xl mb-4 shadow-inner">
+                  <HardDrive className="h-12 w-12 text-gray-400" />
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-amber-100 p-2 rounded-full shadow-sm">
+                  <Folder className="h-4 w-4 text-amber-500" />
+                </div>
               </div>
               <h3 className="text-lg font-semibold mb-2 text-gray-700">No Client Selected</h3>
               <p className="text-muted-foreground text-sm text-center max-w-md">
-                Select a client from the dropdown above to view their documents.
+                Select a client from the dropdown above to explore their document library.
               </p>
             </div>
           )}
 
-          {/* CREATE FOLDER MODAL */}
+          {/* ─── CREATE FOLDER MODAL ─── */}
           {showCreateFolder && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-in fade-in duration-200">
-              <div className="bg-white p-6 rounded-xl shadow-xl w-[350px] space-y-4 border">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Folder className="size-5 text-amber-500" /> New Folder
-                  </h2>
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+              <div className="bg-white p-6 rounded-2xl shadow-2xl w-[380px] space-y-4 border">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-100 p-2.5 rounded-xl">
+                    <FolderPlus className="size-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold">New Folder</h2>
+                    <p className="text-xs text-gray-400">Create a new folder in the current directory</p>
+                  </div>
                 </div>
 
                 <Input
-                  placeholder="Folder name..."
+                  placeholder="Enter folder name..."
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
-                  className="border-gray-200 focus:border-amber-500 focus:ring-amber-500"
+                  className="border-gray-200 focus:border-amber-500 focus:ring-amber-500 h-11"
                   autoFocus
                 />
 
@@ -556,210 +947,157 @@ export default function AdminDocumentsPage() {
                   >
                     Cancel
                   </Button>
-
                   <Button
                     onClick={handleCreateFolder}
-                    className="bg-amber-600 hover:bg-amber-700 text-white"
+                    className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
                   >
-                    Create
+                    Create Folder
                   </Button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* CONTENT - only show when client is selected */}
+          {/* ─── DUPLICATE FILE DIALOG ─── */}
+          {duplicateOpen && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+              <div className="bg-white p-6 rounded-2xl shadow-2xl w-[380px] space-y-4 border">
+                <h2 className="text-lg font-semibold">File Already Exists</h2>
+                <p className="text-sm text-gray-500">
+                  A file with this name already exists. What would you like to do?
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setDuplicateOpen(false);
+                      setPendingFile(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={() => doUpload("replace")}
+                    disabled={uploading}
+                  >
+                    Replace
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════ DOCUMENT EXPLORER CONTENT ═══════ */}
           {selectedClientId && (
             <>
-              {/* FOLDER NAVIGATION / BREADCRUMB UI */}
+              {/* ─── BREADCRUMB ─── */}
               {selectedFolder && (
-                <div className="mb-6 flex items-center gap-2">
+                <div className="mb-5 flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="pl-0 hover:bg-transparent hover:text-primary"
+                    className="pl-0 hover:bg-transparent hover:text-blue-600 text-gray-500 font-medium"
                     onClick={() => setSelectedFolder(null)}
                   >
-                    ← All Documents
+                    <HardDrive className="size-3.5 mr-1.5" />
+                    Root
                   </Button>
-                  <span className="text-muted-foreground">/</span>
-                  {selectedFolder.split('/').map((part, idx, arr) => {
-                    const isAssigned = part === ASSIGNED_TASK_FOLDER || selectedFolder.startsWith(ASSIGNED_TASK_FOLDER);
-                    const isOnboarding = part === ONBOARDING_FOLDER || selectedFolder.startsWith(ONBOARDING_FOLDER);
-                    const colorClass = isAssigned ? "text-green-600" : isOnboarding ? "text-blue-600" : "text-gray-700";
-
-                    return (
-                      <span key={idx} className="flex items-center gap-1">
-                        {idx === arr.length - 1 ? (
-                          <span className={`flex items-center gap-1 font-semibold ${colorClass}`}>
-                            <Folder className="size-4" />
-                            {part}
-                          </span>
-                        ) : (
-                          <>
-                            <span className={colorClass}>{part}</span>
-                            <span className="text-muted-foreground">/</span>
-                          </>
-                        )}
-                      </span>
-                    );
-                  })}
+                  {selectedFolder.split("/").map((part, idx, arr) => (
+                    <span key={idx} className="flex items-center gap-1.5">
+                      <ChevronRight className="size-3 text-gray-300" />
+                      {idx === arr.length - 1 ? (
+                        <span className="flex items-center gap-1.5 font-semibold text-gray-700 text-sm">
+                          <FolderOpen className="size-3.5 text-amber-500" />
+                          {part}
+                        </span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-gray-500 hover:text-blue-600 text-sm"
+                          onClick={() => {
+                            const path = selectedFolder.split("/").slice(0, idx + 1).join("/");
+                            setSelectedFolder(path);
+                          }}
+                        >
+                          {part}
+                        </Button>
+                      )}
+                    </span>
+                  ))}
                 </div>
               )}
 
               {isLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-muted-foreground">Loading documents...</div>
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="relative">
+                    <div className="animate-spin rounded-full h-10 w-10 border-2 border-gray-200 border-t-blue-500"></div>
+                  </div>
+                  <p className="mt-4 text-sm text-gray-500 font-medium">Loading documents...</p>
                 </div>
               ) : (
-                <>
-                  {/* FOLDERS GRID */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
-                    {docs
-                      .filter((i: any) => i.type === "folder")
-                      .map((folder: any) => {
-                        const fullPath = selectedFolder
-                          ? `${selectedFolder}/${folder.name}`
-                          : folder.name;
+                <div className="space-y-4">
+                  {/* ─── FOLDERS SECTION (common across categories) ─── */}
+                  {folders.length > 0 && (
+                    <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                      {/* Folders header */}
+                      <div className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-amber-50/80 to-white border-b border-gray-100">
+                        <div className="bg-amber-100 p-1.5 rounded-lg">
+                          <Folder className="size-4 text-amber-600" />
+                        </div>
+                        <h3 className="text-sm font-semibold text-amber-800">
+                          Folders
+                        </h3>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                          {folders.length}
+                        </span>
+                      </div>
 
-                        // Special styling for completion document folders
-                        // Special styling for completion document folders
-                        const isAssignedTaskFolder = folder.name === ASSIGNED_TASK_FOLDER ||
-                          folder.name === ASSIGNED_TASK_CPA_FOLDER ||
-                          folder.name === ASSIGNED_TASK_SC_FOLDER ||
-                          (selectedFolder && (
-                            selectedFolder.startsWith(ASSIGNED_TASK_FOLDER) ||
-                            selectedFolder.startsWith(ASSIGNED_TASK_CPA_FOLDER) ||
-                            selectedFolder.startsWith(ASSIGNED_TASK_SC_FOLDER)
-                          ));
-
-                        const isOnboardingFolder = folder.name === ONBOARDING_FOLDER ||
-                          (selectedFolder && selectedFolder.startsWith(ONBOARDING_FOLDER));
-
-                        // Determine styling based on folder type
-                        let folderBgClass = "bg-amber-50/30 hover:bg-amber-50 border-gray-100 hover:border-amber-200";
-                        let folderIconClass = "text-amber-400 fill-amber-100 group-hover:fill-amber-200";
-                        let FolderIcon = Folder;
-
-                        if (folder.name === ASSIGNED_TASK_FOLDER) {
-                          folderBgClass = "bg-green-50/50 hover:bg-green-50 border-green-200 hover:border-green-300";
-                          folderIconClass = "text-green-500 fill-green-100 group-hover:fill-green-200";
-                          FolderIcon = CheckCircle2;
-                        } else if (folder.name === ASSIGNED_TASK_CPA_FOLDER) {
-                          folderBgClass = "bg-purple-50/50 hover:bg-purple-50 border-purple-200 hover:border-purple-300";
-                          folderIconClass = "text-purple-500 fill-purple-100 group-hover:fill-purple-200";
-                          FolderIcon = Landmark;
-                        } else if (folder.name === ASSIGNED_TASK_SC_FOLDER) {
-                          folderBgClass = "bg-indigo-50/50 hover:bg-indigo-50 border-indigo-200 hover:border-indigo-300";
-                          folderIconClass = "text-indigo-500 fill-indigo-100 group-hover:fill-indigo-200";
-                          FolderIcon = Building2;
-                        } else if (folder.name === ONBOARDING_FOLDER) {
-                          folderBgClass = "bg-blue-50/50 hover:bg-blue-50 border-blue-200 hover:border-blue-300";
-                          folderIconClass = "text-blue-500 fill-blue-100 group-hover:fill-blue-200";
-                          FolderIcon = Layers;
-                        } else if (isAssignedTaskFolder) {
-                          // Check which specific assigned folder we are in to color code subfolders accordingly
-                          if (selectedFolder?.startsWith(ASSIGNED_TASK_CPA_FOLDER)) {
-                            folderBgClass = "bg-purple-50/30 hover:bg-purple-50 border-purple-100 hover:border-purple-200";
-                            folderIconClass = "text-purple-400 fill-purple-100 group-hover:fill-purple-200";
-                          } else if (selectedFolder?.startsWith(ASSIGNED_TASK_SC_FOLDER)) {
-                            folderBgClass = "bg-indigo-50/30 hover:bg-indigo-50 border-indigo-100 hover:border-indigo-200";
-                            folderIconClass = "text-indigo-400 fill-indigo-100 group-hover:fill-indigo-200";
-                          } else {
-                            folderBgClass = "bg-green-50/30 hover:bg-green-50 border-green-100 hover:border-green-200";
-                            folderIconClass = "text-green-400 fill-green-100 group-hover:fill-green-200";
-                          }
-                        } else if (isOnboardingFolder) {
-                          folderBgClass = "bg-blue-50/30 hover:bg-blue-50 border-blue-100 hover:border-blue-200";
-                          folderIconClass = "text-blue-400 fill-blue-100 group-hover:fill-blue-200";
-                        }
-
-                        return (
-                          <div
-                            key={folder.name}
-                            onClick={() => setSelectedFolder(fullPath)}
-                            className={`group relative flex flex-col items-center justify-center p-6 border rounded-xl 
-                              ${folderBgClass}
-                              cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md`}
-                          >
-                            {/* Show special icon or folder icon */}
-                            {folder.name === ASSIGNED_TASK_FOLDER || folder.name === ONBOARDING_FOLDER || folder.name === ASSIGNED_TASK_CPA_FOLDER || folder.name === ASSIGNED_TASK_SC_FOLDER ? (
-                              <div className="relative mb-3">
-                                <Folder className={`w-12 h-12 ${folderIconClass} transition-colors`} />
-                                <div className={`absolute -top-1 -right-1 p-1 rounded-full ${folder.name === ASSIGNED_TASK_FOLDER ? 'bg-green-500' :
-                                  folder.name === ASSIGNED_TASK_CPA_FOLDER ? 'bg-purple-500' :
-                                    folder.name === ASSIGNED_TASK_SC_FOLDER ? 'bg-indigo-500' :
-                                      'bg-blue-500'
-                                  }`}>
-                                  <FolderIcon className="w-3 h-3 text-white" />
-                                </div>
-                              </div>
-                            ) : (
-                              <Folder className={`w-12 h-12 ${folderIconClass} mb-3 transition-colors`} />
-                            )}
-                            <span
-                              className="text-sm font-medium text-gray-700 text-center truncate w-full px-2"
-                              title={folder.name}
-                            >
-                              {folder.name}
-                            </span>
-
-                            {/* Subtitle for special folders */}
-                            {folder.name === ASSIGNED_TASK_FOLDER && (
-                              <span className="text-xs text-green-600 mt-1">Task Completions</span>
-                            )}
-                            {folder.name === ASSIGNED_TASK_CPA_FOLDER && (
-                              <span className="text-xs text-purple-600 mt-1">Preparer Completions</span>
-                            )}
-                            {folder.name === ASSIGNED_TASK_SC_FOLDER && (
-                              <span className="text-xs text-indigo-600 mt-1">Center Completions</span>
-                            )}
-                            {folder.name === ONBOARDING_FOLDER && (
-                              <span className="text-xs text-blue-600 mt-1">Stage Completions</span>
-                            )}
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!confirm(`Delete folder "${folder.name}"?`)) return;
-
-                                fetch("/api/documents/delete-folder", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    clientId: selectedClientId,
-                                    folderPath: fullPath,
-                                  }),
-                                }).then(() => mutate(["docs", selectedClientId, selectedFolder]));
-                              }}
-                              className="absolute top-2 right-2 p-1.5 rounded-full bg-white/80 text-gray-400 hover:text-red-600 hover:bg-red-50 
-                                opacity-0 group-hover:opacity-100 transition-all shadow-sm border border-transparent hover:border-red-100"
-                              title="Delete folder"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                  </div>
-
-                  {/* FILES TABLE */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-                        Files ({docs.filter((i: any) => i.type === "file").length})
-                      </h3>
+                      {/* Folder items */}
+                      <div className="bg-white">
+                        {folders.map((folder: any) => (
+                          <FolderRow key={folder.name} folder={folder} />
+                        ))}
+                      </div>
                     </div>
+                  )}
 
-                    {docs.filter((i: any) => i.type === "file").length === 0 ? (
-                      <div className="text-center py-12 border-2 border-dashed rounded-xl bg-gray-50/50">
-                        <div className="flex flex-col items-center gap-2">
-                          <FileIcon className="size-8 text-gray-300" />
-                          <p className="text-gray-500 font-medium">No files in this folder</p>
-                          <p className="text-sm text-gray-400">Upload a document to get started</p>
+                  {/* ─── DOCUMENT CATEGORY SECTIONS ─── */}
+                  {(["admin-only", "legacy-client-shared", "client-only"] as DocumentCategory[]).map(
+                    (category) => (
+                      <CategorySection
+                        key={category}
+                        category={category}
+                        documents={categorizedDocs[category]}
+                      />
+                    )
+                  )}
+
+                  {/* Empty state when no files and no folders */}
+                  {docs.length === 0 && (
+                    <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-200">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="bg-gray-100 p-4 rounded-2xl">
+                          <HardDrive className="size-8 text-gray-300" />
+                        </div>
+                        <div>
+                          <p className="text-gray-500 font-medium">This directory is empty</p>
+                          <p className="text-sm text-gray-400 mt-1">Upload documents or create folders to get started</p>
+                        </div>
+                        <div className="flex gap-2 mt-3">
                           <Button
                             size="sm"
-                            className="mt-2"
+                            variant="outline"
+                            className="shadow-sm"
+                            onClick={() => setShowCreateFolder(true)}
+                          >
+                            <FolderPlus className="size-4 mr-1.5 text-amber-500" />
+                            New Folder
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-sm"
                             onClick={() =>
                               useUIStore.getState().openDrawer("uploadDoc", {
                                 clientId: selectedClientId,
@@ -767,21 +1105,14 @@ export default function AdminDocumentsPage() {
                               })
                             }
                           >
-                            <Upload className="mr-2 size-4" />
+                            <Upload className="size-4 mr-1.5" />
                             Upload Document
                           </Button>
                         </div>
                       </div>
-                    ) : (
-                      <div className="border rounded-lg overflow-hidden shadow-sm">
-                        <DataTable
-                          columns={docCols}
-                          rows={docs.filter((i: any) => i.type === "file")}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </>
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}

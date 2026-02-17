@@ -2,7 +2,7 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,6 +35,7 @@ const Schema = z.object({
 });
 
 export function UploadDocForm({ context }: { context?: Record<string, any> }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const folderName = context?.folderName || null;
 
   const { toast } = useToast();
@@ -47,7 +48,9 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ name: string; success: boolean; error?: string }[]>([]);
   const [uploadMode, setUploadMode] = useState<"files" | "folder">("files");
-  const [visibility, setVisibility] = useState<"shared" | "private">("shared");
+  const [visibility, setVisibility] = useState<"shared" | "private">(
+    context?.visibility === "private" ? "private" : "shared"
+  );
 
   // ✅ Duplicate popup control using a Promise resolver
   const [duplicateOpen, setDuplicateOpen] = useState(false);
@@ -501,15 +504,17 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${dragActive ? "border-primary bg-primary/5" : "border-border"
               }`}
           >
             <input
+              ref={fileInputRef}
               type="file"
               multiple
               onChange={handleFileInputChange}
-              className="absolute inset-0 cursor-pointer opacity-0"
-              accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.gif,.webp,.svg"
+              className="hidden"
+              accept="*"
             />
 
             <div className="flex flex-col items-center gap-2">
@@ -610,7 +615,7 @@ export function UploadDocForm({ context }: { context?: Record<string, any> }) {
               <Eye className="size-4 flex-shrink-0" />
               <div className="text-left flex-1">
                 <div className="text-sm font-medium">Shared</div>
-                <div className="text-xs opacity-80">Visible to you and admin</div>
+                <div className="text-xs opacity-80">Visible to you and client</div>
               </div>
             </button>
 

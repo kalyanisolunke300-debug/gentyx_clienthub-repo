@@ -173,18 +173,19 @@ export default function EditClientProfilePage() {
                         />
                     </div>
 
-                    {/* Contact Email */}
+                    {/* Contact Email - Read Only */}
                     <div className="grid gap-2">
                         <label className="text-sm font-medium text-foreground">
                             Primary Contact Email
+                            <span className="ml-2 text-xs text-muted-foreground">
+                                (Read-only)
+                            </span>
                         </label>
                         <Input
                             type="email"
                             value={form.primary_contact_email}
-                            onChange={(e) =>
-                                setForm({ ...form, primary_contact_email: e.target.value })
-                            }
-                            placeholder="Enter contact email"
+                            disabled
+                            className="bg-muted cursor-not-allowed"
                         />
                     </div>
 

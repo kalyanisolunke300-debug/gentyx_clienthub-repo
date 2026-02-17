@@ -1,7 +1,7 @@
 // components/widgets/task-complete-modal.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
     Dialog,
     DialogContent,
@@ -56,6 +56,7 @@ export function TaskCompleteModal({
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [dragActive, setDragActive] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // File handling functions
     function handleFilesSelect(files: FileList | null) {
@@ -260,15 +261,17 @@ export function TaskCompleteModal({
                         onDragLeave={handleDrag}
                         onDragOver={handleDrag}
                         onDrop={handleDrop}
-                        className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`relative rounded-lg border-2 border-dashed p-6 text-center transition-colors cursor-pointer ${dragActive ? "border-primary bg-primary/5" : "border-border"
                             }`}
                     >
                         <input
+                            ref={fileInputRef}
                             type="file"
                             multiple
-                            onChange={(e) => handleFilesSelect(e.target.files)}
-                            className="absolute inset-0 cursor-pointer opacity-0"
-                            accept=".pdf,.xlsx,.xls,.docx,.doc,.jpg,.jpeg,.png,.gif"
+                            onChange={(e) => { handleFilesSelect(e.target.files); e.target.value = ''; }}
+                            className="hidden"
+                            accept="*"
                             disabled={uploading}
                         />
 
