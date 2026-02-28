@@ -1,56 +1,17 @@
-// // app/api/documents/exists/route.ts
-// import { NextResponse } from "next/server";
-
-// // ✅ Import the SAME blob helpers you already use in /api/documents/*
-// // Example (change to your actual helper):
-// // import { containerClient } from "@/lib/blob";
-
-// export async function GET(req: Request) {
-//     try {
-//         const { searchParams } = new URL(req.url);
-//         const clientId = searchParams.get("clientId");
-//         const fullPath = searchParams.get("fullPath");
-
-//         if (!clientId || !fullPath) {
-//             return NextResponse.json(
-//                 { success: false, error: "clientId and fullPath are required" },
-//                 { status: 400 }
-//             );
-//         }
-
-//         // ⚠️ IMPORTANT:
-//         // Your backend often expects something like: `client-111/<folder>/<file>`
-//         // If your system stores files under `client-${clientId}/`, enforce it here.
-//         const normalizedPath =
-//             fullPath.startsWith(`client-${clientId}/`)
-//                 ? fullPath
-//                 : `client-${clientId}/${fullPath}`;
-
-//         // ✅ Replace this with your real blob call:
-//         // const blobClient = containerClient.getBlobClient(normalizedPath);
-//         // const exists = await blobClient.exists();
-
-//         const exists = false; // <-- REMOVE after wiring real blob client
-
-//         return NextResponse.json({ success: true, exists });
-//     } catch (err: any) {
-//         return NextResponse.json(
-//             { success: false, error: err?.message || "Exists check failed" },
-//             { status: 500 }
-//         );
-//     }
-// }
+// app/api/documents/exists/route.ts
 import { NextResponse } from "next/server";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
 
         const clientId = searchParams.get("clientId");
-        const fullPath = searchParams.get("fullPath"); // e.g. "ClientHub_UAT_Test.xlsx" or "folder/file.xlsx"
+        const fullPath = searchParams.get("fullPath");
 
         if (!clientId || !fullPath) {
             return NextResponse.json(
@@ -59,20 +20,29 @@ export async function GET(req: Request) {
             );
         }
 
-        // Your storage uses: client-<id>/<path>
+        // Normalize the path
         const normalized = fullPath.replace(/^\/+/, "");
         const blobPath = normalized.startsWith(`client-${clientId}/`)
             ? normalized
             : `client-${clientId}/${normalized}`;
 
-        const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-        const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
+        // Check existence via list() with the file name as the search term
+        const folder = blobPath.includes("/")
+            ? blobPath.slice(0, blobPath.lastIndexOf("/"))
+            : "";
+        const fileName = blobPath.split("/").pop() || blobPath;
 
-        const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
-        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const { data, error } = await supabaseAdmin.storage
+            .from(BUCKET)
+            .list(folder, { search: fileName, limit: 1 });
 
-        const blobClient = containerClient.getBlockBlobClient(blobPath);
-        const exists = await blobClient.exists();
+        if (error) throw new Error(error.message);
+
+
+        const exists = (data ?? []).some(
+            (item: { name: string; id: string | null }) => item.name === fileName && item.id !== null
+        );
+
 
         return NextResponse.json({ success: true, exists, blobPath });
     } catch (err: any) {

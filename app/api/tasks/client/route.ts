@@ -1,7 +1,6 @@
 // app/api/tasks/client/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function GET(req: Request) {
   try {
@@ -9,37 +8,20 @@ export async function GET(req: Request) {
     const clientId = searchParams.get("clientId");
 
     if (!clientId) {
-      return NextResponse.json(
-        { success: false, error: "clientId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "clientId is required" }, { status: 400 });
     }
 
     const pool = await getDbPool();
 
-    const result = await pool.request()
-      .input("clientId", sql.Int, clientId)
-      .query(`
-        SELECT
-          task_id,
-          task_title,
-          assigned_to_role,
-          due_date,
-          status
-        FROM dbo.onboarding_tasks
-        WHERE client_id = @clientId
+    const result = await pool.query(`
+        SELECT task_id, task_title, assigned_to_role, due_date, status
+        FROM public."onboarding_tasks"
+        WHERE client_id = $1
         ORDER BY task_id DESC
-      `);
+      `, [Number(clientId)]);
 
-    return NextResponse.json({
-      success: true,
-      data: result.recordset
-    });
-
+    return NextResponse.json({ success: true, data: result.rows });
   } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

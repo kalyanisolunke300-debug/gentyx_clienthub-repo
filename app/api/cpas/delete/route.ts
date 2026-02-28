@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function POST(req: Request) {
   try {
@@ -15,28 +14,22 @@ export async function POST(req: Request) {
 
     const pool = await getDbPool();
 
-    // 1. Get CPA email for user credentials deletion
-    const cpaResult = await pool.request()
-      .input("id", sql.Int, cpa_id)
-      .query(`SELECT email, cpa_name FROM cpa_centers WHERE cpa_id = @id`);
+    const cpaResult = await pool.query(
+      `SELECT email, cpa_name FROM public."cpa_centers" WHERE cpa_id = $1`,
+      [cpa_id]
+    );
 
-    const cpaEmail = cpaResult.recordset[0]?.email;
-    const cpaName = cpaResult.recordset[0]?.cpa_name || "Unknown";
+    const cpaEmail = cpaResult.rows[0]?.email;
+    const cpaName = cpaResult.rows[0]?.cpa_name || "Unknown";
 
     console.log(`🗑️ Starting deletion of CPA: ${cpaName} (ID: ${cpa_id})`);
 
-    // 2. Delete user credentials from Users table
     if (cpaEmail) {
-      await pool.request()
-        .input("email", sql.NVarChar(255), cpaEmail)
-        .query(`DELETE FROM dbo.Users WHERE email = @email`);
+      await pool.query(`DELETE FROM public."Users" WHERE email = $1`, [cpaEmail]);
       console.log("  ✓ Deleted user credentials");
     }
 
-    // 3. Delete the CPA record
-    await pool.request()
-      .input("id", sql.Int, cpa_id)
-      .query(`DELETE FROM cpa_centers WHERE cpa_id = @id`);
+    await pool.query(`DELETE FROM public."cpa_centers" WHERE cpa_id = $1`, [cpa_id]);
     console.log("  ✓ Deleted CPA record");
 
     console.log(`✅ Successfully deleted CPA: ${cpaName} (ID: ${cpa_id})`);

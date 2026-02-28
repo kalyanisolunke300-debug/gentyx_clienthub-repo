@@ -1,18 +1,18 @@
 // app/api/tasks/get/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
 
     const q = searchParams.get("q");
-    const taskType = searchParams.get("taskType"); // ONBOARDING | ASSIGNED
-    const assignedRole = searchParams.get("assignedRole"); // CLIENT | CPA | SERVICE_CENTER | ADMIN
+    const taskType = searchParams.get("taskType");
+    const assignedRole = searchParams.get("assignedRole");
     const dueFrom = searchParams.get("dueFrom");
     const dueTo = searchParams.get("dueTo");
     const clientId = searchParams.get("clientId");
+    const taskId = searchParams.get("taskId");
 
     const page = Number(searchParams.get("page") || 1);
     const pageSize = Number(searchParams.get("pageSize") || 20);
@@ -20,38 +20,28 @@ export async function GET(req: Request) {
 
     const pool = await getDbPool();
 
-    const result = await pool.request()
-      .input("q", sql.NVarChar, q || null)
-      .input("taskType", sql.VarChar, taskType || null)
-      .input("assignedRole", sql.VarChar, assignedRole || null)
-      .input("dueFrom", sql.Date, dueFrom || null)
-      .input("dueTo", sql.Date, dueTo || null)
-      .input("clientId", sql.Int, clientId || null)
-      .input("taskId", sql.Int, searchParams.get("taskId") || null)
-      .input("offset", sql.Int, offset)
-      .input("pageSize", sql.Int, pageSize)
-      .query(`
+    const result = await pool.query(`
         SELECT *
         FROM (
           -- 🔹 ONBOARDING TASKS (Stage Subtasks)
           SELECT
             css.subtask_id    AS id,
-            cs.client_id      AS clientId,
-            ISNULL(c.client_name, 'Unknown Client') AS clientName,
+            cs.client_id      AS "clientId",
+            COALESCE(c.client_name, 'Unknown Client') AS "clientName",
             css.subtask_title AS title,
-            'ONBOARDING'      AS taskType,
-            'CLIENT'          AS assignedRole,
+            'ONBOARDING'      AS "taskType",
+            'CLIENT'          AS "assignedRole",
             css.status        AS status,
-            css.due_date      AS dueDate,
-            s.stage_name      AS sourceStage,
-            css.created_at    AS createdAt,
-            ISNULL(css.document_required, 0) AS documentRequired
-          FROM dbo.client_stage_subtasks css
-          LEFT JOIN dbo.client_stages cs
+            css.due_date      AS "dueDate",
+            s.stage_name      AS "sourceStage",
+            css.created_at    AS "createdAt",
+            COALESCE(css.document_required, false) AS "documentRequired"
+          FROM public."client_stage_subtasks" css
+          LEFT JOIN public."client_stages" cs
             ON cs.client_stage_id = css.client_stage_id
-          LEFT JOIN dbo.clients c
+          LEFT JOIN public."Clients" c
             ON c.client_id = cs.client_id
-          LEFT JOIN dbo.onboarding_stages s
+          LEFT JOIN public."onboarding_stages" s
             ON s.stage_id = cs.stage_id
 
           UNION ALL
@@ -59,49 +49,49 @@ export async function GET(req: Request) {
           -- 🔹 ASSIGNED TASKS (Manual)
           SELECT
             t.task_id                AS id,
-            t.client_id              AS clientId,
-            c.client_name            AS clientName,
+            t.client_id              AS "clientId",
+            c.client_name            AS "clientName",
             t.task_title             AS title,
-            'ASSIGNED'               AS taskType,
-            t.assigned_to_role       AS assignedRole,
+            'ASSIGNED'               AS "taskType",
+            t.assigned_to_role       AS "assignedRole",
             t.status                 AS status,
-            t.due_date               AS dueDate,
-            NULL                     AS sourceStage,
-            t.created_at             AS createdAt,
-            ISNULL(t.document_required, 1) AS documentRequired
-          FROM dbo.onboarding_tasks t
-          JOIN dbo.clients c
+            t.due_date               AS "dueDate",
+            NULL                     AS "sourceStage",
+            t.created_at             AS "createdAt",
+            COALESCE(t.document_required, true) AS "documentRequired"
+          FROM public."onboarding_tasks" t
+          JOIN public."Clients" c
             ON c.client_id = t.client_id
         ) x
         WHERE
-          (@taskType IS NULL OR x.taskType = @taskType)
-          AND (@assignedRole IS NULL OR x.assignedRole = @assignedRole)
-          AND (@dueFrom IS NULL OR x.dueDate >= @dueFrom)
-          AND (@dueTo IS NULL OR x.dueDate <= @dueTo)
-          AND (@clientId IS NULL OR x.clientId = @clientId)
-          AND (@taskId IS NULL OR x.id = @taskId)
+          ($1::text IS NULL OR x."taskType" = $1)
+          AND ($2::text IS NULL OR x."assignedRole" = $2)
+          AND ($3::date IS NULL OR x."dueDate" >= $3::date)
+          AND ($4::date IS NULL OR x."dueDate" <= $4::date)
+          AND ($5::int IS NULL OR x."clientId" = $5)
+          AND ($6::int IS NULL OR x.id = $6)
           AND (
-            @q IS NULL OR
-            x.title LIKE '%' + @q + '%' OR
-            x.clientName LIKE '%' + @q + '%'
+            $7::text IS NULL OR
+            x.title ILIKE '%' || $7 || '%' OR
+            x."clientName" ILIKE '%' || $7 || '%'
           )
-        ORDER BY x.createdAt DESC
-        OFFSET @offset ROWS
-        FETCH NEXT @pageSize ROWS ONLY
-      `);
-
-    return NextResponse.json({
-      success: true,
-      data: result.recordset,
-      page,
+        ORDER BY x."createdAt" DESC
+        OFFSET $8 LIMIT $9
+      `, [
+      taskType || null,
+      assignedRole || null,
+      dueFrom || null,
+      dueTo || null,
+      clientId ? Number(clientId) : null,
+      taskId ? Number(taskId) : null,
+      q || null,
+      offset,
       pageSize
-    });
+    ]);
 
+    return NextResponse.json({ success: true, data: result.rows, page, pageSize });
   } catch (err: any) {
     console.error("GET /api/tasks/get error:", err);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch tasks" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to fetch tasks" }, { status: 500 });
   }
 }

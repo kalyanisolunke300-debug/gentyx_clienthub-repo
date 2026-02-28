@@ -21,12 +21,12 @@ export async function GET(req: Request) {
       .input("templateId", Number(templateId))
       .query(`
         SELECT *
-        FROM dbo.default_stages
+        FROM public."default_stages"
         WHERE template_id = @templateId
         ORDER BY order_number
       `);
 
-    const stages = result.recordset;
+    const stages = result.rows;
 
     // Fetch subtasks if there are stages
     let subtasks: any[] = [];
@@ -34,11 +34,11 @@ export async function GET(req: Request) {
       const stageIds = stages.map((s: any) => s.default_stage_id);
       const subRes = await pool.query(`
         SELECT * 
-        FROM dbo.default_stage_subtasks
+        FROM public."default_stage_subtasks"
         WHERE default_stage_id IN (${stageIds.join(",")})
         ORDER BY order_number
       `);
-      subtasks = subRes.recordset;
+      subtasks = subRes.rows;
     }
 
     // Merge subtasks into stages

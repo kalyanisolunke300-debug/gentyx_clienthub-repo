@@ -13,58 +13,56 @@ export async function POST(req: Request) {
         const pool = await getDbPool();
 
         // 1. Get current master admin email (from AdminSettings)
-        const adminRes = await pool.request().query("SELECT TOP 1 email FROM AdminSettings");
-        const adminEmail = adminRes.recordset[0]?.email;
+        const adminRes = await pool.query(`SELECT email FROM public."AdminSettings" LIMIT 1`);
+        const adminEmail = adminRes.rows[0]?.email;
 
         if (!adminEmail) {
             return NextResponse.json({ success: false, error: "Master admin profile not found" }, { status: 404 });
         }
 
         // 2. Verify current password against the Master Admin
-        const userRes = await pool.request()
-            .input("email", adminEmail)
-            .query("SELECT * FROM Users WHERE email = @email AND role = 'ADMIN'");
+        const userRes = await pool.query(
+            `SELECT * FROM public."Users" WHERE email = $1 AND role = 'ADMIN'`,
+            [adminEmail]
+        );
 
-        const currentUser = userRes.recordset[0];
+        const currentUser = userRes.rows[0];
 
         if (!currentUser || currentUser.password !== currentPassword) {
             return NextResponse.json({ success: false, error: "Incorrect current password" }, { status: 401 });
         }
 
         // 3. Check if new email already exists in Users
-        const checkRes = await pool.request()
-            .input("email", newEmail)
-            .query("SELECT id FROM Users WHERE email = @email");
+        const checkRes = await pool.query(
+            `SELECT id FROM public."Users" WHERE email = $1`,
+            [newEmail]
+        );
 
-        if (checkRes.recordset.length > 0) {
+        if (checkRes.rows.length > 0) {
             return NextResponse.json({ success: false, error: "Email already exists in Users" }, { status: 400 });
         }
 
         // Check if email already exists in AdminSettings
-        const checkAdminRes = await pool.request()
-            .input("email", newEmail)
-            .query("SELECT id FROM AdminSettings WHERE email = @email");
+        const checkAdminRes = await pool.query(
+            `SELECT id FROM public."AdminSettings" WHERE email = $1`,
+            [newEmail]
+        );
 
-        if (checkAdminRes.recordset.length > 0) {
+        if (checkAdminRes.rows.length > 0) {
             return NextResponse.json({ success: false, error: "Email already exists in Admin settings" }, { status: 400 });
         }
 
         // 4. Create new Admin user
-        await pool.request()
-            .input("email", newEmail)
-            .input("password", newPassword)
-            .query(`
-        INSERT INTO Users (email, password, role) 
-        VALUES (@email, @password, 'ADMIN')
-      `);
+        await pool.query(`
+        INSERT INTO public."Users" (email, password, role) 
+        VALUES ($1, $2, 'ADMIN')
+      `, [newEmail, newPassword]);
 
         // 5. Add to AdminSettings with notifications enabled by default
-        await pool.request()
-            .input("email", newEmail)
-            .query(`
-        INSERT INTO AdminSettings (full_name, email, phone, role, notifications_enabled)
-        VALUES ('New Admin', @email, '', 'Administrator', 1)
-        `);
+        await pool.query(`
+        INSERT INTO public."AdminSettings" (full_name, email, phone, role, notifications_enabled)
+        VALUES ('New Admin', $1, '', 'Administrator', true)
+        `, [newEmail]);
 
         return NextResponse.json({ success: true });
 

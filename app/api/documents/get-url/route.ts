@@ -1,9 +1,8 @@
+// app/api/documents/get-url/route.ts
 import { NextResponse } from "next/server";
-import {
-  BlobSASPermissions,
-  StorageSharedKeyCredential,
-  generateBlobSASQueryParameters
-} from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function GET(req: Request) {
   try {
@@ -16,26 +15,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ url: null });
     }
 
-    const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
-    const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
-    const container = process.env.AZURE_STORAGE_CONTAINER_NAME!;
+    const blobPath = `client-${clientId}/${folder}/${fileName}`;
 
-    const sharedKey = new StorageSharedKeyCredential(accountName, accountKey);
+    // Generate a signed URL valid for 15 minutes
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUrl(blobPath, 15 * 60);
 
-    const sas = generateBlobSASQueryParameters(
-      {
-        containerName: container,
-        blobName: `clienthub/client-${clientId}/${folder}/${fileName}`,
-        permissions: BlobSASPermissions.parse("r"),
-        expiresOn: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-      },
-      sharedKey
-    ).toString();
+    if (error || !data) {
+      console.error("Signed URL error:", error?.message);
+      return NextResponse.json({ url: null, error: error?.message });
+    }
 
-    const url = `https://${accountName}.blob.core.windows.net/${container}/clienthub/client-${clientId}/${folder}/${fileName}?${sas}`;
-
-    return NextResponse.json({ url });
-
+    return NextResponse.json({ url: data.signedUrl });
   } catch (err: any) {
     return NextResponse.json({ url: null, error: err.message });
   }

@@ -1,6 +1,5 @@
 // app/api/user/change-password/route.ts
 import { NextResponse } from "next/server";
-import sql from "mssql";
 import { getDbPool } from "@/lib/db";
 
 export async function POST(req: Request) {
@@ -28,21 +27,21 @@ export async function POST(req: Request) {
         if (currentPassword) {
             const userResult = await pool
                 .request()
-                .input("email", sql.NVarChar(255), email)
+                .input("email", sql.VARCHAR(255), email)
                 .query(`
           SELECT password 
-          FROM dbo.Users 
+          FROM public."Users" 
           WHERE email = @email
         `);
 
-            if (userResult.recordset.length === 0) {
+            if (userResult.rows.length === 0) {
                 return NextResponse.json(
                     { success: false, message: "User not found" },
                     { status: 404 }
                 );
             }
 
-            const storedPassword = userResult.recordset[0].password;
+            const storedPassword = userResult.rows[0].password;
 
             if (storedPassword !== currentPassword) {
                 return NextResponse.json(
@@ -55,15 +54,15 @@ export async function POST(req: Request) {
         // Update the password
         const updateResult = await pool
             .request()
-            .input("email", sql.NVarChar(255), email)
-            .input("password", sql.NVarChar(255), newPassword)
+            .input("email", sql.VARCHAR(255), email)
+            .input("password", sql.VARCHAR(255), newPassword)
             .query(`
-        UPDATE dbo.Users 
+        UPDATE public."Users" 
         SET password = @password 
         WHERE email = @email
       `);
 
-        if (updateResult.rowsAffected[0] === 0) {
+        if (updateResult.rowCount === 0) {
             return NextResponse.json(
                 { success: false, message: "User not found in system" },
                 { status: 404 }

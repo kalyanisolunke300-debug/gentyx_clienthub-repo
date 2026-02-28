@@ -1,7 +1,6 @@
 // app/api/help/admin/flow-steps/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 // POST - Add new flow step
 export async function POST(req: Request) {
@@ -13,20 +12,20 @@ export async function POST(req: Request) {
         const result = await pool
             .request()
             .input("role_id", sql.Int, role_id)
-            .input("title", sql.NVarChar(200), title)
-            .input("description", sql.NVarChar(sql.MAX), description)
-            .input("icon_name", sql.NVarChar(50), icon_name || null)
-            .input("step_type", sql.NVarChar(50), step_type || "action")
+            .input("title", sql.VARCHAR(200), title)
+            .input("description", sql.VARCHAR(sql.MAX), description)
+            .input("icon_name", sql.VARCHAR(50), icon_name || null)
+            .input("step_type", sql.VARCHAR(50), step_type || "action")
             .input("display_order", sql.Int, display_order || 0)
             .query(`
-        INSERT INTO dbo.help_flow_steps (role_id, title, description, icon_name, step_type, display_order)
+        INSERT INTO public."help_flow_steps" (role_id, title, description, icon_name, step_type, display_order)
         OUTPUT INSERTED.step_id
         VALUES (@role_id, @title, @description, @icon_name, @step_type, @display_order)
       `);
 
         return NextResponse.json({
             success: true,
-            step_id: result.recordset[0]?.step_id,
+            step_id: result.rows[0]?.step_id,
         });
     } catch (err) {
         console.error("POST /api/help/admin/flow-steps error:", err);
@@ -47,13 +46,13 @@ export async function PUT(req: Request) {
         await pool
             .request()
             .input("step_id", sql.Int, step_id)
-            .input("title", sql.NVarChar(200), title)
-            .input("description", sql.NVarChar(sql.MAX), description)
-            .input("icon_name", sql.NVarChar(50), icon_name || null)
-            .input("step_type", sql.NVarChar(50), step_type || "action")
+            .input("title", sql.VARCHAR(200), title)
+            .input("description", sql.VARCHAR(sql.MAX), description)
+            .input("icon_name", sql.VARCHAR(50), icon_name || null)
+            .input("step_type", sql.VARCHAR(50), step_type || "action")
             .input("display_order", sql.Int, display_order)
             .query(`
-        UPDATE dbo.help_flow_steps
+        UPDATE public."help_flow_steps"
         SET 
           title = @title,
           description = @description,
@@ -83,7 +82,7 @@ export async function DELETE(req: Request) {
         await pool
             .request()
             .input("step_id", sql.Int, parseInt(step_id || "0"))
-            .query(`DELETE FROM dbo.help_flow_steps WHERE step_id = @step_id`);
+            .query(`DELETE FROM public."help_flow_steps" WHERE step_id = @step_id`);
 
         return NextResponse.json({ success: true });
     } catch (err) {

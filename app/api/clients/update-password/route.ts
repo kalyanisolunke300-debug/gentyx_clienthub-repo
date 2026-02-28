@@ -1,6 +1,5 @@
 // app/api/clients/update-password/route.ts
 import { NextResponse } from "next/server";
-import sql from "mssql";
 import { getDbPool } from "@/lib/db";
 
 export async function POST(req: Request) {
@@ -25,23 +24,20 @@ export async function POST(req: Request) {
         const pool = await getDbPool();
 
         // Get the client's email first
-        const clientResult = await pool
-            .request()
-            .input("clientId", sql.Int, clientId)
-            .query(`
+        const clientResult = await pool.query(`
         SELECT primary_contact_email 
-        FROM dbo.clients 
-        WHERE client_id = @clientId
-      `);
+        FROM public."Clients" 
+        WHERE client_id = $1
+      `, [clientId]);
 
-        if (clientResult.recordset.length === 0) {
+        if (clientResult.rows.length === 0) {
             return NextResponse.json(
                 { success: false, error: "Client not found" },
                 { status: 404 }
             );
         }
 
-        const clientEmail = clientResult.recordset[0].primary_contact_email;
+        const clientEmail = clientResult.rows[0].primary_contact_email;
 
         if (!clientEmail) {
             return NextResponse.json(
@@ -51,17 +47,13 @@ export async function POST(req: Request) {
         }
 
         // Update the password in Users table
-        const updateResult = await pool
-            .request()
-            .input("email", sql.NVarChar(255), clientEmail)
-            .input("password", sql.NVarChar(255), newPassword)
-            .query(`
-        UPDATE dbo.Users 
-        SET password = @password 
-        WHERE email = @email
-      `);
+        const updateResult = await pool.query(`
+        UPDATE public."Users" 
+        SET password = $1 
+        WHERE email = $2
+      `, [newPassword, clientEmail]);
 
-        if (updateResult.rowsAffected[0] === 0) {
+        if (updateResult.rowCount === 0) {
             return NextResponse.json(
                 { success: false, error: "User not found in system" },
                 { status: 404 }

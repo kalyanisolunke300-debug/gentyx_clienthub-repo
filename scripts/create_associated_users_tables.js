@@ -1,4 +1,4 @@
-const sql = require('mssql');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,78 +22,73 @@ envContent.split('\n').forEach(line => {
     }
 });
 
-const config = {
-    user: process.env.AZURE_SQL_USERNAME,
-    password: process.env.AZURE_SQL_PASSWORD,
-    server: process.env.AZURE_SQL_SERVER,
-    database: process.env.AZURE_SQL_DATABASE,
-    options: {
-        encrypt: true,
-        trustServerCertificate: true
-    },
-};
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+});
 
 async function run() {
+    const client = await pool.connect();
     try {
-        console.log(`Connecting to DB ${config.server}/${config.database} as ${config.user}...`);
-        const pool = await sql.connect(config);
-        console.log("Connected.");
+        console.log('Connected to Supabase PostgreSQL.');
 
         // ===== 1. Service Center Users Table =====
-        const scUsersTableExists = await pool.query(`
-            SELECT * FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = 'dbo' 
-            AND TABLE_NAME = 'service_center_users'
+        const scCheck = await client.query(`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'service_center_users'
         `);
 
-        if (scUsersTableExists.recordset.length === 0) {
-            console.log("Creating service_center_users table...");
-            await pool.query(`
-                CREATE TABLE dbo.service_center_users (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    service_center_id INT NOT NULL,
-                    user_name NVARCHAR(255) NOT NULL,
-                    email NVARCHAR(255) NOT NULL,
-                    role NVARCHAR(100) DEFAULT 'User',
-                    phone NVARCHAR(50),
-                    created_at DATETIME DEFAULT GETDATE(),
-                    updated_at DATETIME DEFAULT GETDATE(),
-                    CONSTRAINT FK_ServiceCenterUsers_ServiceCenters 
-                        FOREIGN KEY (service_center_id) 
-                        REFERENCES dbo.service_centers(service_center_id) 
+        if (scCheck.rows.length === 0) {
+            console.log('Creating service_center_users table...');
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS public.service_center_users (
+                    id SERIAL PRIMARY KEY,
+                    service_center_id INTEGER NOT NULL,
+                    user_name VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    role VARCHAR(100) DEFAULT 'User',
+                    phone VARCHAR(50),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT fk_sc_users_service_centers
+                        FOREIGN KEY (service_center_id)
+                        REFERENCES public.service_centers(service_center_id)
                         ON DELETE CASCADE
-                );
+                )
             `);
-            console.log("✅ Table service_center_users created successfully.");
+            console.log('✅ Table service_center_users created successfully.');
         } else {
-            console.log("Table service_center_users already exists.");
+            console.log('Table service_center_users already exists.');
         }
 
-        // ===== 2. Update client_users table to add phone and updated_at if missing =====
-        const clientUsersColumns = await pool.query(`
-            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'client_users'
+        // ===== 2. Update client_users table — add phone and updated_at if missing =====
+        const colCheck = await client.query(`
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'client_users'
         `);
 
-        const existingColumns = clientUsersColumns.recordset.map(r => r.COLUMN_NAME.toLowerCase());
+        const existingColumns = colCheck.rows.map(r => r.column_name.toLowerCase());
 
         if (!existingColumns.includes('phone')) {
-            console.log("Adding phone column to client_users...");
-            await pool.query(`ALTER TABLE dbo.client_users ADD phone NVARCHAR(50)`);
-            console.log("✅ Added phone column to client_users.");
+            console.log('Adding phone column to client_users...');
+            await client.query(`ALTER TABLE public.client_users ADD COLUMN phone VARCHAR(50)`);
+            console.log('✅ Added phone column to client_users.');
         }
 
         if (!existingColumns.includes('updated_at')) {
-            console.log("Adding updated_at column to client_users...");
-            await pool.query(`ALTER TABLE dbo.client_users ADD updated_at DATETIME DEFAULT GETDATE()`);
-            console.log("✅ Added updated_at column to client_users.");
+            console.log('Adding updated_at column to client_users...');
+            await client.query(`ALTER TABLE public.client_users ADD COLUMN updated_at TIMESTAMP DEFAULT NOW()`);
+            console.log('✅ Added updated_at column to client_users.');
         }
 
-        console.log("\n✅ All migrations completed successfully!");
+        console.log('\n✅ All migrations completed successfully!');
         process.exit(0);
     } catch (err) {
-        console.error("Error:", err);
+        console.error('Error:', err);
         process.exit(1);
+    } finally {
+        client.release();
+        await pool.end();
     }
 }
 

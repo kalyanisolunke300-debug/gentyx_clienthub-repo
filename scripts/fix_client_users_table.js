@@ -1,10 +1,9 @@
-const sql = require('mssql');
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
 // Load env
 const envPath = path.resolve(__dirname, '../.env.local');
-// Handle case where file doesn't exist or is empty
 if (!fs.existsSync(envPath)) {
     console.error(".env.local file not found at " + envPath);
     process.exit(1);
@@ -12,13 +11,10 @@ if (!fs.existsSync(envPath)) {
 
 const envContent = fs.readFileSync(envPath, 'utf8');
 envContent.split('\n').forEach(line => {
-    // Basic .env parsing
     const parts = line.split('=');
     if (parts.length >= 2 && !line.trim().startsWith('#')) {
         const key = parts[0].trim();
-        // Handle values that might contain =
         let value = parts.slice(1).join('=').trim();
-        // Remove quotes if present
         if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
             value = value.slice(1, -1);
         }
@@ -26,51 +22,48 @@ envContent.split('\n').forEach(line => {
     }
 });
 
-const config = {
-    user: process.env.AZURE_SQL_USERNAME,
-    password: process.env.AZURE_SQL_PASSWORD,
-    server: process.env.AZURE_SQL_SERVER,
-    database: process.env.AZURE_SQL_DATABASE,
-    options: {
-        encrypt: true,
-        trustServerCertificate: true
-    },
-};
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+});
 
 async function run() {
+    const client = await pool.connect();
     try {
-        console.log(`Connecting to DB ${config.server}/${config.database} as ${config.user}...`);
-        const pool = await sql.connect(config);
-        console.log("Connected.");
+        console.log('Connected to Supabase PostgreSQL.');
 
-        const tableExists = await pool.query(`
-            SELECT * FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = 'dbo' 
-            AND TABLE_NAME = 'client_users'
+        // Check if client_users table exists
+        const tableCheck = await client.query(`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'client_users'
         `);
 
-        if (tableExists.recordset.length === 0) {
-            console.log("Creating client_users table...");
-            await pool.query(`
-                CREATE TABLE dbo.client_users (
-                    id INT IDENTITY(1,1) PRIMARY KEY,
-                    client_id INT NOT NULL,
-                    user_name NVARCHAR(255),
-                    email NVARCHAR(255),
-                    role NVARCHAR(50),
-                    created_at DATETIME DEFAULT GETDATE(),
-                    CONSTRAINT FK_ClientUsers_Clients FOREIGN KEY (client_id) REFERENCES dbo.clients(client_id) ON DELETE CASCADE
-                );
+        if (tableCheck.rows.length === 0) {
+            console.log('Creating client_users table...');
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS public.client_users (
+                    id SERIAL PRIMARY KEY,
+                    client_id INTEGER NOT NULL,
+                    user_name VARCHAR(255),
+                    email VARCHAR(255),
+                    role VARCHAR(50),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    CONSTRAINT fk_client_users_clients
+                        FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE CASCADE
+                )
             `);
-            console.log("Table client_users created successfully.");
+            console.log('Table client_users created successfully.');
         } else {
-            console.log("Table client_users already exists.");
+            console.log('Table client_users already exists.');
         }
 
         process.exit(0);
     } catch (err) {
-        console.error("Error:", err);
+        console.error('Error:', err);
         process.exit(1);
+    } finally {
+        client.release();
+        await pool.end();
     }
 }
 

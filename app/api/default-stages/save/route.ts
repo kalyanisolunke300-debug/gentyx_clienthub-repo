@@ -24,10 +24,10 @@ export async function POST(req: Request) {
       .request()
       .input("templateId", templateId)
       .query(`
-        DELETE FROM dbo.default_stage_subtasks 
-        WHERE default_stage_id IN (SELECT default_stage_id FROM dbo.default_stages WHERE template_id = @templateId);
+        DELETE FROM public."default_stage_subtasks" 
+        WHERE default_stage_id IN (SELECT default_stage_id FROM public."default_stages" WHERE template_id = @templateId);
 
-        DELETE FROM dbo.default_stages WHERE template_id = @templateId;
+        DELETE FROM public."default_stages" WHERE template_id = @templateId;
       `);
 
     // 2. Insert new data
@@ -41,13 +41,13 @@ export async function POST(req: Request) {
         .input("order_number", i + 1)
         .input("is_required", s.is_required ?? false)
         .query(`
-          INSERT INTO dbo.default_stages
+          INSERT INTO public."default_stages"
           (template_id, stage_name, order_number, is_required)
           OUTPUT INSERTED.default_stage_id
           VALUES (@templateId, @stage_name, @order_number, @is_required)
         `);
 
-      const newStageId = stageRes.recordset[0].default_stage_id;
+      const newStageId = stageRes.rows[0].default_stage_id;
 
       if (s.subtasks && Array.isArray(s.subtasks)) {
         for (let j = 0; j < s.subtasks.length; j++) {
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
             .input("title", st.title || "")
             .input("order", j + 1)
             .query(`
-              INSERT INTO dbo.default_stage_subtasks 
+              INSERT INTO public."default_stage_subtasks" 
               (default_stage_id, title, order_number, status) 
               VALUES (@sid, @title, @order, 'Not Started')
             `);

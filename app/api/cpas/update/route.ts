@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { sendUpdateNotification } from "@/lib/email";
 
 export async function POST(req: Request) {
@@ -26,94 +25,73 @@ async function handleUpdate(req: Request) {
     const pool = await getDbPool();
     const actualName = cpa_name || name;
 
-    // ✅ CHECK FOR DUPLICATE CPA NAME (CASE-INSENSITIVE, EXCLUDING CURRENT)
+    // ✅ CHECK FOR DUPLICATE CPA NAME
     if (actualName) {
-      const existingCpa = await pool
-        .request()
-        .input("name", sql.VarChar, actualName.trim())
-        .input("cpaId", sql.Int, cpa_id)
-        .query(`
+      const existingCpa = await pool.query(`
           SELECT cpa_id, cpa_name 
-          FROM cpa_centers 
-          WHERE LOWER(cpa_name) = LOWER(@name)
-          AND cpa_id != @cpaId
-        `);
+          FROM public."cpa_centers" 
+          WHERE LOWER(cpa_name) = LOWER($1)
+          AND cpa_id != $2
+        `, [actualName.trim(), cpa_id]);
 
-      if (existingCpa.recordset.length > 0) {
+      if (existingCpa.rows.length > 0) {
         return NextResponse.json(
-          {
-            success: false,
-            message: `A CPA named "${existingCpa.recordset[0].cpa_name}" already exists`
-          },
+          { success: false, message: `A CPA named "${existingCpa.rows[0].cpa_name}" already exists` },
           { status: 409 }
         );
       }
     }
 
-    // ✅ CHECK FOR DUPLICATE EMAIL ACROSS ALL ENTITIES (EXCLUDING CURRENT CPA)
+    // ✅ CHECK FOR DUPLICATE EMAIL
     if (email && email.trim()) {
-      const existingEmail = await pool
-        .request()
-        .input("email", sql.VarChar, email.trim().toLowerCase())
-        .input("cpaId", sql.Int, cpa_id)
-        .query(`
-          SELECT 'client' as entity_type, client_name as name FROM dbo.clients 
-          WHERE LOWER(primary_contact_email) = @email
+      const existingEmail = await pool.query(`
+          SELECT 'client' as entity_type, client_name as name FROM public."Clients" 
+          WHERE LOWER(primary_contact_email) = $1
           UNION ALL
-          SELECT 'CPA' as entity_type, cpa_name as name FROM dbo.cpa_centers 
-          WHERE LOWER(email) = @email AND cpa_id != @cpaId
+          SELECT 'CPA' as entity_type, cpa_name as name FROM public."cpa_centers" 
+          WHERE LOWER(email) = $1 AND cpa_id != $2
           UNION ALL
-          SELECT 'service center' as entity_type, center_name as name FROM dbo.service_centers 
-          WHERE LOWER(email) = @email
-        `);
+          SELECT 'service center' as entity_type, center_name as name FROM public."service_centers" 
+          WHERE LOWER(email) = $1
+        `, [email.trim().toLowerCase(), cpa_id]);
 
-      if (existingEmail.recordset.length > 0) {
-        const existing = existingEmail.recordset[0];
+      if (existingEmail.rows.length > 0) {
+        const existing = existingEmail.rows[0];
         return NextResponse.json(
-          {
-            success: false,
-            message: `This email is already used by ${existing.entity_type}: "${existing.name}"`
-          },
+          { success: false, message: `This email is already used by ${existing.entity_type}: "${existing.name}"` },
           { status: 409 }
         );
       }
     }
 
-    // 📧 GET OLD EMAIL BEFORE UPDATE (for syncing Users table)
-    const oldEmailResult = await pool.request()
-      .input("cpaId", sql.Int, cpa_id)
-      .query(`SELECT email FROM cpa_centers WHERE cpa_id = @cpaId`);
-    const oldEmail = oldEmailResult.recordset[0]?.email;
+    // 📧 GET OLD EMAIL BEFORE UPDATE
+    const oldEmailResult = await pool.query(
+      `SELECT email FROM public."cpa_centers" WHERE cpa_id = $1`,
+      [cpa_id]
+    );
+    const oldEmail = oldEmailResult.rows[0]?.email;
 
     // Update cpa_centers table
-    await pool.request()
-      .input("id", sql.Int, cpa_id)
-      .input("name", sql.VarChar, actualName)
-      .input("code", sql.VarChar, cpa_code)
-      .input("email", sql.VarChar, email)
-      .query(`
-        UPDATE cpa_centers
-        SET cpa_name = COALESCE(@name, cpa_name),
-            cpa_code = COALESCE(@code, cpa_code),
-            email = COALESCE(@email, email),
-            updated_at = GETDATE()
-        WHERE cpa_id = @id
-      `);
+    await pool.query(`
+        UPDATE public."cpa_centers"
+        SET cpa_name = COALESCE($1, cpa_name),
+            cpa_code = COALESCE($2, cpa_code),
+            email = COALESCE($3, email),
+            updated_at = NOW()
+        WHERE cpa_id = $4
+      `, [actualName, cpa_code, email, cpa_id]);
 
-    // 📧 SYNC EMAIL TO USERS TABLE (for login credentials)
+    // 📧 SYNC EMAIL TO USERS TABLE
     if (email && email.trim() && oldEmail && email.toLowerCase() !== oldEmail.toLowerCase()) {
-      await pool.request()
-        .input("oldEmail", sql.NVarChar(255), oldEmail)
-        .input("newEmail", sql.NVarChar(255), email)
-        .query(`
-          UPDATE dbo.Users 
-          SET email = @newEmail 
-          WHERE email = @oldEmail AND role = 'CPA'
-        `);
+      await pool.query(`
+          UPDATE public."Users" 
+          SET email = $1 
+          WHERE email = $2 AND role = 'CPA'
+        `, [email, oldEmail]);
       console.log(`✅ CPA login email updated from ${oldEmail} to ${email}`);
     }
 
-    // 📧 Send profile update notification email to CPA
+    // 📧 Send notification
     if (email) {
       try {
         await sendUpdateNotification({
@@ -122,14 +100,13 @@ async function handleUpdate(req: Request) {
           updateType: 'profile_updated',
           details: {
             title: 'Your CPA Profile Has Been Updated',
-            description: `Your CPA profile "${actualName}" has been updated by the administrator. If you did not expect this change, please contact support.`,
+            description: `Your CPA profile "${actualName}" has been updated by the administrator.`,
             actionUrl: 'https://legacy.hubonesystems.net/login',
             actionLabel: 'View Your Profile',
           },
         });
-        console.log(`✅ Profile update notification sent to CPA: ${email}`);
       } catch (emailError) {
-        console.error(`⚠️ Failed to send profile update notification to CPA: ${email}`, emailError);
+        console.error(`⚠️ Failed to send notification to CPA: ${email}`, emailError);
       }
     }
 

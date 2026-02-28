@@ -1,5 +1,4 @@
 // app/api/cpas/debug/route.ts
-// Debug endpoint to check CPA and user data
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
 
@@ -7,19 +6,11 @@ export async function GET() {
     try {
         const pool = await getDbPool();
 
-        // Get all CPAs
-        const cpas = await pool.request().query(`
-      SELECT cpa_id, cpa_code, cpa_name, email FROM cpa_centers
-    `);
+        const cpas = await pool.query(`SELECT cpa_id, cpa_code, cpa_name, email FROM public."cpa_centers"`);
+        const users = await pool.query(`SELECT id, email, role FROM public."Users" WHERE role = 'CPA'`);
 
-        // Get all CPA users
-        const users = await pool.request().query(`
-      SELECT id, email, role FROM Users WHERE role = 'CPA'
-    `);
-
-        // Check which CPAs don't have matching users
-        const cpaList = cpas.recordset;
-        const userEmails = users.recordset.map((u: any) => u.email?.toLowerCase());
+        const cpaList = cpas.rows;
+        const userEmails = users.rows.map((u: any) => u.email?.toLowerCase());
 
         const unmatchedCpas = cpaList.filter((cpa: any) => {
             if (!cpa.email) return true;
@@ -27,8 +18,8 @@ export async function GET() {
         });
 
         return NextResponse.json({
-            cpas: cpas.recordset,
-            users: users.recordset,
+            cpas: cpas.rows,
+            users: users.rows,
             unmatchedCpas,
             message: unmatchedCpas.length > 0
                 ? `Found ${unmatchedCpas.length} CPA(s) without matching user accounts`
@@ -36,9 +27,6 @@ export async function GET() {
         });
     } catch (err: any) {
         console.error("Debug error:", err);
-        return NextResponse.json(
-            { success: false, message: err.message },
-            { status: 500 }
-        );
+        return NextResponse.json({ success: false, message: err.message }, { status: 500 });
     }
 }

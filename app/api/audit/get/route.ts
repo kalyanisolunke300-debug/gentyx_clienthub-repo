@@ -1,7 +1,6 @@
 //app/api/audit/get/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function GET(req: Request) {
   try {
@@ -9,40 +8,41 @@ export async function GET(req: Request) {
     const clientId = url.searchParams.get("clientId");
 
     const pool = await getDbPool();
-    const request = pool.request();
+
+    let query = "";
+    const values: any[] = [];
 
     if (clientId) {
-      request.input("clientId", sql.VarChar(50), clientId);
-    }
-
-    const query = clientId
-      ? `
+      query = `
           SELECT 
             audit_id AS id,
             client_id,
             action,
             actor_role,
             created_at AS at
-          FROM dbo.onboarding_audit_log
-          WHERE client_id = @clientId
-          ORDER BY created_at DESC
-        `
-      : `
-          SELECT 
-            audit_id AS id,
-            client_id,
-            action,
-            actor_role,
-            created_at AS at
-          FROM dbo.onboarding_audit_log
+          FROM public."onboarding_audit_log"
+          WHERE client_id = $1
           ORDER BY created_at DESC
         `;
+      values.push(clientId);
+    } else {
+      query = `
+          SELECT 
+            audit_id AS id,
+            client_id,
+            action,
+            actor_role,
+            created_at AS at
+          FROM public."onboarding_audit_log"
+          ORDER BY created_at DESC
+        `;
+    }
 
-    const result = await request.query(query);
+    const result = await pool.query(query, values);
 
     return NextResponse.json({
       success: true,
-      data: result.recordset,
+      data: result.rows,
     });
   } catch (err) {
     console.error("GET /api/audit/get error:", err);

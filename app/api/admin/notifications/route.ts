@@ -8,20 +8,20 @@ import { getDbPool } from "@/lib/db";
 export async function GET() {
     try {
         const pool = await getDbPool();
-        const result = await pool.request().query(`
+        const result = await pool.query(`
             SELECT 
                 id,
                 full_name,
                 email,
-                ISNULL(notifications_enabled, 1) as notifications_enabled
-            FROM AdminSettings
+                COALESCE(notifications_enabled, true) as notifications_enabled
+            FROM public."AdminSettings"
             WHERE email IS NOT NULL
             ORDER BY id
         `);
 
         return NextResponse.json({
             success: true,
-            admins: result.recordset.map((admin: any) => ({
+            admins: result.rows.map((admin: any) => ({
                 id: admin.id,
                 fullName: admin.full_name || 'Admin',
                 email: admin.email,
@@ -59,14 +59,11 @@ export async function PUT(req: Request) {
         const pool = await getDbPool();
 
         // Update the notification preference
-        await pool.request()
-            .input("adminId", adminId)
-            .input("notificationsEnabled", notificationsEnabled ? 1 : 0)
-            .query(`
-                UPDATE AdminSettings 
-                SET notifications_enabled = @notificationsEnabled
-                WHERE id = @adminId
-            `);
+        await pool.query(`
+                UPDATE public."AdminSettings" 
+                SET notifications_enabled = $1
+                WHERE id = $2
+            `, [notificationsEnabled, adminId]);
 
         return NextResponse.json({
             success: true,

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 import { logAudit, AuditActions } from "@/lib/audit";
 import { queueFolderCreatedNotification } from "@/lib/notification-batcher";
-import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { getClientRootFolder } from "@/lib/storage-utils";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function POST(req: Request) {
   try {
@@ -17,62 +17,48 @@ export async function POST(req: Request) {
       );
     }
 
-    const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
-    const containerClient = blobServiceClient.getContainerClient(
-      process.env.AZURE_STORAGE_CONTAINER_NAME!
-    );
-    await containerClient.createIfNotExists();
-
     const rootFolder = await getClientRootFolder(clientId);
 
-    // ✅ SUPPORT SUB-FOLDERS
+    // Build the full folder path
     const finalFolderPath = parentFolder
-      ? `${rootFolder}/${parentFolder}/${folderName}/`
-      : `${rootFolder}/${folderName}/`;
+      ? `${rootFolder}/${parentFolder}/${folderName}`
+      : `${rootFolder}/${folderName}`;
 
-    // ✅ CASE-INSENSITIVE DUPLICATE PROTECTION
-    // List all folders at the parent level and check for case-insensitive matches
+    // ✅ Case-insensitive duplicate check — list siblings and compare
     const parentPath = parentFolder
-      ? `${rootFolder}/${parentFolder}/`
-      : `${rootFolder}/`;
+      ? `${rootFolder}/${parentFolder}`
+      : rootFolder;
 
-    // If client folder doesn't exist yet, this list call returns empty, which is fine
-    // But we need to ensure listBlobsByHierarchy treats "/" as delimiter correctly
-    const existingFolders = containerClient.listBlobsByHierarchy("/", {
-      prefix: parentPath,
-    });
+    const { data: siblings } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .list(parentPath, { limit: 1000 });
 
     const normalizedNewName = folderName.toLowerCase().trim();
-
-    for await (const item of existingFolders) {
-      // Check if this is a folder (virtual directory)
-      if (item.kind === "prefix") {
-        // Extract folder name from the prefix (remove parent path and trailing slash)
-        const existingName = item.name
-          .replace(parentPath, "")
-          .replace(/\/$/, "");
-
-        if (existingName.toLowerCase() === normalizedNewName) {
+    if (siblings) {
+      for (const item of siblings) {
+        if (item.id === null && item.name.toLowerCase() === normalizedNewName) {
           return NextResponse.json(
-            { success: false, error: `A folder named "${existingName}" already exists (case-insensitive match)` },
+            {
+              success: false,
+              error: `A folder named "${item.name}" already exists (case-insensitive match)`,
+            },
             { status: 409 }
           );
         }
       }
     }
 
+    // Create the folder by uploading an empty .keep placeholder
+    const keepPath = `${finalFolderPath}/.keep`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .upload(keepPath, new Uint8Array(0), {
+        contentType: "application/octet-stream",
+        upsert: false,
+      });
 
-    // ✅ REAL FOLDER CREATION
-    // Create a .keep file to simulate a directory
-    const blockBlobClient = containerClient.getBlockBlobClient(
-      `${finalFolderPath}.keep`
-    );
+    if (uploadError) throw new Error(uploadError.message);
 
-    // Upload empty file
-    await blockBlobClient.upload("", 0);
-
-    // Audit log
     logAudit({
       clientId: Number(clientId),
       action: AuditActions.FOLDER_CREATED,
@@ -80,33 +66,33 @@ export async function POST(req: Request) {
       details: folderName,
     });
 
-    // Queue email notification (batched - will wait 30s for more folder creations)
-    // ✅ SKIP notification if folder is inside "Admin Only" section — client shouldn't know
+    // Queue notification (skip for Admin Only sections)
     const isAdminOnlySection =
       parentFolder === "Admin Only" ||
       parentFolder === "Admin Restricted" ||
-      (parentFolder && (parentFolder.startsWith("Admin Only/") || parentFolder.startsWith("Admin Restricted/"))) ||
+      (parentFolder &&
+        (parentFolder.startsWith("Admin Only/") ||
+          parentFolder.startsWith("Admin Restricted/"))) ||
       folderName === "Admin Only" ||
       folderName === "Admin Restricted";
 
     if (!isAdminOnlySection) {
       (async () => {
         try {
-          // Get client name
-          const pool = await getDbPool();
-          const clientResult = await pool.request()
-            .input("clientId", sql.Int, Number(clientId))
-            .query(`SELECT client_name FROM dbo.Clients WHERE client_id = @clientId`);
+          const { data: clientData } = await supabaseAdmin
+            .from("Clients")
+            .select("client_name")
+            .eq("client_id", Number(clientId))
+            .single();
 
-          const clientName = clientResult.recordset[0]?.client_name || `Client ${clientId}`;
+          const clientName = clientData?.client_name || `Client ${clientId}`;
 
-          // Queue the notification (will batch multiple folder creations together)
           queueFolderCreatedNotification({
             clientId: Number(clientId),
-            clientName: clientName,
-            creatorName: role === 'ADMIN' ? 'Admin' : clientName,
+            clientName,
+            creatorName: role === "ADMIN" ? "Admin" : clientName,
             creatorRole: role as any,
-            folderName: folderName,
+            folderName,
             parentPath: parentFolder || undefined,
           });
         } catch (emailErr) {
@@ -114,7 +100,7 @@ export async function POST(req: Request) {
         }
       })();
     } else {
-      console.log(`[CREATE-FOLDER] Skipping notification for Admin Only section folder: ${folderName}`);
+      console.log(`[CREATE-FOLDER] Skipping notification for Admin-only folder: ${folderName}`);
     }
 
     return NextResponse.json({

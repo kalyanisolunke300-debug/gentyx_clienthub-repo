@@ -1,10 +1,17 @@
 // lib/email.ts
-import { EmailClient, EmailMessage } from "@azure/communication-email";
+// ⚠️  Azure Communication Services has been removed (credentials unavailable).
+//     Email sending is currently DISABLED. All sendEmail() calls return
+//     { success: false, error: "Email client not configured" } gracefully.
+//     Wire in a new provider (e.g. Resend, SendGrid) to re-enable email.
+
 import { logEmail, updateEmailLogStatus, type EmailType } from "@/lib/email-logger";
 
-// Create reusable email client using Azure Communication Services
-const connectionString = process.env.AZURE_COMMUNICATION_CONNECTION_STRING || "";
-const emailClient = connectionString ? new EmailClient(connectionString) : null;
+// Stub types so the rest of this file compiles without @azure/communication-email
+type EmailMessage = any;
+type EmailClient = { beginSend: (msg: EmailMessage) => Promise<any> };
+
+// Email client is permanently null until a new provider is configured
+const emailClient: EmailClient | null = null;
 
 interface SendEmailOptions {
   to: string;
@@ -2728,18 +2735,19 @@ export async function getAdminEmail(): Promise<{ email: string; name: string } |
     const { getDbPool } = await import("@/lib/db");
 
     const pool = await getDbPool();
-    const result = await pool.request().query(`
-      SELECT TOP 1 email, full_name as name
-      FROM AdminSettings 
+    const result = await pool.query(`
+      SELECT email, full_name as name
+      FROM public."AdminSettings" 
       WHERE email IS NOT NULL
-        AND (notifications_enabled = 1 OR notifications_enabled IS NULL)
+        AND (notifications_enabled = true OR notifications_enabled IS NULL)
+      LIMIT 1
     `);
 
-    if (result.recordset.length > 0) {
-      console.log("📧 Found admin email:", result.recordset[0].email);
+    if (result.rows.length > 0) {
+      console.log("📧 Found admin email:", result.rows[0].email);
       return {
-        email: result.recordset[0].email,
-        name: result.recordset[0].name || 'Admin',
+        email: result.rows[0].email,
+        name: result.rows[0].name || 'Admin',
       };
     }
     console.warn("⚠️ No admin email found in AdminSettings table");
@@ -2760,18 +2768,18 @@ export async function getAdminsWithNotificationsEnabled(): Promise<Array<{ email
 
     const pool = await getDbPool();
     // Return ALL admins — no notifications_enabled filter
-    const result = await pool.request().query(`
+    const result = await pool.query(`
       SELECT email, full_name as name
-      FROM AdminSettings 
+      FROM public."AdminSettings" 
       WHERE email IS NOT NULL
     `);
 
-    if (result.recordset.length > 0) {
-      const admins = result.recordset.map((admin: any) => ({
+    if (result.rows.length > 0) {
+      const admins = result.rows.map((admin: any) => ({
         email: admin.email,
         name: admin.name || 'Admin',
       }));
-      console.log(`📧 Found ${admins.length} admin(s) for notifications:`, admins.map(a => a.email));
+      console.log(`📧 Found ${admins.length} admin(s) for notifications:`, admins.map((a: any) => a.email));
       return admins;
     }
     console.warn("⚠️ No admins found in AdminSettings");
@@ -2788,22 +2796,20 @@ export async function getAdminsWithNotificationsEnabled(): Promise<Array<{ email
 export async function getClientEmail(clientId: number | string): Promise<{ email: string; name: string } | null> {
   try {
     const { getDbPool } = await import("@/lib/db");
-    const sql = await import("mssql");
 
     const pool = await getDbPool();
-    const result = await pool.request()
-      .input("clientId", sql.Int, Number(clientId))
-      .query(`
-        SELECT TOP 1 primary_contact_email as email, client_name as name
-        FROM Clients 
-        WHERE client_id = @clientId AND primary_contact_email IS NOT NULL
-      `);
+    const result = await pool.query(`
+        SELECT primary_contact_email as email, client_name as name
+        FROM public."Clients" 
+        WHERE client_id = $1 AND primary_contact_email IS NOT NULL
+        LIMIT 1
+      `, [Number(clientId)]);
 
-    if (result.recordset.length > 0) {
-      console.log(`📧 Found client email for ID ${clientId}:`, result.recordset[0].email);
+    if (result.rows.length > 0) {
+      console.log(`📧 Found client email for ID ${clientId}:`, result.rows[0].email);
       return {
-        email: result.recordset[0].email,
-        name: result.recordset[0].name || 'Client',
+        email: result.rows[0].email,
+        name: result.rows[0].name || 'Client',
       };
     }
     console.warn(`⚠️ No client email found for ID ${clientId}`);

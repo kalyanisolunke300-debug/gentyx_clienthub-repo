@@ -13,29 +13,30 @@ export async function POST(req: Request) {
         const pool = await getDbPool();
 
         // 1. Get current admin email
-        const adminRes = await pool.request().query("SELECT TOP 1 email FROM AdminSettings");
-        const adminEmail = adminRes.recordset[0]?.email;
+        const adminRes = await pool.query(`SELECT email FROM public."AdminSettings" LIMIT 1`);
+        const adminEmail = adminRes.rows[0]?.email;
 
         if (!adminEmail) {
             return NextResponse.json({ success: false, error: "Admin profile not found" }, { status: 404 });
         }
 
         // 2. Verify current password
-        const userRes = await pool.request()
-            .input("email", adminEmail)
-            .query("SELECT * FROM Users WHERE email = @email AND role = 'ADMIN'");
+        const userRes = await pool.query(
+            `SELECT * FROM public."Users" WHERE email = $1 AND role = 'ADMIN'`,
+            [adminEmail]
+        );
 
-        const user = userRes.recordset[0];
+        const user = userRes.rows[0];
 
         if (!user || user.password !== currentPassword) {
             return NextResponse.json({ success: false, error: "Incorrect current password" }, { status: 401 });
         }
 
         // 3. Update password
-        await pool.request()
-            .input("password", newPassword)
-            .input("email", adminEmail)
-            .query("UPDATE Users SET password = @password WHERE email = @email AND role = 'ADMIN'");
+        await pool.query(
+            `UPDATE public."Users" SET password = $1 WHERE email = $2 AND role = 'ADMIN'`,
+            [newPassword, adminEmail]
+        );
 
         return NextResponse.json({ success: true });
 

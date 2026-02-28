@@ -1,25 +1,17 @@
 // app/api/stages/client/save/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { calculateClientProgress } from "@/lib/progress";
 import { logAudit, AuditActions } from "@/lib/audit";
 import { sendOnboardingOverviewEmail } from "@/lib/email";
 
-// Server-side stage status calculation
 function computeFinalStageStatus(subtasks: any[]) {
   if (!subtasks || subtasks.length === 0) return "Not Started";
-
-  const allCompleted = subtasks.every(
-    (t) => (t.status || "").toLowerCase() === "completed"
-  );
-
+  const allCompleted = subtasks.every((t) => (t.status || "").toLowerCase() === "completed");
   if (allCompleted) return "Completed";
-
   return "In Progress";
 }
 
-// Helpers for safe DATE handling
 function toISODate(d: any): string | null {
   if (!d) return null;
   const dt = typeof d === "string" ? new Date(d) : d;
@@ -35,205 +27,130 @@ export async function POST(req: Request) {
   try {
     console.log("STAGE SAVE API CALLED");
 
-    // ✅ Read body safely
     const body = await req.json();
     const clientId = body.clientId;
-    const sendEmailNotification = body.sendEmailNotification !== false; // Default to true
+    const sendEmailNotification = body.sendEmailNotification !== false;
 
-    // ✅ Always process stages in order (for cascade logic)
     const stages = Array.isArray(body.stages)
       ? [...body.stages].sort((a, b) => (a.order || 0) - (b.order || 0))
       : [];
 
     if (!clientId) {
-      return NextResponse.json(
-        { success: false, error: "clientId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: "clientId is required" }, { status: 400 });
     }
 
     const pool = await getDbPool();
 
-    // Fetch client details for email notification
-    const clientResult = await pool
-      .request()
-      .input("clientId", sql.Int, clientId)
-      .query(`
-        SELECT 
-          c.client_id,
-          c.client_name,
-          c.primary_contact_name,
-          c.primary_contact_email
-        FROM dbo.Clients c
-        WHERE c.client_id = @clientId
-      `);
+    // Fetch client details
+    const clientResult = await pool.query(`
+      SELECT c.client_id, c.client_name, c.primary_contact_name, c.primary_contact_email
+      FROM public."Clients" c WHERE c.client_id = $1
+    `, [clientId]);
 
-    const clientData = clientResult.recordset[0];
+    const clientData = clientResult.rows[0];
 
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
+    // Use pg transaction
+    const pgClient = await pool.connect();
 
     try {
+      await pgClient.query('BEGIN');
+
       // Step 1: Delete old stages + subtasks
-      await transaction
-        .request()
-        .input("clientId", sql.Int, clientId)
-        .query(`
-          DELETE FROM dbo.client_stage_subtasks 
-          WHERE client_stage_id IN (
-            SELECT client_stage_id FROM dbo.client_stages WHERE client_id = @clientId
-          );
+      await pgClient.query(`
+        DELETE FROM public."client_stage_subtasks" 
+        WHERE client_stage_id IN (
+          SELECT client_stage_id FROM public."client_stages" WHERE client_id = $1
+        )
+      `, [clientId]);
 
-          DELETE FROM dbo.client_stages WHERE client_id = @clientId;
-        `);
+      await pgClient.query(`DELETE FROM public."client_stages" WHERE client_id = $1`, [clientId]);
 
-      // Used to cascade next stage start_date
       let prevCompletionDate: string | null = null;
 
       // Step 2: Insert new stages & subtasks
       for (const stage of stages) {
-        // Auto-calculate final status (server authority)
         const finalStatus = computeFinalStageStatus(stage.subtasks || []);
-
-        // completed_at logic
-        const completedAt =
-          finalStatus === "Completed"
-            ? toISODate(stage.completed_at) || todayISO()
-            : null;
-
-        // start_date logic (manual first, else cascade)
+        const completedAt = finalStatus === "Completed" ? toISODate(stage.completed_at) || todayISO() : null;
         const startDateFromPayload = toISODate(stage.start_date);
+        const startDate = startDateFromPayload
+          || (prevCompletionDate ? prevCompletionDate : null)
+          || ((finalStatus === "In Progress" || finalStatus === "Completed") ? todayISO() : null);
 
-        const startDate =
-          startDateFromPayload ||
-          (prevCompletionDate ? prevCompletionDate : null) ||
-          (finalStatus === "In Progress" || finalStatus === "Completed"
-            ? todayISO()
-            : null);
+        const stageInsert = await pgClient.query(`
+          INSERT INTO public."client_stages"
+            (client_id, stage_name, order_number, is_required, status, start_date, completed_at, document_required, document_mode, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+          RETURNING client_stage_id
+        `, [
+          clientId, stage.name, stage.order, stage.isRequired ? true : false,
+          finalStatus, startDate, completedAt,
+          stage.document_required ? true : false,
+          stage.document_mode || 'stage'
+        ]);
 
-        // Insert STAGE including start_date + completed_at + document fields
-        const stageInsert = await transaction
-          .request()
-          .input("clientId", sql.Int, clientId)
-          .input("stageName", sql.NVarChar, stage.name)
-          .input("orderNum", sql.Int, stage.order)
-          .input("isRequired", sql.Bit, stage.isRequired ? 1 : 0)
-          .input("status", sql.NVarChar, finalStatus)
-          .input("startDate", sql.Date, startDate)
-          .input("completedAt", sql.Date, completedAt)
-          .input("documentRequired", sql.Bit, stage.document_required ? 1 : 0)
-          .input("documentMode", sql.NVarChar(20), stage.document_mode || 'stage')
-          .query(`
-            INSERT INTO dbo.client_stages
-              (client_id, stage_name, order_number, is_required, status, start_date, completed_at, document_required, document_mode, created_at)
-            OUTPUT INSERTED.client_stage_id
-            VALUES
-              (@clientId, @stageName, @orderNum, @isRequired, @status, @startDate, @completedAt, @documentRequired, @documentMode, GETDATE());
-          `);
-
-        const stageId = stageInsert.recordset[0].client_stage_id;
+        const stageId = stageInsert.rows[0].client_stage_id;
         console.log("Inserted Stage ID:", stageId);
 
-        // Cascade setup for next stage
         prevCompletionDate = completedAt;
 
-        // Audit log for stage completion
         if (finalStatus === "Completed") {
-          logAudit({
-            clientId,
-            action: AuditActions.STAGE_COMPLETED,
-            actorRole: "ADMIN",
-            details: stage.name,
-          });
+          logAudit({ clientId, action: AuditActions.STAGE_COMPLETED, actorRole: "ADMIN", details: stage.name });
         }
 
         // Insert subtasks
         if (stage.subtasks && stage.subtasks.length > 0) {
           for (let i = 0; i < stage.subtasks.length; i++) {
             const sub = stage.subtasks[i];
-
-            // Prevent null title from crashing
             const safeTitle = (sub.title || "").trim();
             console.log("Subtask Insert:", safeTitle);
 
-            await transaction
-              .request()
-              .input("stageId", sql.Int, stageId)
-              .input("title", sql.NVarChar, safeTitle)
-              .input("status", sql.NVarChar, sub.status || "Not Started")
-              .input("orderNum", sql.Int, i + 1)
-              .input("dueDate", sql.Date, sub.due_date || null)
-              .input("subDocRequired", sql.Bit, sub.document_required ? 1 : 0)
-              .query(`
-                INSERT INTO dbo.client_stage_subtasks
-                  (client_stage_id, subtask_title, status, order_number, due_date, document_required, created_at)
-                VALUES
-                  (@stageId, @title, @status, @orderNum, @dueDate, @subDocRequired, GETDATE());
-              `);
+            await pgClient.query(`
+              INSERT INTO public."client_stage_subtasks"
+                (client_stage_id, subtask_title, status, order_number, due_date, document_required, created_at)
+              VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            `, [stageId, safeTitle, sub.status || "Not Started", i + 1, sub.due_date || null, sub.document_required ? true : false]);
           }
         }
       }
 
-      // Step 3: Commit transaction
-      await transaction.commit();
-
+      await pgClient.query('COMMIT');
       console.log("Stages + Subtasks saved successfully.");
 
-      // Step 4: Recalculate Client Progress
-      try {
-        await calculateClientProgress(clientId);
-        console.log("Client Progress Recalculated");
-      } catch (progErr) {
-        console.error("Failed to recalculate progress:", progErr);
-        // Don't fail the request, just log it
-      }
+      // Recalculate progress
+      try { await calculateClientProgress(clientId); } catch (e) { console.error("Failed to recalculate progress:", e); }
 
-      // Step 5: Send Onboarding Overview Email to Client
+      // Send email
       if (sendEmailNotification && clientData?.primary_contact_email && stages.length > 0) {
         try {
-          console.log(`📧 Sending onboarding overview email to ${clientData.primary_contact_email}`);
-
-          // Format stages for email
           const formattedStages = stages.map((stage: any) => ({
             name: stage.name,
             status: computeFinalStageStatus(stage.subtasks || []),
             subtasks: (stage.subtasks || []).map((sub: any) => ({
-              title: sub.title,
-              status: sub.status || 'Not Started',
-              due_date: sub.due_date,
+              title: sub.title, status: sub.status || 'Not Started', due_date: sub.due_date,
             }))
           }));
 
-          const emailResult = await sendOnboardingOverviewEmail({
+          await sendOnboardingOverviewEmail({
             recipientEmail: clientData.primary_contact_email,
             recipientName: clientData.primary_contact_name || clientData.client_name,
             clientName: clientData.client_name,
             stages: formattedStages,
           });
-
-          if (emailResult.success) {
-            console.log(`✅ Onboarding overview email sent successfully to ${clientData.primary_contact_email}`);
-          } else {
-            console.warn(`⚠️ Onboarding overview email failed:`, emailResult.error);
-          }
         } catch (emailError) {
           console.error("❌ Onboarding overview email error:", emailError);
-          // Don't fail the request if email fails
         }
       }
 
       return NextResponse.json({ success: true });
     } catch (innerErr) {
-      await transaction.rollback();
+      await pgClient.query('ROLLBACK');
       console.error("Transaction rolled back:", innerErr);
       throw innerErr;
+    } finally {
+      pgClient.release();
     }
   } catch (err: any) {
     console.error("SAVE STAGE ERROR:", err);
-    return NextResponse.json(
-      { success: false, error: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
-

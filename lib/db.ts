@@ -1,27 +1,41 @@
-// lib/db.ts
-import sql from "mssql";
+import { Pool } from "pg";
 
-const config: sql.config = {
-  user: process.env.AZURE_SQL_USERNAME,
-  password: process.env.AZURE_SQL_PASSWORD,
-  server: process.env.AZURE_SQL_SERVER as string,
-  database: process.env.AZURE_SQL_DATABASE,
-  options: {
-    encrypt: true,
-  },
-};
+const connectionString = process.env.DATABASE_URL;
 
-let pool: sql.ConnectionPool | null = null;
+if (!connectionString) {
+  throw new Error("Missing env: DATABASE_URL");
+}
 
-export async function getDbPool() {
-  if (pool) return pool;
+// Parse the DATABASE_URL manually because the `pg` library has issues
+// with Supabase pooler connection strings where the username contains
+// a dot (e.g. postgres.projectref). Using explicit parameters instead.
+function parseDbUrl(url: string) {
+  const parsed = new URL(url);
+  return {
+    host: parsed.hostname,
+    port: parseInt(parsed.port, 10) || 5432,
+    database: parsed.pathname.replace("/", ""),
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+  };
+}
 
-  try {
-    pool = await sql.connect(config);
-    console.log("✔️ DB Connected");
-    return pool;
-  } catch (err) {
-    console.error("❌ DB Connection Error:", err);
-    throw err;
+let pool: Pool | null = null;
+
+export async function getDbPool(): Promise<Pool> {
+  if (!pool) {
+    const dbConfig = parseDbUrl(connectionString!);
+    pool = new Pool({
+      ...dbConfig,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+
+    pool.on("error", (err) => {
+      console.error("❌ DB Pool error:", err);
+    });
   }
+  return pool;
 }

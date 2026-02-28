@@ -1,7 +1,6 @@
 // app/api/help/admin/faqs/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 // POST - Add new FAQ
 export async function POST(req: Request) {
@@ -13,18 +12,18 @@ export async function POST(req: Request) {
         const result = await pool
             .request()
             .input("role_id", sql.Int, role_id)
-            .input("question", sql.NVarChar(500), question)
-            .input("answer", sql.NVarChar(sql.MAX), answer)
+            .input("question", sql.VARCHAR(500), question)
+            .input("answer", sql.VARCHAR(sql.MAX), answer)
             .input("display_order", sql.Int, display_order || 0)
             .query(`
-        INSERT INTO dbo.help_faqs (role_id, question, answer, display_order)
+        INSERT INTO public."help_faqs" (role_id, question, answer, display_order)
         OUTPUT INSERTED.faq_id
         VALUES (@role_id, @question, @answer, @display_order)
       `);
 
         return NextResponse.json({
             success: true,
-            faq_id: result.recordset[0]?.faq_id,
+            faq_id: result.rows[0]?.faq_id,
         });
     } catch (err) {
         console.error("POST /api/help/admin/faqs error:", err);
@@ -45,11 +44,11 @@ export async function PUT(req: Request) {
         await pool
             .request()
             .input("faq_id", sql.Int, faq_id)
-            .input("question", sql.NVarChar(500), question)
-            .input("answer", sql.NVarChar(sql.MAX), answer)
+            .input("question", sql.VARCHAR(500), question)
+            .input("answer", sql.VARCHAR(sql.MAX), answer)
             .input("display_order", sql.Int, display_order)
             .query(`
-        UPDATE dbo.help_faqs
+        UPDATE public."help_faqs"
         SET 
           question = @question,
           answer = @answer,
@@ -77,7 +76,7 @@ export async function DELETE(req: Request) {
         await pool
             .request()
             .input("faq_id", sql.Int, parseInt(faq_id || "0"))
-            .query(`DELETE FROM dbo.help_faqs WHERE faq_id = @faq_id`);
+            .query(`DELETE FROM public."help_faqs" WHERE faq_id = @faq_id`);
 
         return NextResponse.json({ success: true });
     } catch (err) {

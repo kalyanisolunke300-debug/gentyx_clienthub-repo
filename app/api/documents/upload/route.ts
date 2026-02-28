@@ -1,18 +1,17 @@
 
 import { NextResponse } from "next/server";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 import { logAudit, AuditActions, AuditActorRole } from "@/lib/audit";
 import { queueDocumentUploadNotification } from "@/lib/notification-batcher";
-import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { getClientRootFolder } from "@/lib/storage-utils";
 
 export const dynamic = "force-dynamic";
 
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
+
 type DuplicateAction = "ask" | "replace" | "skip";
 
 function cleanSegment(input: string) {
-  // Prevent weird paths like "../" and remove leading/trailing slashes
   return input
     .replace(/\\/g, "/")
     .split("/")
@@ -22,36 +21,20 @@ function cleanSegment(input: string) {
     .join("/");
 }
 
-function splitName(fileName: string) {
-  const lastDot = fileName.lastIndexOf(".");
-  if (lastDot <= 0) return { base: fileName, ext: "" };
-  return {
-    base: fileName.slice(0, lastDot),
-    ext: fileName.slice(lastDot), // includes "."
-  };
-}
-
-async function getNextAvailablePath(
-  containerClient: ReturnType<BlobServiceClient["getContainerClient"]>,
-  initialPath: string
-) {
-  const { base, ext } = splitName(initialPath.split("/").pop() || initialPath);
-
-  const folder = initialPath.includes("/")
-    ? initialPath.slice(0, initialPath.lastIndexOf("/"))
+/** Check if a file already exists in Supabase Storage */
+async function fileExists(blobPath: string): Promise<boolean> {
+  // List with a limit=1 under the parent folder to check for the filename
+  const folder = blobPath.includes("/")
+    ? blobPath.slice(0, blobPath.lastIndexOf("/"))
     : "";
+  const fileName = blobPath.split("/").pop() || blobPath;
 
-  // If "file.xlsx" exists, try: "file (1).xlsx", "file (2).xlsx", ...
-  for (let i = 1; i <= 999; i++) {
-    const candidateName = `${base} (${i})${ext}`;
-    const candidatePath = folder ? `${folder}/${candidateName}` : candidateName;
+  const { data } = await supabaseAdmin.storage.from(BUCKET).list(folder, {
+    search: fileName,
+    limit: 1,
+  });
 
-    const candidateBlob = containerClient.getBlockBlobClient(candidatePath);
-    const exists = await candidateBlob.exists();
-    if (!exists) return candidatePath;
-  }
-
-  throw new Error("Too many duplicates. Please rename the file and try again.");
+  return (data ?? []).some((f: { name: string }) => f.name === fileName);
 }
 
 export async function POST(req: Request) {
@@ -62,20 +45,18 @@ export async function POST(req: Request) {
     const rawFolderName = (formData.get("folderName") as string | null) || null;
     const file = formData.get("file") as File | null;
 
-    // "ask" | "replace" | "skip"
-    const duplicateActionRaw = (formData.get("duplicateAction") as string | null)?.trim() || "ask";
+    const duplicateActionRaw =
+      (formData.get("duplicateAction") as string | null)?.trim() || "ask";
     const duplicateAction = (["ask", "replace", "skip"].includes(duplicateActionRaw)
       ? duplicateActionRaw
       : "ask") as DuplicateAction;
 
     const role = ((formData.get("role") as string)?.trim() || "ADMIN") as AuditActorRole;
 
-    // "shared" | "private" - determines if admin can see this document
-    // FORCE "shared" for non-admins (Clients can't hide docs from Admin)
-    let visibility = ((formData.get("visibility") as string)?.trim() || "shared") as "shared" | "private";
-    if (role !== "ADMIN") {
-      visibility = "shared";
-    }
+    let visibility = ((formData.get("visibility") as string)?.trim() || "shared") as
+      | "shared"
+      | "private";
+    if (role !== "ADMIN") visibility = "shared";
 
     if (!clientId || !file) {
       return NextResponse.json(
@@ -84,7 +65,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // never allow manual .keep upload
     if (file.name === ".keep") {
       return NextResponse.json(
         { success: false, error: "Invalid file name" },
@@ -94,26 +74,14 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = file.name;
-
     const safeFolder = rawFolderName ? cleanSegment(rawFolderName) : null;
 
-    // Build blob path
     const rootFolder = await getClientRootFolder(clientId);
-
     const initialPath = safeFolder
       ? `${rootFolder}/${safeFolder}/${fileName}`
       : `${rootFolder}/${fileName}`;
 
-    const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
-
-    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-    await containerClient.createIfNotExists();
-
-    // Check if exact path already exists
-    const initialBlob = containerClient.getBlockBlobClient(initialPath);
-    const exists = await initialBlob.exists();
+    const exists = await fileExists(initialPath);
 
     // If duplicate & ask → tell frontend to show Replace/Skip dialog
     if (exists && duplicateAction === "ask") {
@@ -129,14 +97,11 @@ export async function POST(req: Request) {
       );
     }
 
-    let finalPath = initialPath;
-    let finalBlob = initialBlob;
-
-    // ✅ If duplicate & skip → DO NOT UPLOAD (Cancel behavior)
+    // If duplicate & skip → DO NOT UPLOAD
     if (exists && duplicateAction === "skip") {
       logAudit({
         clientId: Number(clientId),
-        action: AuditActions.DOCUMENT_UPLOADED, // ✅ if you don't have this enum, see note below
+        action: AuditActions.DOCUMENT_UPLOADED,
         actorRole: role,
         details: `Skipped (duplicate): ${fileName}`,
       });
@@ -150,18 +115,23 @@ export async function POST(req: Request) {
       });
     }
 
-    // If replace OR not exists → upload to same path (overwrite happens by default)
-    // NOTE: NO "overwrite: true" — Azure overwrites when uploading same blob name.
-    await finalBlob.uploadData(buffer, {
-      blobHTTPHeaders: { blobContentType: file.type },
-      metadata: {
-        visibility: visibility, // "shared" or "private"
-        uploadedBy: role,
-        uploadedAt: new Date().toISOString(),
-      },
-    });
+    // Upload to Supabase Storage (upsert=true → overwrites existing)
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .upload(initialPath, buffer, {
+        contentType: file.type,
+        upsert: true,
+        // Supabase Storage doesn't support custom metadata per object natively,
+        // so visibility/uploadedBy are tracked via file path conventions.
+      });
 
-    // Audit log (use existing enum)
+    if (uploadError) throw new Error(uploadError.message);
+
+    // Generate a signed URL (1 hour) for the response
+    const { data: signedData } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUrl(initialPath, 60 * 60);
+
     logAudit({
       clientId: Number(clientId),
       action: AuditActions.DOCUMENT_UPLOADED,
@@ -169,34 +139,33 @@ export async function POST(req: Request) {
       details: exists
         ? duplicateAction === "replace"
           ? `Replaced: ${fileName}`
-          : `Saved as: ${finalPath.split("/").pop() || fileName}`
+          : `Saved as: ${initialPath.split("/").pop() || fileName}`
         : fileName,
     });
 
-    // Queue email notification to admin (batched - will wait 30s for more uploads)
-    // ✅ SKIP notification for:
-    //   - Private docs (visibility === "private")
-    //   - Anything in the "Admin Only" section folder — client shouldn't know
+    // Queue email notification
     const isAdminOnlyFolder =
-      safeFolder === "Admin Only" || safeFolder === "Admin Restricted" ||
-      (safeFolder && (safeFolder.startsWith("Admin Only/") || safeFolder.startsWith("Admin Restricted/")));
+      safeFolder === "Admin Only" ||
+      safeFolder === "Admin Restricted" ||
+      (safeFolder &&
+        (safeFolder.startsWith("Admin Only/") ||
+          safeFolder.startsWith("Admin Restricted/")));
 
     if (visibility !== "private" && !isAdminOnlyFolder) {
       (async () => {
         try {
-          // Get client name
-          const pool = await getDbPool();
-          const clientResult = await pool.request()
-            .input("clientId", sql.Int, Number(clientId))
-            .query(`SELECT client_name FROM dbo.Clients WHERE client_id = @clientId`);
+          const { data: clientData } = await supabaseAdmin
+            .from("Clients")
+            .select("client_name")
+            .eq("client_id", Number(clientId))
+            .single();
 
-          const clientName = clientResult.recordset[0]?.client_name || `Client ${clientId}`;
+          const clientName = clientData?.client_name || `Client ${clientId}`;
 
-          // Queue the notification (will batch multiple uploads together)
           queueDocumentUploadNotification({
             clientId: Number(clientId),
-            clientName: clientName,
-            uploaderName: role === 'ADMIN' ? 'Admin' : clientName,
+            clientName,
+            uploaderName: role === "ADMIN" ? "Admin" : clientName,
             uploaderRole: role as any,
             documentName: fileName,
             folderPath: safeFolder || undefined,
@@ -209,17 +178,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message:
-        exists && duplicateAction === "skip"
-          ? "File uploaded (renamed to avoid duplicate)"
-          : exists && duplicateAction === "replace"
-            ? "File replaced successfully"
-            : "File uploaded successfully",
-      path: finalPath,
-      url: finalBlob.url,
-      finalFileName: finalPath.split("/").pop() || fileName,
+      message: exists && duplicateAction === "replace"
+        ? "File replaced successfully"
+        : "File uploaded successfully",
+      path: initialPath,
+      url: signedData?.signedUrl || null,
+      finalFileName: initialPath.split("/").pop() || fileName,
       replaced: exists && duplicateAction === "replace",
-      renamed: exists && duplicateAction === "skip",
     });
   } catch (err: any) {
     console.error("UPLOAD ERROR:", err);

@@ -1,16 +1,17 @@
 // app/api/documents/get/route.ts
 import { NextResponse } from "next/server";
-import {
-  BlobServiceClient,
-  StorageSharedKeyCredential,
-} from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
+
+export const dynamic = "force-dynamic";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
-    const mode = searchParams.get("mode");        // "folders"
-    const folder = searchParams.get("folder");    // e.g. "IMG"
+    const mode = searchParams.get("mode");     // "folders"
+    const folder = searchParams.get("folder"); // e.g. "IMG"
 
     if (!clientId) {
       return NextResponse.json(
@@ -19,81 +20,59 @@ export async function GET(req: Request) {
       );
     }
 
-    const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
-    const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
-
-    const sharedKeyCredential = new StorageSharedKeyCredential(account, key);
-    const blobServiceClient = new BlobServiceClient(
-      `https://${account}.blob.core.windows.net`,
-      sharedKeyCredential
-    );
-
-    const containerClient =
-      blobServiceClient.getContainerClient(containerName);
-
-    const prefix = `client-${clientId}/`;
+    const prefix = `client-${clientId}`;
 
     // ---------------------------------------------------------
     // MODE 1 → Return only folders
     // ---------------------------------------------------------
     if (mode === "folders") {
-      const folderSet = new Set<string>();
+      const { data, error } = await supabaseAdmin.storage
+        .from(BUCKET)
+        .list(prefix, { limit: 1000 });
 
-      for await (const blob of containerClient.listBlobsByHierarchy("/", {
-        prefix,
-      })) {
-        if (blob.kind === "prefix") {
-          const name = blob.name.replace(prefix, "").replace("/", "");
+      if (error) throw new Error(error.message);
 
-          if (name !== ".keep" && name.length > 0) {
-            folderSet.add(name);
-          }
-        }
-      }
+      const folders = (data ?? [])
+        .filter((item: { id: string | null; name: string }) => item.id === null && item.name !== ".keep")
+        .map((item: { name: string }) => item.name);
 
-      return NextResponse.json({
-        success: true,
-        folders: Array.from(folderSet),
-      });
+      return NextResponse.json({ success: true, folders });
     }
 
     // ---------------------------------------------------------
     // MODE 2 → Return files inside a specific folder
     // ---------------------------------------------------------
     if (folder) {
-      const filePrefix = `${prefix}${folder}/`;
+      const filePrefix = `${prefix}/${folder}`;
+      const { data, error } = await supabaseAdmin.storage
+        .from(BUCKET)
+        .list(filePrefix, { limit: 1000 });
+
+      if (error) throw new Error(error.message);
 
       const files: any[] = [];
+      for (const item of (data ?? []) as Array<{ id: string | null; name: string; metadata?: any }>) {
+        if (!item.name || item.name === ".keep" || item.id === null) continue;
 
-      for await (const blob of containerClient.listBlobsFlat({
-        prefix: filePrefix,
-      })) {
-        const fileName = blob.name.replace(filePrefix, "");
-
-        if (fileName === ".keep" || fileName.endsWith("/")) continue;
+        const fullPath = `${filePrefix}/${item.name}`;
+        const { data: signedData } = await supabaseAdmin.storage
+          .from(BUCKET)
+          .createSignedUrl(fullPath, 60 * 60);
 
         files.push({
-          name: fileName,
-          url: `${containerClient.url}/${blob.name}`,
-          size: blob.properties.contentLength,
-          type: blob.name.split(".").pop(),
-          path: blob.name,
+          name: item.name,
+          url: signedData?.signedUrl || null,
+          size: item.metadata?.size,
+          type: item.name.split(".").pop(),
+          path: fullPath,
         });
       }
 
-      return NextResponse.json({
-        success: true,
-        files,
-      });
+      return NextResponse.json({ success: true, files });
     }
 
-    // Invalid usage
     return NextResponse.json(
-      {
-        success: false,
-        error: "Missing mode=folders or folder parameter.",
-      },
+      { success: false, error: "Missing mode=folders or folder parameter." },
       { status: 400 }
     );
   } catch (err: any) {

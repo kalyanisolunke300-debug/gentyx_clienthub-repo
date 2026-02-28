@@ -1,5 +1,4 @@
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 // ---------------------------------------------------------
 // Fetch all stages + tasks for a client
@@ -7,28 +6,21 @@ import sql from "mssql";
 export async function fetchClientStagesAndTasks(clientId: number) {
   const pool = await getDbPool();
 
-  const stages = await pool.request()
-    .input("clientId", sql.Int, clientId)
-    .query(`
-      SELECT * FROM dbo.client_stages
-      WHERE client_id = @clientId
-      ORDER BY order_number ASC;
-    `);
+  const stages = await pool.query(
+    `SELECT * FROM public."client_stages" WHERE client_id = $1 ORDER BY order_number ASC`,
+    [clientId]
+  );
 
-  // Tasks are now subtasks linked via client_stage_id
-  const tasks = await pool.request()
-    .input("clientId", sql.Int, clientId)
-    .query(`
-      SELECT t.* 
-      FROM dbo.client_stage_subtasks t
-      INNER JOIN dbo.client_stages s ON t.client_stage_id = s.client_stage_id
-      WHERE s.client_id = @clientId
-      ORDER BY t.order_number ASC;
-    `);
+  const tasks = await pool.query(
+    `SELECT t.* FROM public."client_stage_subtasks" t
+     INNER JOIN public."client_stages" s ON t.client_stage_id = s.client_stage_id
+     WHERE s.client_id = $1 ORDER BY t.order_number ASC`,
+    [clientId]
+  );
 
   return {
-    stages: stages.recordset,
-    tasks: tasks.recordset
+    stages: stages.rows,
+    tasks: tasks.rows
   };
 }
 
@@ -37,25 +29,13 @@ export async function fetchClientStagesAndTasks(clientId: number) {
 // ---------------------------------------------------------
 function calculateStageStatus(tasksForStage: any[]) {
   if (tasksForStage.length === 0) return "Not Started";
-  // NOTE: If a stage has no tasks, is it completed? 
-  // User logic implies validity depends on subtasks. 
-  // If no subtasks, we assume "Not Started" or let manual override apply.
-  // But usually stages should have subtasks. 
-  // Let's stick to "Not Started" if empty, or checking previous behavior.
-  // Previous used "Pending". "Not Started" seems safer.
-
   const allCompleted = tasksForStage.every(t => (t.status || "").toLowerCase() === "completed");
-
   if (allCompleted) return "Completed";
-
-  // Check if any is in progress or completed
   const anyStarted = tasksForStage.some(t => {
     const s = (t.status || "").toLowerCase();
     return s === "completed" || s === "in progress";
   });
-
   if (anyStarted) return "In Progress";
-
   return "Not Started";
 }
 
@@ -64,11 +44,9 @@ function calculateStageStatus(tasksForStage: any[]) {
 // ---------------------------------------------------------
 export async function calculateClientProgress(clientId: number) {
   const pool = await getDbPool();
-
   const { stages, tasks } = await fetchClientStagesAndTasks(clientId);
 
   if (stages.length === 0) {
-    // No stages found, ensure progress is 0
     await updateClientProgressInDb(pool, clientId, 0, null, null, "Not Started");
     return { progress: 0, nextStage: null };
   }
@@ -77,63 +55,31 @@ export async function calculateClientProgress(clientId: number) {
   let completedStages = 0;
 
   for (const stage of stages) {
-    const stageTasks = tasks.filter(t => t.client_stage_id === stage.client_stage_id);
-
-    // Determine status purely from subtasks
+    const stageTasks = tasks.filter((t: any) => t.client_stage_id === stage.client_stage_id);
     const calculatedStatus = calculateStageStatus(stageTasks);
-
-    // Note: In some designs, stages status might be explicitly set by user. 
-    // However, the user request explicitly says: "progress bar will work when one of stage completed all its sub task"
-    // So we enforce the calculated status.
-
     if (calculatedStatus === "Completed") completedStages++;
 
-    // Update stage status in DB if it differs
     if (stage.status !== calculatedStatus) {
-      await pool.request()
-        .input("stageId", sql.Int, stage.client_stage_id)
-        .input("stageStatus", sql.VarChar(50), calculatedStatus)
-        .query(`
-          UPDATE dbo.client_stages
-          SET status = @stageStatus,
-              updated_at = GETDATE()
-          WHERE client_stage_id = @stageId;
-        `);
-
-      // Update local object for next step
+      await pool.query(
+        `UPDATE public."client_stages" SET status = $1, updated_at = NOW() WHERE client_stage_id = $2`,
+        [calculatedStatus, stage.client_stage_id]
+      );
       stage.status = calculatedStatus;
     }
   }
 
-  // Calculate client progress %
   const progress = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
-
-  // Determine the NEXT ACTIVE STAGE (First non-completed stage)
-  const nextStage = stages.find(s => s.status !== "Completed") || null;
+  const nextStage = stages.find((s: any) => s.status !== "Completed") || null;
   const clientStatus = progress === 100 ? "Completed" : (progress > 0 ? "In Progress" : "Not Started");
 
   await updateClientProgressInDb(pool, clientId, progress, nextStage?.client_stage_id || null, nextStage?.stage_name || null, clientStatus);
 
-  return {
-    progress,
-    nextStage
-  };
+  return { progress, nextStage };
 }
 
 async function updateClientProgressInDb(pool: any, clientId: number, progress: number, stageId: number | null, stageName: string | null, status: string) {
-  await pool.request()
-    .input("clientId", sql.Int, clientId)
-    .input("progress", sql.Int, progress)
-    .input("stageId", sql.Int, stageId)
-    .input("stageName", sql.VarChar(255), stageName)
-    .input("status", sql.VarChar(50), status)
-    .query(`
-      UPDATE dbo.Clients
-      SET 
-        progress = @progress,
-        stage_id = @stageId,
-        status = @status,
-        updated_at = GETDATE()
-      WHERE client_id = @clientId;
-    `);
+  await pool.query(
+    `UPDATE public."Clients" SET progress = $1, stage_id = $2, client_status = $3, updated_at = NOW() WHERE client_id = $4`,
+    [progress, stageId, status, clientId]
+  );
 }

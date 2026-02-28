@@ -1,7 +1,6 @@
 // app/api/clients/update/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { logAudit, AuditActions } from "@/lib/audit";
 import { sendUpdateNotification } from "@/lib/email";
 
@@ -22,11 +21,8 @@ export async function POST(req: Request) {
       cpa_id,
     } = body;
 
-    // Combine first and last name if not provided separately
     const fullContactName = primary_contact_name ||
       `${primary_contact_first_name || ''} ${primary_contact_last_name || ''}`.trim();
-
-    // If Company Name is empty, use the Contact Name as the Client Name
     const trimmedClientName = client_name?.trim();
     const finalClientName = trimmedClientName || fullContactName;
 
@@ -41,22 +37,18 @@ export async function POST(req: Request) {
 
     // ✅ CHECK FOR DUPLICATE CLIENT NAME (CASE-INSENSITIVE, EXCLUDING CURRENT)
     if (finalClientName) {
-      const existingClient = await pool
-        .request()
-        .input("clientName", sql.NVarChar(255), finalClientName)
-        .input("clientId", sql.Int, Number(clientId))
-        .query(`
+      const existingClient = await pool.query(`
           SELECT client_id, client_name 
-          FROM dbo.clients 
-          WHERE LOWER(client_name) = LOWER(@clientName)
-          AND client_id != @clientId
-        `);
+          FROM public."Clients" 
+          WHERE LOWER(client_name) = LOWER($1)
+          AND client_id != $2
+        `, [finalClientName, Number(clientId)]);
 
-      if (existingClient.recordset.length > 0) {
+      if (existingClient.rows.length > 0) {
         return NextResponse.json(
           {
             success: false,
-            error: `A client named "${existingClient.recordset[0].client_name}" already exists`
+            error: `A client named "${existingClient.rows[0].client_name}" already exists`
           },
           { status: 409 }
         );
@@ -65,23 +57,19 @@ export async function POST(req: Request) {
 
     // ✅ CHECK FOR DUPLICATE EMAIL ACROSS ALL ENTITIES (EXCLUDING CURRENT CLIENT)
     if (primary_contact_email && primary_contact_email.trim()) {
-      const existingEmail = await pool
-        .request()
-        .input("email", sql.NVarChar(255), primary_contact_email.trim().toLowerCase())
-        .input("clientId", sql.Int, Number(clientId))
-        .query(`
-          SELECT 'client' as entity_type, client_name as name FROM dbo.clients 
-          WHERE LOWER(primary_contact_email) = @email AND client_id != @clientId
+      const existingEmail = await pool.query(`
+          SELECT 'client' as entity_type, client_name as name FROM public."Clients" 
+          WHERE LOWER(primary_contact_email) = $1 AND client_id != $2
           UNION ALL
-          SELECT 'CPA' as entity_type, cpa_name as name FROM dbo.cpa_centers 
-          WHERE LOWER(email) = @email
+          SELECT 'CPA' as entity_type, cpa_name as name FROM public."cpa_centers" 
+          WHERE LOWER(email) = $1
           UNION ALL
-          SELECT 'service center' as entity_type, center_name as name FROM dbo.service_centers 
-          WHERE LOWER(email) = @email
-        `);
+          SELECT 'service center' as entity_type, center_name as name FROM public."service_centers" 
+          WHERE LOWER(email) = $1
+        `, [primary_contact_email.trim().toLowerCase(), Number(clientId)]);
 
-      if (existingEmail.recordset.length > 0) {
-        const existing = existingEmail.recordset[0];
+      if (existingEmail.rows.length > 0) {
+        const existing = existingEmail.rows[0];
         return NextResponse.json(
           {
             success: false,
@@ -93,50 +81,47 @@ export async function POST(req: Request) {
     }
 
     // 📧 GET OLD EMAIL BEFORE UPDATE (for syncing Users table)
-    const oldEmailResult = await pool.request()
-      .input("clientId", sql.Int, Number(clientId))
-      .query(`SELECT primary_contact_email FROM dbo.clients WHERE client_id = @clientId`);
-    const oldEmail = oldEmailResult.recordset[0]?.primary_contact_email;
+    const oldEmailResult = await pool.query(
+      `SELECT primary_contact_email FROM public."Clients" WHERE client_id = $1`,
+      [Number(clientId)]
+    );
+    const oldEmail = oldEmailResult.rows[0]?.primary_contact_email;
 
-    await pool
-      .request()
-      .input("client_id", sql.Int, Number(clientId))
-      .input("client_name", sql.NVarChar, finalClientName)
-      .input("code", sql.NVarChar, code)
-      .input("primary_contact_first_name", sql.NVarChar(100), primary_contact_first_name || null)
-      .input("primary_contact_last_name", sql.NVarChar(100), primary_contact_last_name || null)
-      .input("primary_contact_name", sql.NVarChar, fullContactName)
-      .input("primary_contact_email", sql.NVarChar, primary_contact_email)
-      .input("primary_contact_phone", sql.NVarChar, primary_contact_phone)
-      .input("service_center_id", sql.Int, service_center_id || null)
-      .input("cpa_id", sql.Int, cpa_id || null)
-      .query(`
-        UPDATE dbo.Clients
+    await pool.query(`
+        UPDATE public."Clients"
         SET
-          client_name = @client_name,
-          code = @code,
-          primary_contact_first_name = @primary_contact_first_name,
-          primary_contact_last_name = @primary_contact_last_name,
-          primary_contact_name = @primary_contact_name,
-          primary_contact_email = @primary_contact_email,
-          primary_contact_phone = @primary_contact_phone,
-          service_center_id = @service_center_id,
-          cpa_id = @cpa_id,
-          updated_at = GETDATE()
-        WHERE client_id = @client_id
-      `);
+          client_name = $1,
+          code = $2,
+          primary_contact_first_name = $3,
+          primary_contact_last_name = $4,
+          primary_contact_name = $5,
+          primary_contact_email = $6,
+          primary_contact_phone = $7,
+          service_center_id = $8,
+          cpa_id = $9,
+          updated_at = NOW()
+        WHERE client_id = $10
+      `, [
+      finalClientName,
+      code,
+      primary_contact_first_name || null,
+      primary_contact_last_name || null,
+      fullContactName,
+      primary_contact_email,
+      primary_contact_phone,
+      service_center_id || null,
+      cpa_id || null,
+      Number(clientId)
+    ]);
 
     // 📧 SYNC EMAIL TO USERS TABLE (for login credentials)
     if (primary_contact_email && primary_contact_email.trim() && oldEmail &&
       primary_contact_email.toLowerCase() !== oldEmail.toLowerCase()) {
-      await pool.request()
-        .input("oldEmail", sql.NVarChar(255), oldEmail)
-        .input("newEmail", sql.NVarChar(255), primary_contact_email)
-        .query(`
-          UPDATE dbo.Users 
-          SET email = @newEmail 
-          WHERE email = @oldEmail AND role = 'CLIENT'
-        `);
+      await pool.query(`
+          UPDATE public."Users" 
+          SET email = $1 
+          WHERE email = $2 AND role = 'CLIENT'
+        `, [primary_contact_email, oldEmail]);
       console.log(`✅ Client login email updated from ${oldEmail} to ${primary_contact_email}`);
     }
 
@@ -148,7 +133,6 @@ export async function POST(req: Request) {
       details: finalClientName,
     });
 
-    // Log service center assignment if changed
     if (service_center_id) {
       logAudit({
         clientId,
@@ -157,7 +141,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Log CPA assignment if changed
     if (cpa_id) {
       logAudit({
         clientId,
@@ -194,24 +177,17 @@ export async function POST(req: Request) {
     const associatedUsers = body.associatedUsers;
     if (Array.isArray(associatedUsers)) {
       // Delete existing associated users for this client
-      await pool
-        .request()
-        .input("clientId", sql.Int, Number(clientId))
-        .query(`DELETE FROM dbo.client_users WHERE client_id = @clientId`);
+      await pool.query(
+        `DELETE FROM public."client_users" WHERE client_id = $1`,
+        [Number(clientId)]
+      );
 
       // Insert new associated users
       for (const user of associatedUsers) {
         if (!user.name || !user.email) continue;
 
-        await pool
-          .request()
-          .input("clientId", sql.Int, Number(clientId))
-          .input("userName", sql.NVarChar(255), user.name)
-          .input("userEmail", sql.NVarChar(255), user.email)
-          .input("userRole", sql.NVarChar(50), user.role || "Client User")
-          .input("phone", sql.NVarChar(50), user.phone || null)
-          .query(`
-            INSERT INTO dbo.client_users (
+        await pool.query(`
+            INSERT INTO public."client_users" (
               client_id,
               user_name,
               email,
@@ -219,15 +195,8 @@ export async function POST(req: Request) {
               phone,
               created_at
             )
-            VALUES (
-              @clientId,
-              @userName,
-              @userEmail,
-              @userRole,
-              @phone,
-              GETDATE()
-            )
-          `);
+            VALUES ($1, $2, $3, $4, $5, NOW())
+          `, [Number(clientId), user.name, user.email, user.role || "Client User", user.phone || null]);
       }
       console.log(`✅ Updated associated users for client ID: ${clientId}`);
     }

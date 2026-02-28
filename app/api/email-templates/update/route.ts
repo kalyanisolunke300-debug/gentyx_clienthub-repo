@@ -30,13 +30,13 @@ export async function PUT(req: Request) {
           name = @name,
           subject = @subject,
           body = @body,
-          updated_at = GETDATE()
+          updated_at = NOW()
         WHERE template_id = @template_id
       `);
 
     return NextResponse.json({
       success: true,
-      rowsAffected: result.rowsAffected[0],
+      rowsAffected: result.rowCount,
     });
 
   } catch (error: any) {

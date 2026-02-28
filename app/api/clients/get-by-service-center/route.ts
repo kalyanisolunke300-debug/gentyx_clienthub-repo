@@ -1,7 +1,6 @@
 // app/api/clients/get-by-service-center/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function GET(req: Request) {
   try {
@@ -17,10 +16,7 @@ export async function GET(req: Request) {
 
     const pool = await getDbPool();
 
-    const result = await pool
-      .request()
-      .input("service_center_id", sql.Int, Number(serviceCenterId))
-      .query(`
+    const result = await pool.query(`
         SELECT
           c.client_id,
           c.client_name,
@@ -29,24 +25,25 @@ export async function GET(req: Request) {
           c.client_status,
           c.created_at,
           c.primary_contact_email,
-          LastMsg.created_at as last_message_at,
-          LastMsg.body as last_message_body,
-          LastMsg.sender_role as last_message_sender_role
-        FROM dbo.Clients c
-        OUTER APPLY (
-          SELECT TOP 1 m.created_at, m.body, m.sender_role
-          FROM dbo.onboarding_messages m
+          lm.created_at as last_message_at,
+          lm.body as last_message_body,
+          lm.sender_role as last_message_sender_role
+        FROM public."Clients" c
+        LEFT JOIN LATERAL (
+          SELECT m.created_at, m.body, m.sender_role
+          FROM public."onboarding_messages" m
           WHERE m.client_id = c.client_id
-            AND (m.service_center_id = @service_center_id OR m.service_center_id IS NULL)
+            AND (m.service_center_id = $1 OR m.service_center_id IS NULL)
           ORDER BY m.created_at DESC
-        ) LastMsg
-        WHERE c.service_center_id = @service_center_id
-        ORDER BY COALESCE(LastMsg.created_at, c.created_at) DESC
-      `);
+          LIMIT 1
+        ) lm ON true
+        WHERE c.service_center_id = $1
+        ORDER BY COALESCE(lm.created_at, c.created_at) DESC
+      `, [Number(serviceCenterId)]);
 
     return NextResponse.json({
       success: true,
-      data: result.recordset,
+      data: result.rows,
     });
 
   } catch (err) {

@@ -1,153 +1,90 @@
 
 import { NextResponse } from "next/server";
-import {
-  BlobServiceClient,
-  StorageSharedKeyCredential,
-  generateBlobSASQueryParameters,
-  BlobSASPermissions,
-} from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 import { getClientRootFolder } from "@/lib/storage-utils";
 
 export const dynamic = "force-dynamic";
 
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
+
 // These are the admin-managed section folders — clients should never see them directly
 const SECTION_FOLDERS = [
   "Admin Only", "Client Only", "Shared",
-  "Admin Restricted", "Client Uploaded", "Legacy Uploaded"
+  "Admin Restricted", "Client Uploaded", "Legacy Uploaded",
 ];
+
+/** Generate a signed URL (1 hour) for a given blob path */
+async function getSignedUrl(blobPath: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .createSignedUrl(blobPath, 60 * 60);
+  if (error || !data) throw new Error(`Signed URL error: ${error?.message}`);
+  return data.signedUrl;
+}
+
+/** Recursively list all files/folders under a prefix */
+async function listItems(prefix: string) {
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).list(prefix, {
+    limit: 1000,
+    sortBy: { column: "name", order: "asc" },
+  });
+  if (error) throw new Error(`List error: ${error.message}`);
+  return data ?? [];
+}
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const clientId = url.searchParams.get("id");
-    const folder = url.searchParams.get("folder"); // optional
+    const folder = url.searchParams.get("folder");
     const rawRole = url.searchParams.get("role");
-    const role = (rawRole || "ADMIN").toUpperCase(); // Normalize to ADMIN
+    const role = (rawRole || "ADMIN").toUpperCase();
 
-    console.log(`[DOCS] Fetching for Client: ${clientId}, Role: ${role} (Raw: ${rawRole})`);
+    console.log(`[DOCS] Fetching for Client: ${clientId}, Role: ${role}`);
 
     if (!clientId) {
       return NextResponse.json({ success: false, error: "Missing clientId" });
     }
 
-    const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;;
-    const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;;
-
-    // Create clients with shared key credential for SAS generation
-    const sharedKeyCredential = new StorageSharedKeyCredential(account, key);
-    const blobServiceClient = new BlobServiceClient(
-      `https://${account}.blob.core.windows.net`,
-      sharedKeyCredential
-    );
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-
-    // ROOT OR SUBFOLDER PREFIX
     const rootFolder = await getClientRootFolder(clientId);
 
-    // ─── CLIENT ROLE: TRANSPARENT SECTION HANDLING ───
-    // Clients should NOT see the section folders.
-    // When at root: merge contents of "Shared/" and "Client Only/" sections
-    // When navigating: auto-prefix with the section folder
+    // ─── CLIENT ROLE ───
     if (role === "CLIENT") {
-      return await handleClientView(
-        containerClient,
-        sharedKeyCredential,
-        containerName,
-        rootFolder,
-        folder
-      );
+      return await handleClientView(rootFolder, folder);
     }
 
     // ─── ADMIN ROLE: Normal listing ───
-    const prefix = folder
-      ? `${rootFolder}/${folder}/`
-      : `${rootFolder}/`;
+    const prefix = folder ? `${rootFolder}/${folder}` : rootFolder;
+    const raw = await listItems(prefix);
 
     const items: any[] = [];
+    const expiresIn = 60 * 60; // 1 hour
 
-    // SAS expiry = 1 hour (for preview)
-    const expiresOn = new Date(Date.now() + 60 * 60 * 1000);
-
-    // HIERARCHY LISTING → RETURNS FOLDERS + FILES
-    // ✅ Include metadata in the listing itself to avoid N+1 calls
-    for await (const blob of containerClient.listBlobsByHierarchy("/", {
-      prefix,
-      includeMetadata: true
-    })) {
-
-      // -------------- FOLDER --------------
-      if (blob.kind === "prefix") {
-        const folderName = blob.name
-          .replace(prefix, "")
-          .replace("/", "");
-
-        if (folderName.length > 0) {
-          items.push({
-            type: "folder",
-            name: folderName,
-          });
+    for (const item of raw) {
+      if (item.id === null) {
+        // It's a folder (virtual directory)
+        if (item.name && item.name !== ".keep") {
+          items.push({ type: "folder", name: item.name });
         }
-
         continue;
       }
 
-      // -------------- FILE --------------
-      const fileName = blob.name.replace(prefix, "");
+      if (!item.name || item.name === ".keep") continue;
 
-      if (!fileName || fileName === ".keep") continue;
-
-      // Get visibility from metadata directly
-      let meta = blob.metadata;
-      if (!meta) {
-        try {
-          const props = await containerClient.getBlobClient(blob.name).getProperties();
-          meta = props.metadata;
-        } catch (e) {
-          // ignore error
-        }
-      }
-
-      // Normalize metadata keys to lowercase for safe lookup
-      const metaLower = meta ? Object.fromEntries(Object.entries(meta).map(([k, v]) => [k.toLowerCase(), v])) : {};
-      const visibility = (metaLower.visibility || "shared").toLowerCase();
-
-      // DEBUG LOG
-      console.log(`[DOCS] File: ${fileName}, Vis: ${visibility}, Role: ${role}`);
-
-      // Filter based on role:
-      // - ADMIN sees ALL (shared + private)
-      // - CLIENT sees ONLY shared
-      if (role !== "ADMIN" && visibility === "private") {
-        console.log(`[DOCS] SKIPPING Private file for CLIENT: ${fileName}`);
-        continue; // Hide private documents from clients
-      }
-
-      // Generate SAS URL for the file
-      const blobClient = containerClient.getBlobClient(blob.name);
-
-      const sas = generateBlobSASQueryParameters(
-        {
-          containerName,
-          blobName: blob.name,
-          permissions: BlobSASPermissions.parse("r"),
-          expiresOn,
-        },
-        sharedKeyCredential
-      ).toString();
-
-      const sasUrl = `${blobClient.url}?${sas}`;
+      const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
+      const { data: signedData } = await supabaseAdmin.storage
+        .from(BUCKET)
+        .createSignedUrl(fullPath, expiresIn);
 
       items.push({
         type: "file",
-        name: fileName,
-        url: sasUrl, // ✅ SAS URL instead of direct URL
-        size: blob.properties.contentLength ?? 0,
-        fullPath: blob.name, // ✅ REQUIRED FOR DELETE API
-        visibility: visibility, // ✅ Include visibility in response
-        uploadedBy: metaLower.uploadedby || "unknown",
+        name: item.name,
+        url: signedData?.signedUrl || null,
+        size: item.metadata?.size ?? 0,
+        fullPath,
+        visibility: "shared", // Supabase Storage doesn't have per-object metadata; default shared
+        uploadedBy: "unknown",
       });
-
     }
 
     return NextResponse.json({ success: true, data: items });
@@ -159,239 +96,128 @@ export async function GET(req: Request) {
 
 /* ═══════════════════════════════════════════════════════════════ */
 /*                    CLIENT VIEW HELPER                          */
-/*  Merges "Shared/" + "Client Only/" contents into a flat view   */
-/*  Clients NEVER see "Admin Only" or the section folders         */
 /* ═══════════════════════════════════════════════════════════════ */
-async function handleClientView(
-  containerClient: ReturnType<BlobServiceClient["getContainerClient"]>,
-  sharedKeyCredential: StorageSharedKeyCredential,
-  containerName: string,
-  rootFolder: string,
-  folder: string | null
-) {
-  const expiresOn = new Date(Date.now() + 60 * 60 * 1000);
+async function handleClientView(rootFolder: string, folder: string | null) {
   const items: any[] = [];
+  const expiresIn = 60 * 60;
 
-  // Sections a client can see (Old + New)
   const clientVisibleSections = [
-    "Legacy Uploaded", "Client Uploaded",
-    "Shared", "Client Only"
+    "Legacy Uploaded", "Client Uploaded", "Shared", "Client Only",
   ];
 
   if (!folder) {
-    // ─── ROOT VIEW: Merge top-level contents of Shared + Client Only ───
+    // ROOT VIEW: merge contents of visible sections
     for (const section of clientVisibleSections) {
-      const sectionPrefix = `${rootFolder}/${section}/`;
+      const sectionPrefix = `${rootFolder}/${section}`;
+      const raw = await listItems(sectionPrefix);
 
-      for await (const blob of containerClient.listBlobsByHierarchy("/", {
-        prefix: sectionPrefix,
-        includeMetadata: true,
-      })) {
-        // FOLDER
-        if (blob.kind === "prefix") {
-          const folderName = blob.name.replace(sectionPrefix, "").replace("/", "");
-          if (folderName.length > 0 && folderName !== ".keep") {
-            // Deduplicate if same folder name exists in both sections
-            const exists = items.find((i) => i.type === "folder" && i.name === folderName);
-            if (!exists) {
-              items.push({
-                type: "folder",
-                name: folderName,
-                // Track which section this folder came from for navigation
-                _section: section,
-              });
-            }
+      for (const item of raw) {
+        if (item.name === ".keep") continue;
+
+        if (item.id === null) {
+          // folder
+          const exists = items.find((i) => i.type === "folder" && i.name === item.name);
+          if (!exists && item.name) {
+            items.push({ type: "folder", name: item.name, _section: section });
           }
           continue;
         }
 
-        // FILE
-        const fileName = blob.name.replace(sectionPrefix, "");
-        if (!fileName || fileName === ".keep") continue;
-
-        let meta = blob.metadata;
-        if (!meta) {
-          try {
-            const props = await containerClient.getBlobClient(blob.name).getProperties();
-            meta = props.metadata;
-          } catch (e) { /* ignore */ }
-        }
-
-        const metaLower = meta
-          ? Object.fromEntries(Object.entries(meta).map(([k, v]) => [k.toLowerCase(), v]))
-          : {};
-        const visibility = (metaLower.visibility || "shared").toLowerCase();
-
-        // Skip private files
-        if (visibility === "private") continue;
-
-        const blobClient = containerClient.getBlobClient(blob.name);
-        const sas = generateBlobSASQueryParameters(
-          {
-            containerName,
-            blobName: blob.name,
-            permissions: BlobSASPermissions.parse("r"),
-            expiresOn,
-          },
-          sharedKeyCredential
-        ).toString();
+        const fullPath = `${sectionPrefix}/${item.name}`;
+        const { data: signedData } = await supabaseAdmin.storage
+          .from(BUCKET)
+          .createSignedUrl(fullPath, expiresIn);
 
         items.push({
           type: "file",
-          name: fileName,
-          url: `${blobClient.url}?${sas}`,
-          size: blob.properties.contentLength ?? 0,
-          fullPath: blob.name,
-          visibility,
-          uploadedBy: metaLower.uploadedby || "unknown",
+          name: item.name,
+          url: signedData?.signedUrl || null,
+          size: item.metadata?.size ?? 0,
+          fullPath,
+          visibility: "shared",
+          uploadedBy: "unknown",
           _section: section,
         });
       }
     }
 
-    // Also list any legacy items at root (not inside section folders) for backward compatibility
-    const rootPrefix = `${rootFolder}/`;
-    for await (const blob of containerClient.listBlobsByHierarchy("/", {
-      prefix: rootPrefix,
-      includeMetadata: true,
-    })) {
-      if (blob.kind === "prefix") {
-        const folderName = blob.name.replace(rootPrefix, "").replace("/", "");
-        // Skip section folders and empty names
-        if (!folderName || SECTION_FOLDERS.includes(folderName)) continue;
-        const exists = items.find((i) => i.type === "folder" && i.name === folderName);
-        if (!exists) {
-          items.push({ type: "folder", name: folderName, _section: "legacy" });
-        }
+    // Also list legacy items at root (not inside section folders)
+    const rootRaw = await listItems(rootFolder);
+    for (const item of rootRaw) {
+      if (!item.name || item.name === ".keep") continue;
+      if (SECTION_FOLDERS.includes(item.name)) continue;
+
+      if (item.id === null) {
+        const exists = items.find((i) => i.type === "folder" && i.name === item.name);
+        if (!exists) items.push({ type: "folder", name: item.name, _section: "legacy" });
         continue;
       }
 
-      const fileName = blob.name.replace(rootPrefix, "");
-      if (!fileName || fileName === ".keep") continue;
-
-      let meta = blob.metadata;
-      if (!meta) {
-        try {
-          const props = await containerClient.getBlobClient(blob.name).getProperties();
-          meta = props.metadata;
-        } catch (e) { /* ignore */ }
-      }
-
-      const metaLower = meta
-        ? Object.fromEntries(Object.entries(meta).map(([k, v]) => [k.toLowerCase(), v]))
-        : {};
-      const visibility = (metaLower.visibility || "shared").toLowerCase();
-      if (visibility === "private") continue;
-
-      // Deduplicate
-      const exists = items.find((i) => i.type === "file" && i.name === fileName);
+      const exists = items.find((i) => i.type === "file" && i.name === item.name);
       if (exists) continue;
 
-      const blobClient = containerClient.getBlobClient(blob.name);
-      const sas = generateBlobSASQueryParameters(
-        {
-          containerName,
-          blobName: blob.name,
-          permissions: BlobSASPermissions.parse("r"),
-          expiresOn,
-        },
-        sharedKeyCredential
-      ).toString();
+      const fullPath = `${rootFolder}/${item.name}`;
+      const { data: signedData } = await supabaseAdmin.storage
+        .from(BUCKET)
+        .createSignedUrl(fullPath, expiresIn);
 
       items.push({
         type: "file",
-        name: fileName,
-        url: `${blobClient.url}?${sas}`,
-        size: blob.properties.contentLength ?? 0,
-        fullPath: blob.name,
-        visibility,
-        uploadedBy: metaLower.uploadedby || "unknown",
+        name: item.name,
+        url: signedData?.signedUrl || null,
+        size: item.metadata?.size ?? 0,
+        fullPath,
+        visibility: "shared",
+        uploadedBy: "unknown",
         _section: "legacy",
       });
     }
-
   } else {
-    // ─── SUBFOLDER VIEW: Try to resolve folder inside Shared or Client Only ───
-    // First try "Client Uploaded/{folder}", then "Legacy Uploaded/{folder}", then others
+    // SUBFOLDER VIEW: search across sections
     const searchPrefixes = [
-      `${rootFolder}/Client Uploaded/${folder}/`,
-      `${rootFolder}/Legacy Uploaded/${folder}/`,
-      `${rootFolder}/Client Only/${folder}/`, // Support old
-      `${rootFolder}/Shared/${folder}/`,      // Support old
-      `${rootFolder}/${folder}/`,             // Legacy fallback
+      `${rootFolder}/Client Uploaded/${folder}`,
+      `${rootFolder}/Legacy Uploaded/${folder}`,
+      `${rootFolder}/Client Only/${folder}`,
+      `${rootFolder}/Shared/${folder}`,
+      `${rootFolder}/${folder}`,
     ];
 
-    let foundInPrefix: string | null = null;
-
     for (const tryPrefix of searchPrefixes) {
-      let hasItems = false;
+      const raw = await listItems(tryPrefix);
+      if (!raw.length) continue;
 
-      for await (const blob of containerClient.listBlobsByHierarchy("/", {
-        prefix: tryPrefix,
-        includeMetadata: true,
-      })) {
-        hasItems = true;
+      for (const item of raw) {
+        if (!item.name || item.name === ".keep") continue;
 
-        if (blob.kind === "prefix") {
-          const folderName = blob.name.replace(tryPrefix, "").replace("/", "");
-          if (folderName.length > 0 && folderName !== ".keep") {
-            const exists = items.find((i) => i.type === "folder" && i.name === folderName);
-            if (!exists) {
-              items.push({ type: "folder", name: folderName });
-            }
-          }
+        if (item.id === null) {
+          const exists = items.find((i) => i.type === "folder" && i.name === item.name);
+          if (!exists) items.push({ type: "folder", name: item.name });
           continue;
         }
 
-        const fileName = blob.name.replace(tryPrefix, "");
-        if (!fileName || fileName === ".keep") continue;
+        const exists = items.find((i) => i.type === "file" && i.name === item.name);
+        if (exists) continue;
 
-        let meta = blob.metadata;
-        if (!meta) {
-          try {
-            const props = await containerClient.getBlobClient(blob.name).getProperties();
-            meta = props.metadata;
-          } catch (e) { /* ignore */ }
-        }
+        const fullPath = `${tryPrefix}/${item.name}`;
+        const { data: signedData } = await supabaseAdmin.storage
+          .from(BUCKET)
+          .createSignedUrl(fullPath, expiresIn);
 
-        const metaLower = meta
-          ? Object.fromEntries(Object.entries(meta).map(([k, v]) => [k.toLowerCase(), v]))
-          : {};
-        const visibility = (metaLower.visibility || "shared").toLowerCase();
-        if (visibility === "private") continue;
-
-        const blobClient = containerClient.getBlobClient(blob.name);
-        const sas = generateBlobSASQueryParameters(
-          {
-            containerName,
-            blobName: blob.name,
-            permissions: BlobSASPermissions.parse("r"),
-            expiresOn,
-          },
-          sharedKeyCredential
-        ).toString();
-
-        const exists = items.find((i) => i.type === "file" && i.name === fileName);
-        if (!exists) {
-          items.push({
-            type: "file",
-            name: fileName,
-            url: `${blobClient.url}?${sas}`,
-            size: blob.properties.contentLength ?? 0,
-            fullPath: blob.name,
-            visibility,
-            uploadedBy: metaLower.uploadedby || "unknown",
-          });
-        }
+        items.push({
+          type: "file",
+          name: item.name,
+          url: signedData?.signedUrl || null,
+          size: item.metadata?.size ?? 0,
+          fullPath,
+          visibility: "shared",
+          uploadedBy: "unknown",
+        });
       }
 
-      if (hasItems && !foundInPrefix) {
-        foundInPrefix = tryPrefix;
-      }
+      break; // Stop at first prefix that had items
     }
   }
 
   console.log(`[DOCS CLIENT] Returning ${items.length} items for client view`);
-  // Return items including _section
   return NextResponse.json({ success: true, data: items });
 }

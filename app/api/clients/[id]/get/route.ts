@@ -1,14 +1,13 @@
 // app/api/clients/[id]/get/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params; // ✅ FIX
+    const { id } = await context.params;
     const clientId = Number(id);
 
     if (!clientId || Number.isNaN(clientId)) {
@@ -20,12 +19,8 @@ export async function GET(
 
     const pool = await getDbPool();
 
-    const result = await pool
-      .request()
-      .input("clientId", sql.Int, clientId)
-      .query(`
-
-      WITH ClientBase AS (
+    const result = await pool.query(`
+      WITH "ClientBase" AS (
         SELECT
           c.client_id,
           c.client_name,
@@ -41,105 +36,105 @@ export async function GET(
           c.updated_at,
           c.service_center_id,
           c.cpa_id,
-          ISNULL(c.is_archived, 0) AS is_archived
-        FROM dbo.Clients c
-        WHERE c.client_id = @clientId
+          COALESCE(c.is_archived, false) AS is_archived
+        FROM public."Clients" c
+        WHERE c.client_id = $1
       ),
 
-      ClientWithStage AS (
+      "ClientWithStage" AS (
         SELECT
           cb.*,
 
-          stage_id = (
-            SELECT TOP 1 cs.client_stage_id
-            FROM dbo.client_stages cs
+          (
+            SELECT cs.client_stage_id
+            FROM public."client_stages" cs
             WHERE cs.client_id = cb.client_id
             ORDER BY cs.order_number
-          ),
+            LIMIT 1
+          ) AS stage_id,
 
-          stage_name = (
-            SELECT TOP 1 cs.stage_name
-            FROM dbo.client_stages cs
+          (
+            SELECT cs.stage_name
+            FROM public."client_stages" cs
             WHERE cs.client_id = cb.client_id
             ORDER BY cs.order_number
-          )
+            LIMIT 1
+          ) AS stage_name
 
-        FROM ClientBase cb
+        FROM "ClientBase" cb
       ),
 
-      ClientStageProgress AS (
+      "ClientStageProgress" AS (
         SELECT
           cws.*,
 
-          total_stages = (
+          (
             SELECT COUNT(*)
-            FROM dbo.client_stages cs
+            FROM public."client_stages" cs
             WHERE cs.client_id = cws.client_id
-          ),
+          ) AS total_stages,
 
-          completed_stages = (
+          (
             SELECT COUNT(*)
-            FROM dbo.client_stages cs
+            FROM public."client_stages" cs
             WHERE cs.client_id = cws.client_id
               AND (
                 cs.status = 'Completed'
                 OR NOT EXISTS (
                   SELECT 1
-                  FROM dbo.client_stage_subtasks st
+                  FROM public."client_stage_subtasks" st
                   WHERE st.client_stage_id = cs.client_stage_id
                     AND st.status <> 'Completed'
                 )
               )
-          )
-        FROM ClientWithStage cws
+          ) AS completed_stages
+        FROM "ClientWithStage" cws
       )
 
       SELECT
-    ctp.client_id,
-    ctp.client_name,
-    ctp.code,
-    ctp.client_status,
-    ctp.client_status AS status,
-    ctp.sla_number,
-    ctp.primary_contact_first_name,
-    ctp.primary_contact_last_name,
-    ctp.primary_contact_name,
-    ctp.primary_contact_email,
-    ctp.primary_contact_phone,
-    ctp.created_at,
-    ctp.updated_at,
+        ctp.client_id,
+        ctp.client_name,
+        ctp.code,
+        ctp.client_status,
+        ctp.client_status AS status,
+        ctp.sla_number,
+        ctp.primary_contact_first_name,
+        ctp.primary_contact_last_name,
+        ctp.primary_contact_name,
+        ctp.primary_contact_email,
+        ctp.primary_contact_phone,
+        ctp.created_at,
+        ctp.updated_at,
 
-    ctp.service_center_id,
-    sc.center_name AS service_center_name,
-    sc.email AS service_center_email,
+        ctp.service_center_id,
+        sc.center_name AS service_center_name,
+        sc.email AS service_center_email,
 
-    ctp.cpa_id,
-    cp.cpa_name AS cpa_name,
-    cp.email AS cpa_email,
+        ctp.cpa_id,
+        cp.cpa_name AS cpa_name,
+        cp.email AS cpa_email,
 
-    ctp.stage_id,
-    ctp.stage_name,
+        ctp.stage_id,
+        ctp.stage_name,
 
-    ctp.total_stages,
-    ctp.completed_stages,
+        ctp.total_stages,
+        ctp.completed_stages,
 
-    progress =
-      CASE 
-        WHEN ctp.total_stages = 0 THEN 0
-        ELSE (ctp.completed_stages * 100.0) / ctp.total_stages
-      END,
+        CASE 
+          WHEN ctp.total_stages = 0 THEN 0
+          ELSE (ctp.completed_stages * 100.0) / ctp.total_stages
+        END AS progress,
 
-    ctp.is_archived
+        ctp.is_archived
 
-  FROM ClientStageProgress ctp
-  LEFT JOIN dbo.service_centers sc
-    ON sc.service_center_id = ctp.service_center_id
-  LEFT JOIN dbo.cpa_centers cp
-    ON cp.cpa_id = ctp.cpa_id;
+      FROM "ClientStageProgress" ctp
+      LEFT JOIN public."service_centers" sc
+        ON sc.service_center_id = ctp.service_center_id
+      LEFT JOIN public."cpa_centers" cp
+        ON cp.cpa_id = ctp.cpa_id
+    `, [clientId]);
 
-      `);
-
-    const row = result.recordset[0];
+    const row = result.rows[0];
 
     if (!row) {
       return NextResponse.json(
@@ -149,10 +144,7 @@ export async function GET(
     }
 
     // Fetch associated users for this client
-    const usersResult = await pool
-      .request()
-      .input("clientId", sql.Int, clientId)
-      .query(`
+    const usersResult = await pool.query(`
         SELECT 
           id,
           user_name AS name,
@@ -160,12 +152,12 @@ export async function GET(
           role,
           phone,
           created_at
-        FROM dbo.client_users
-        WHERE client_id = @clientId
+        FROM public."client_users"
+        WHERE client_id = $1
         ORDER BY id ASC
-      `);
+      `, [clientId]);
 
-    const associatedUsers = usersResult.recordset;
+    const associatedUsers = usersResult.rows;
 
     return NextResponse.json({
       success: true,

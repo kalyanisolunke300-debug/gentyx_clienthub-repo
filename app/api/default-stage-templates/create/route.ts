@@ -23,11 +23,11 @@ export async function POST(req: Request) {
       .input("template_name", template_name)
       .query(`
         SELECT TOP 1 template_id
-        FROM dbo.default_stage_templates
+        FROM public."default_stage_templates"
         WHERE template_name = @template_name AND is_active = 1
       `);
 
-    if (exists.recordset.length > 0) {
+    if (exists.rows.length > 0) {
       return NextResponse.json(
         { success: false, error: "Template name already exists" },
         { status: 409 }
@@ -40,12 +40,12 @@ export async function POST(req: Request) {
       .input("template_name", template_name)
       .input("description", description)
       .query(`
-        INSERT INTO dbo.default_stage_templates (template_name, description, is_active)
+        INSERT INTO public."default_stage_templates" (template_name, description, is_active)
         OUTPUT INSERTED.template_id, INSERTED.template_name, INSERTED.description, INSERTED.is_active
         VALUES (@template_name, @description, 1)
       `);
 
-    return NextResponse.json({ success: true, data: result.recordset[0] });
+    return NextResponse.json({ success: true, data: result.rows[0] });
   } catch (err: any) {
     return NextResponse.json(
       { success: false, error: err.message },

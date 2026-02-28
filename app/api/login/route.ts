@@ -1,7 +1,6 @@
 // app/api/login/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,16 +15,14 @@ export async function POST(req: NextRequest) {
 
     const pool = await getDbPool();
 
-    const result = await pool
-      .request()
-      .input("email", sql.NVarChar, email)
-      .query(`
-        SELECT TOP 1 id, email, password, role
-        FROM Users
-        WHERE email = @email
-      `);
+    const result = await pool.query(`
+        SELECT id, email, password, role
+        FROM public."Users"
+        WHERE email = $1
+        LIMIT 1
+      `, [email]);
 
-    const user = result.recordset[0];
+    const user = result.rows[0];
 
     if (!user || user.password !== password) {
       return NextResponse.json(
@@ -43,19 +40,17 @@ export async function POST(req: NextRequest) {
     if (user.role === "CLIENT") {
       console.log("🔍 LOGIN API - Looking up client for email:", user.email);
 
-      const clientResult = await pool
-        .request()
-        .input("email", sql.NVarChar, user.email)
-        .query(`
-            SELECT TOP 1 client_id
-            FROM dbo.clients
-            WHERE primary_contact_email = @email
-          `);
+      const clientResult = await pool.query(`
+            SELECT client_id
+            FROM public."Clients"
+            WHERE primary_contact_email = $1
+            LIMIT 1
+          `, [user.email]);
 
-      console.log("🔍 LOGIN API - Query result:", clientResult.recordset);
+      console.log("🔍 LOGIN API - Query result:", clientResult.rows);
 
-      if (clientResult.recordset.length > 0) {
-        clientId = clientResult.recordset[0].client_id;
+      if (clientResult.rows.length > 0) {
+        clientId = clientResult.rows[0].client_id;
         console.log("🔍 LOGIN API - Found clientId:", clientId);
       }
 
@@ -72,19 +67,17 @@ export async function POST(req: NextRequest) {
     if (user.role === "SERVICE_CENTER") {
       console.log("🔍 LOGIN API - Looking up service center for email:", user.email);
 
-      const scResult = await pool
-        .request()
-        .input("email", sql.NVarChar, user.email)
-        .query(`
-            SELECT TOP 1 service_center_id
-            FROM dbo.service_centers
-            WHERE email = @email
-          `);
+      const scResult = await pool.query(`
+            SELECT service_center_id
+            FROM public."service_centers"
+            WHERE email = $1
+            LIMIT 1
+          `, [user.email]);
 
-      console.log("🔍 LOGIN API - SC Query result:", scResult.recordset);
+      console.log("🔍 LOGIN API - SC Query result:", scResult.rows);
 
-      if (scResult.recordset.length > 0) {
-        serviceCenterId = scResult.recordset[0].service_center_id;
+      if (scResult.rows.length > 0) {
+        serviceCenterId = scResult.rows[0].service_center_id;
         console.log("🔍 LOGIN API - Found serviceCenterId:", serviceCenterId);
       }
 
@@ -101,19 +94,17 @@ export async function POST(req: NextRequest) {
     if (user.role === "CPA") {
       console.log("🔍 LOGIN API - Looking up CPA for email:", user.email);
 
-      const cpaResult = await pool
-        .request()
-        .input("email", sql.NVarChar, user.email)
-        .query(`
-            SELECT TOP 1 cpa_id
-            FROM dbo.cpa_centers
-            WHERE email = @email
-          `);
+      const cpaResult = await pool.query(`
+            SELECT cpa_id
+            FROM public."cpa_centers"
+            WHERE email = $1
+            LIMIT 1
+          `, [user.email]);
 
-      console.log("🔍 LOGIN API - CPA Query result:", cpaResult.recordset);
+      console.log("🔍 LOGIN API - CPA Query result:", cpaResult.rows);
 
-      if (cpaResult.recordset.length > 0) {
-        cpaId = cpaResult.recordset[0].cpa_id;
+      if (cpaResult.rows.length > 0) {
+        cpaId = cpaResult.rows[0].cpa_id;
         console.log("🔍 LOGIN API - Found cpaId:", cpaId);
       }
 
@@ -141,21 +132,21 @@ export async function POST(req: NextRequest) {
     // Cookie: Token (use user.id for now)
     response.cookies.set("clienthub_token", user.id.toString(), {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
     });
 
     response.cookies.set("clienthub_role", user.role, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
     });
 
     response.cookies.set("clienthub_issuedAt", Date.now().toString(), {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
     });
@@ -164,7 +155,7 @@ export async function POST(req: NextRequest) {
       console.log("🔍 LOGIN API - Setting clienthub_clientId cookie to:", clientId);
       response.cookies.set("clienthub_clientId", clientId.toString(), {
         httpOnly: false,
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
       });
@@ -174,7 +165,7 @@ export async function POST(req: NextRequest) {
       console.log("🔍 LOGIN API - Setting clienthub_serviceCenterId cookie to:", serviceCenterId);
       response.cookies.set("clienthub_serviceCenterId", serviceCenterId.toString(), {
         httpOnly: false,
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
       });
@@ -184,7 +175,7 @@ export async function POST(req: NextRequest) {
       console.log("🔍 LOGIN API - Setting clienthub_cpaId cookie to:", cpaId);
       response.cookies.set("clienthub_cpaId", cpaId.toString(), {
         httpOnly: false,
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
       });

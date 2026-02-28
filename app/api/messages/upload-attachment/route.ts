@@ -1,13 +1,10 @@
 // /app/api/messages/upload-attachment/route.ts
 import { NextResponse } from "next/server";
-import {
-    BlobServiceClient,
-    StorageSharedKeyCredential,
-    generateBlobSASQueryParameters,
-    BlobSASPermissions,
-} from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function POST(req: Request) {
     try {
@@ -23,7 +20,6 @@ export async function POST(req: Request) {
             );
         }
 
-        // Safety checks
         if (file.name === ".keep") {
             return NextResponse.json(
                 { success: false, error: "Invalid file name" },
@@ -35,43 +31,26 @@ export async function POST(req: Request) {
         const fileName = `${Date.now()}-${file.name}`; // Unique filename
         const blobPath = `client-${clientId}/messages/${fileName}`;
 
-        const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
-        const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
-        const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabaseAdmin.storage
+            .from(BUCKET)
+            .upload(blobPath, buffer, {
+                contentType: file.type,
+                upsert: false,
+            });
 
-        // Create clients with shared key credential for SAS generation
-        const sharedKeyCredential = new StorageSharedKeyCredential(account, key);
-        const blobServiceClient = new BlobServiceClient(
-            `https://${account}.blob.core.windows.net`,
-            sharedKeyCredential
-        );
-        const containerClient = blobServiceClient.getContainerClient(containerName);
-        await containerClient.createIfNotExists();
+        if (uploadError) throw new Error(uploadError.message);
 
-        const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+        // Generate a signed URL valid for 1 year
+        const { data, error: signedError } = await supabaseAdmin.storage
+            .from(BUCKET)
+            .createSignedUrl(blobPath, 60 * 60 * 24 * 365);
 
-        // Upload file
-        await blockBlobClient.uploadData(buffer, {
-            blobHTTPHeaders: { blobContentType: file.type },
-        });
-
-        // Generate SAS URL for the file (valid for 1 year)
-        const expiresOn = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-        const sas = generateBlobSASQueryParameters(
-            {
-                containerName,
-                blobName: blobPath,
-                permissions: BlobSASPermissions.parse("r"),
-                expiresOn,
-            },
-            sharedKeyCredential
-        ).toString();
-
-        const sasUrl = `${blockBlobClient.url}?${sas}`;
+        if (signedError || !data) throw new Error(signedError?.message || "Signed URL failed");
 
         return NextResponse.json({
             success: true,
-            attachmentUrl: sasUrl,
+            attachmentUrl: data.signedUrl,
             attachmentName: file.name,
         });
     } catch (err: any) {

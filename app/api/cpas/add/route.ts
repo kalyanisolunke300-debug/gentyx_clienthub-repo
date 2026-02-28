@@ -1,7 +1,6 @@
 // app/api/cpas/add/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { sendCpaWelcomeEmail } from "@/lib/email";
 
 const DEFAULT_PASSWORD = "Cpa@12345";
@@ -20,20 +19,17 @@ export async function POST(req: Request) {
     const pool = await getDbPool();
 
     // ✅ CHECK FOR DUPLICATE CPA NAME (CASE-INSENSITIVE)
-    const existingCpa = await pool
-      .request()
-      .input("name", sql.VarChar, name.trim())
-      .query(`
+    const existingCpa = await pool.query(`
         SELECT cpa_id, cpa_name 
-        FROM cpa_centers 
-        WHERE LOWER(cpa_name) = LOWER(@name)
-      `);
-        
-    if (existingCpa.recordset.length > 0) {
+        FROM public."cpa_centers" 
+        WHERE LOWER(cpa_name) = LOWER($1)
+      `, [name.trim()]);
+
+    if (existingCpa.rows.length > 0) {
       return NextResponse.json(
         {
           success: false,
-          message: `A CPA named "${existingCpa.recordset[0].cpa_name}" already exists`
+          message: `A CPA named "${existingCpa.rows[0].cpa_name}" already exists`
         },
         { status: 409 }
       );
@@ -41,22 +37,19 @@ export async function POST(req: Request) {
 
     // ✅ CHECK FOR DUPLICATE EMAIL ACROSS ALL ENTITIES (if email provided)
     if (email && email.trim()) {
-      const existingEmail = await pool
-        .request()
-        .input("email", sql.VarChar, email.trim().toLowerCase())
-        .query(`
-          SELECT 'client' as entity_type, client_name as name FROM dbo.clients 
-          WHERE LOWER(primary_contact_email) = @email
+      const existingEmail = await pool.query(`
+          SELECT 'client' as entity_type, client_name as name FROM public."Clients" 
+          WHERE LOWER(primary_contact_email) = $1
           UNION ALL
-          SELECT 'CPA' as entity_type, cpa_name as name FROM dbo.cpa_centers 
-          WHERE LOWER(email) = @email
+          SELECT 'CPA' as entity_type, cpa_name as name FROM public."cpa_centers" 
+          WHERE LOWER(email) = $1
           UNION ALL
-          SELECT 'service center' as entity_type, center_name as name FROM dbo.service_centers 
-          WHERE LOWER(email) = @email
-        `);
+          SELECT 'service center' as entity_type, center_name as name FROM public."service_centers" 
+          WHERE LOWER(email) = $1
+        `, [email.trim().toLowerCase()]);
 
-      if (existingEmail.recordset.length > 0) {
-        const existing = existingEmail.recordset[0];
+      if (existingEmail.rows.length > 0) {
+        const existing = existingEmail.rows[0];
         return NextResponse.json(
           {
             success: false,
@@ -67,50 +60,42 @@ export async function POST(req: Request) {
       }
     }
 
-    const last = await pool.request().query(`
-      SELECT TOP 1 cpa_code
-      FROM cpa_centers
+    const last = await pool.query(`
+      SELECT cpa_code
+      FROM public."cpa_centers"
       ORDER BY cpa_id DESC
+      LIMIT 1
     `);
 
     let nextCode = "CPA001";
 
-    if (last.recordset.length > 0) {
-      const lastCode = last.recordset[0].cpa_code;
+    if (last.rows.length > 0) {
+      const lastCode = last.rows[0].cpa_code;
       const num = parseInt(lastCode.replace("CPA", "")) + 1;
       nextCode = "CPA" + num.toString().padStart(3, "0");
     }
 
     // 2️⃣ Insert into cpa_centers
-    const insertResult = await pool.request()
-      .input("code", sql.VarChar, nextCode)
-      .input("name", sql.VarChar, name)
-      .input("email", sql.VarChar, email)
-      .query(`
-        INSERT INTO cpa_centers (cpa_code, cpa_name, email, created_at, updated_at)
-        OUTPUT INSERTED.cpa_id
-        VALUES (@code, @name, @email, GETDATE(), GETDATE())
-      `);
+    const insertResult = await pool.query(`
+        INSERT INTO public."cpa_centers" (cpa_code, cpa_name, email, created_at, updated_at)
+        VALUES ($1, $2, $3, NOW(), NOW())
+        RETURNING cpa_id
+      `, [nextCode, name, email]);
 
-    const newCpaId = insertResult.recordset[0]?.cpa_id;
+    const newCpaId = insertResult.rows[0]?.cpa_id;
 
     // 3️⃣ Create User entry for CPA login (if email provided)
     if (email) {
-      const existingUser = await pool
-        .request()
-        .input("email", sql.NVarChar(255), email)
-        .query(`SELECT id FROM dbo.Users WHERE email = @email`);
+      const existingUser = await pool.query(
+        `SELECT id FROM public."Users" WHERE email = $1`,
+        [email]
+      );
 
-      if (existingUser.recordset.length === 0) {
-        await pool
-          .request()
-          .input("email", sql.NVarChar(255), email)
-          .input("password", sql.NVarChar(255), DEFAULT_PASSWORD)
-          .input("role", sql.NVarChar(50), "CPA")
-          .query(`
-            INSERT INTO dbo.Users (email, password, role)
-            VALUES (@email, @password, @role)
-          `);
+      if (existingUser.rows.length === 0) {
+        await pool.query(`
+            INSERT INTO public."Users" (email, password, role)
+            VALUES ($1, $2, $3)
+          `, [email, DEFAULT_PASSWORD, "CPA"]);
 
         console.log(`✅ Created CPA user credentials for ${email}`);
 
@@ -120,7 +105,6 @@ export async function POST(req: Request) {
           console.log(`✅ Welcome email sent to CPA: ${email}`);
         } catch (emailError) {
           console.error(`⚠️ Failed to send welcome email to CPA: ${email}`, emailError);
-          // Don't fail the entire request if email fails
         }
       }
     }

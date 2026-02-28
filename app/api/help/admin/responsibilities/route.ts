@@ -1,7 +1,6 @@
 // app/api/help/admin/responsibilities/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 
 // POST - Add new responsibility
 export async function POST(req: Request) {
@@ -13,17 +12,17 @@ export async function POST(req: Request) {
         const result = await pool
             .request()
             .input("role_id", sql.Int, role_id)
-            .input("description", sql.NVarChar(sql.MAX), description)
+            .input("description", sql.VARCHAR(sql.MAX), description)
             .input("display_order", sql.Int, display_order || 0)
             .query(`
-        INSERT INTO dbo.help_responsibilities (role_id, description, display_order)
+        INSERT INTO public."help_responsibilities" (role_id, description, display_order)
         OUTPUT INSERTED.responsibility_id
         VALUES (@role_id, @description, @display_order)
       `);
 
         return NextResponse.json({
             success: true,
-            responsibility_id: result.recordset[0]?.responsibility_id,
+            responsibility_id: result.rows[0]?.responsibility_id,
         });
     } catch (err) {
         console.error("POST /api/help/admin/responsibilities error:", err);
@@ -44,10 +43,10 @@ export async function PUT(req: Request) {
         await pool
             .request()
             .input("responsibility_id", sql.Int, responsibility_id)
-            .input("description", sql.NVarChar(sql.MAX), description)
+            .input("description", sql.VARCHAR(sql.MAX), description)
             .input("display_order", sql.Int, display_order)
             .query(`
-        UPDATE dbo.help_responsibilities
+        UPDATE public."help_responsibilities"
         SET description = @description, display_order = @display_order
         WHERE responsibility_id = @responsibility_id
       `);
@@ -72,7 +71,7 @@ export async function DELETE(req: Request) {
         await pool
             .request()
             .input("responsibility_id", sql.Int, parseInt(responsibility_id || "0"))
-            .query(`DELETE FROM dbo.help_responsibilities WHERE responsibility_id = @responsibility_id`);
+            .query(`DELETE FROM public."help_responsibilities" WHERE responsibility_id = @responsibility_id`);
 
         return NextResponse.json({ success: true });
     } catch (err) {

@@ -1,32 +1,9 @@
-// // app/api/documents/delete/route.ts
-// import { NextResponse } from "next/server";
-// import { deleteBlob } from "@/lib/azure";
-
-// export async function POST(req: Request) {
-//   try {
-//     const { clientId, fileName, fileType } = await req.json();
-
-//     if (!clientId || !fileName || !fileType) {
-//       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-//     }
-
-//     // Correct blob path based on your Azure folder structure
-//     const blobPath = `client-${clientId}/${fileType}/${fileName}`;
-
-//     // Delete from Azure Blob Storage
-//     await deleteBlob(blobPath);
-
-//     return NextResponse.json({ success: true });
-//   } catch (err) {
-//     console.error("Delete Error:", err);
-//     return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
-//   }
-// }
-
 // app/api/documents/delete/route.ts
 import { NextResponse } from "next/server";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 import { logAudit, AuditActions } from "@/lib/audit";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function POST(req: Request) {
   try {
@@ -39,32 +16,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔥 fullPath includes the complete path inside container:
-    // Example:
-    // client-2/image.png
-    // client-2/IMG/pic1.jpg
-    // client-2/test/folder/file.pdf
+    // fullPath is the complete path inside the bucket, e.g.:
+    //   client-2/image.png
+    //   ClientName-2/IMG/pic.jpg
 
-    const connStr = process.env.AZURE_STORAGE_CONNECTION_STRING;
-    const containerName = "clienthub";
+    const { error } = await supabaseAdmin.storage.from(BUCKET).remove([fullPath]);
 
-    const blobServiceClient = BlobServiceClient.fromConnectionString(connStr!);
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-
-    const blobClient = containerClient.getBlobClient(fullPath);
-
-    // Attempt delete
-    const deleteResponse = await blobClient.deleteIfExists();
-
-    if (!deleteResponse.succeeded) {
+    if (error) {
+      console.error("Supabase delete error:", error.message);
       return NextResponse.json(
-        { success: false, error: "Blob not found or already deleted" },
+        { success: false, error: error.message || "Blob not found or already deleted" },
         { status: 404 }
       );
     }
 
     // Audit log
-    const fileName = fullPath.split('/').pop() || fullPath;
+    const fileName = fullPath.split("/").pop() || fullPath;
     logAudit({
       clientId: Number(clientId),
       action: AuditActions.DOCUMENT_DELETED,

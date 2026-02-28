@@ -1,7 +1,6 @@
 // app/api/notifications/task/route.ts
 import { NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import sql from "mssql";
 import { sendTaskNotificationEmail, sendOnboardingTaskNotificationEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
@@ -65,20 +64,20 @@ export async function POST(req: Request) {
           cp.email as cpa_email,
           sc.center_name as service_center_name,
           sc.email as service_center_email
-        FROM dbo.Clients c
-        LEFT JOIN dbo.cpa_centers cp ON cp.cpa_id = c.cpa_id
-        LEFT JOIN dbo.service_centers sc ON sc.service_center_id = c.service_center_id
+        FROM public."Clients" c
+        LEFT JOIN public."cpa_centers" cp ON cp.cpa_id = c.cpa_id
+        LEFT JOIN public."service_centers" sc ON sc.service_center_id = c.service_center_id
         WHERE c.client_id = @clientId
       `);
 
-        if (!clientResult.recordset.length) {
+        if (!clientResult.rows.length) {
             return NextResponse.json(
                 { success: false, error: "Client not found" },
                 { status: 404 }
             );
         }
 
-        const client = clientResult.recordset[0];
+        const client = clientResult.rows[0];
 
         // -----------------------------------------------------
         // 2️⃣ DETERMINE RECIPIENT BASED ON ROLE

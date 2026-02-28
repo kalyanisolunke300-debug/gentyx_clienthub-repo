@@ -1,7 +1,9 @@
 
 import { NextResponse } from "next/server";
-import { BlobServiceClient } from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
 import { getClientRootFolder } from "@/lib/storage-utils";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function POST(req: Request) {
   try {
@@ -14,20 +16,27 @@ export async function POST(req: Request) {
       );
     }
 
-    const conn = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-    const blobServiceClient = BlobServiceClient.fromConnectionString(conn);
-    const containerClient = blobServiceClient.getContainerClient(
-      process.env.AZURE_STORAGE_CONTAINER_NAME!
-    );
-
     const rootFolder = await getClientRootFolder(clientId);
-
-    // full path like: client-2/folderName
     const prefix = `${rootFolder}/${folderPath}`;
-    const blobs = containerClient.listBlobsFlat({ prefix });
 
-    for await (const blob of blobs) {
-      await containerClient.deleteBlob(blob.name);
+    // List all objects under the folder prefix
+    const { data, error: listError } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .list(prefix, { limit: 1000 });
+
+    if (listError) throw new Error(listError.message);
+
+    // Build the full paths of all files to delete
+    const filePaths = (data ?? [] as Array<{ id: string | null; name: string }>)
+      .filter((item: { id: string | null; name: string }) => item.id !== null)
+      .map((item: { name: string }) => `${prefix}/${item.name}`);
+
+    if (filePaths.length > 0) {
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(BUCKET)
+        .remove(filePaths);
+
+      if (removeError) throw new Error(removeError.message);
     }
 
     return NextResponse.json({ success: true });

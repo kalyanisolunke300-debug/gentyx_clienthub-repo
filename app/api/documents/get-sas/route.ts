@@ -1,59 +1,30 @@
 // app/api/documents/get-sas/route.ts
+// Renamed concept: Azure SAS → Supabase signed URL (same purpose: short-lived read URL)
 import { NextResponse } from "next/server";
-import {
-  BlobServiceClient,
-  StorageSharedKeyCredential,
-  generateBlobSASQueryParameters,
-  BlobSASPermissions
-} from "@azure/storage-blob";
+import { supabaseAdmin } from "@/lib/supabase";
+
+const BUCKET = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || "client_hub";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const path = searchParams.get("path"); // client-14/PDF/file.pdf
+    const filePath = searchParams.get("path"); // e.g. client-14/PDF/file.pdf
 
-    if (!path) {
-      return NextResponse.json(
-        { error: "Missing file path" },
-        { status: 400 }
-      );
+    if (!filePath) {
+      return NextResponse.json({ error: "Missing file path" }, { status: 400 });
     }
 
-    const account = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
-    const key = process.env.AZURE_STORAGE_ACCOUNT_KEY!;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
+    // Generate a signed URL valid for 5 minutes (same duration as old SAS)
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUrl(filePath, 5 * 60);
 
-    const sharedKeyCredential = new StorageSharedKeyCredential(account, key);
+    if (error || !data) {
+      return NextResponse.json({ error: error?.message || "Failed to generate URL" }, { status: 500 });
+    }
 
-    const blobServiceClient = new BlobServiceClient(
-      `https://${account}.blob.core.windows.net`,
-      sharedKeyCredential
-    );
-
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-    const blobClient = containerClient.getBlobClient(path);
-
-    // SAS expiry = 5 minutes
-    const expiresOn = new Date(Date.now() + 5 * 60 * 1000);
-
-    const sas = generateBlobSASQueryParameters(
-      {
-        containerName,
-        blobName: path,
-        permissions: BlobSASPermissions.parse("r"),
-        expiresOn,
-      },
-      sharedKeyCredential
-    ).toString();
-
-    const sasUrl = `${blobClient.url}?${sas}`;
-
-    return NextResponse.json({ sasUrl });
-
+    return NextResponse.json({ sasUrl: data.signedUrl });
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
