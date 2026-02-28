@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
             SELECT client_id
             FROM public."Clients"
             WHERE primary_contact_email = $1
+            UNION
+            SELECT client_id
+            FROM public."client_users"
+            WHERE email = $1
             LIMIT 1
           `, [user.email]);
 

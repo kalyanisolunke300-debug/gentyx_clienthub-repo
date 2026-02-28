@@ -102,11 +102,12 @@ export async function POST(req: Request) {
           progress,
           status,
           cpa_id,
-          service_center_id
+          service_center_id,
+          is_archived
         )
         VALUES (
           $1, $2, 'Active', $3, $4, $5, $6, $7, $8,
-          NOW(), NOW(), $9, 0, 'Active', $10, $11
+          NOW(), NOW(), $9, 0, 'Active', $10, $11, false
         )
         RETURNING client_id;
       `, [
