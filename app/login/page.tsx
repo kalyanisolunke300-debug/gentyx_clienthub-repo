@@ -125,24 +125,18 @@ export default function LoginPage() {
     }
   }
 
-  /* 
-  // OLD LOGIN UI (Commented out)
   return (
     <div className="login-page">
       <div className="logo-wrapper">
         <img
-          src="/images/legacytest.png"
-          alt="mySAGE Logo"
+          src="/images/Gentyx_logo_2.png"
+          alt="Gentyx Logo"
           className="mysage-logo"
         />
       </div>
 
       <div className="login-box">
-        <img
-          src="/images/clienthublogin.png"
-          alt="AccountsHub"
-          className="login-logo-img"
-        />
+        <h2 className="login-heading">CLIENTHUB</h2>
 
         <form onSubmit={handleSubmit} style={{ width: "100%" }}>
           <label>Email Address</label>
@@ -152,6 +146,7 @@ export default function LoginPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            className="input-field"
           />
 
           <label>Password</label>
@@ -163,6 +158,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="input-field"
             />
 
             <button
@@ -175,7 +171,7 @@ export default function LoginPage() {
           </div>
 
           {errorMsg && (
-            <p style={{ color: "red", textAlign: "center", marginBottom: "10px", fontSize: "14px" }}>
+            <p className="error-message">
               {errorMsg}
             </p>
           )}
@@ -190,78 +186,6 @@ export default function LoginPage() {
       <p className="footer-text">
         © 2014–{new Date().getFullYear()} HubOne Systems Inc. – All Rights Reserved
       </p>
-    </div>
-  );
-  */
-
-  // NEW LOGIN UI
-  return (
-    <div className="login-page-new">
-      {/* LOGO */}
-      <div className="logo-container">
-        <img
-          src="/images/ClientPortal%20Full-Logo.png"
-          alt="Legacy Accounting Services"
-          className="logo-img"
-        />
-      </div>
-
-      {/* TITLE */}
-      <h1 className="portal-title">Client Portal</h1>
-
-      {/* FORM */}
-      <form onSubmit={handleSubmit} className="login-form-container">
-        <div className="input-group">
-          <label className="input-label">Email Address</label>
-          <input
-            type="email"
-            placeholder="user@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="input-field"
-            required
-          />
-        </div>
-
-        <div className="input-group">
-          <label className="input-label">Password</label>
-          <div className="password-wrapper">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="********"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              required
-            />
-            <button
-              type="button"
-              className="eye-btn"
-              onClick={() => setShowPassword((prev) => !prev)}
-            >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
-          </div>
-        </div>
-
-        {errorMsg && (
-          <p className="error-text">
-            {errorMsg}
-          </p>
-        )}
-
-        <button type="submit" className="login-button-new" disabled={loading}>
-          {loading ? "Logging in..." : "LOG IN"}
-        </button>
-      </form>
-
-      {/* FOOTER */}
-      <div className="footer-container">
-        <div className="powered-by">POWERED BY HUBONE SYSTEMS</div>
-        <p>
-          © 2014–{new Date().getFullYear()} HubOne Systems Inc.  All Rights Reserved
-        </p>
-      </div>
     </div>
   );
 }

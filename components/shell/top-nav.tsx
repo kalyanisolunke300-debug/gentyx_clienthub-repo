@@ -49,17 +49,17 @@ export function TopNav() {
         {/* ✅ RIGHT SIDE ICONS */}
         <div className="flex items-center gap-2">
           <Button
-            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm px-4"
+            className="rounded-full bg-[#0b1a45] text-white hover:bg-[#8bc53d] hover:text-white border border-[#060e28] shadow-sm px-4"
             size="sm"
-            onClick={() => window.open("https://www.prolegacy.com/", "_blank")}
-            title="Prolegacy.com"
+            onClick={() => window.open("https://www.gentyx.com/", "_blank")}
+            title="Gentyx.com"
           >
             <Globe className="size-4 mr-2" />
-            <span className="text-xs font-semibold tracking-wide">PROLEGACY.COM</span>
+            <span className="text-xs font-semibold tracking-wide">GENTYX.COM</span>
           </Button>
 
           <Button
-            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm ml-1 px-4"
+            className="rounded-full bg-[#0b1a45] text-white hover:bg-[#8bc53d] hover:text-white border border-[#060e28] shadow-sm ml-1 px-4"
             size="sm"
             onClick={() => router.push("/inbox")}
             title="Inbox"
@@ -69,7 +69,7 @@ export function TopNav() {
           </Button>
 
           <Button
-            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm ml-1 px-4"
+            className="rounded-full bg-[#0b1a45] text-white hover:bg-[#8bc53d] hover:text-white border border-[#060e28] shadow-sm ml-1 px-4"
             size="sm"
             onClick={() => router.push("/help")}
             title="Help"
@@ -79,7 +79,7 @@ export function TopNav() {
           </Button>
 
           <Button
-            className="rounded-full bg-[#470D1B] text-white hover:bg-[#C5A059] hover:text-white border border-[#5a1f2d] shadow-sm ml-1 px-4"
+            className="rounded-full bg-[#0b1a45] text-white hover:bg-[#8bc53d] hover:text-white border border-[#060e28] shadow-sm ml-1 px-4"
             size="sm"
             onClick={() => router.push(getSettingsPath())}
             title="Profile & Settings"

@@ -94,19 +94,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* LOGO SECTION - Clickable to navigate to dashboard */}
         <Link
           href={getDashboardUrl()}
-          className="h-24 flex flex-col items-center justify-center px-2 border-b border-white/10 bg-[#470D1B] cursor-pointer hover:bg-[#5a1f2d] transition-colors"
+          className="h-24 flex flex-col items-center justify-center px-2 border-b border-gray-200 bg-white cursor-pointer hover:bg-gray-50 transition-colors"
           title="Go to Dashboard"
         >
           {sidebarCollapsed ? (
             <img
-              src="/images/imagepng.png"
+              src="/images/Gentyx_logo_2.png"
               alt="Logo"
               className="w-10 h-10 object-contain"
             />
           ) : (
             <img
-              src="/images/legacy%20client%20portal%20branding%20logo.png"
-              alt="Legacy Client Portal"
+              src="/images/Gentyx_logo_2.png"
+              alt="Gentyx Clienthub"
               className="max-w-[190px] max-h-[93px] w-auto h-auto object-contain"
             />
           )}
