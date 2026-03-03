@@ -11,9 +11,12 @@ import { Toaster } from "@/components/ui/toaster";
 import SessionHandler from "./session-handler";
 
 export const metadata: Metadata = {
-  title: "ClientHub",
+  title: "Gentyx Clienthub",
   description: "Client Onboarding Platform",
   generator: "v0.app",
+  icons: {
+    icon: "/Gentxy_Favicon.ico",
+  },
 };
 
 export default function RootLayout({
